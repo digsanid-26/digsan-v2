@@ -39,7 +39,7 @@ export class PaymentController {
   }
 
   @Post('webhook')
-  @ApiOperation({ summary: 'Payment gateway webhook (Midtrans)' })
+  @ApiOperation({ summary: 'Payment gateway webhook (iPaymu / Midtrans)' })
   async handleWebhook(@Body() dto: PaymentWebhookDto) {
     return this.paymentService.handleWebhook(dto);
   }

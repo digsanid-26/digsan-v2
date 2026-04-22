@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { auth, saveTokens, saveUser } from '@/lib/auth';
@@ -34,10 +35,10 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="text-3xl font-bold text-white">
-            Digsan
+          <Link href="/" className="inline-flex justify-center">
+            <Image src="/logo-white.svg" alt="Digsan" width={140} height={44} priority className="h-11 w-auto" />
           </Link>
-          <p className="text-slate-400 mt-2">Masuk ke akun Anda</p>
+          <p className="text-slate-400 mt-4">Masuk ke akun Anda</p>
         </div>
 
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/10">

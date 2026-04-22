@@ -1,6 +1,7 @@
+import Image from 'next/image';
 import { Trees, MessageCircle, Trophy, Briefcase, Shield, Users, ChevronRight, Star, ArrowRight } from 'lucide-react';
 
-const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000';
+const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || 'https://app.digsan.id';
 
 const features = [
   {
@@ -89,10 +90,7 @@ export default function Landing() {
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-100">
         <div className="flex items-center justify-between px-6 md:px-8 py-4 max-w-7xl mx-auto">
           <a href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
-              <Trees className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">Digsan</span>
+            <Image src="/logo-full.svg" alt="Digsan" width={120} height={36} priority className="h-9 w-auto" />
           </a>
           <div className="hidden md:flex items-center gap-8 text-sm text-gray-600">
             <a href="#fitur" className="hover:text-blue-600 transition-colors">Fitur</a>
@@ -100,10 +98,10 @@ export default function Landing() {
             <a href="#testimoni" className="hover:text-blue-600 transition-colors">Testimoni</a>
           </div>
           <div className="flex items-center gap-3">
-            <a href={`${WEB_URL}/auth/login`} className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+            <a href={`${WEB_URL}/login`} className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
               Masuk
             </a>
-            <a href={`${WEB_URL}/auth/register`} className="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200">
+            <a href={`${WEB_URL}/register`} className="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200">
               Daftar Gratis
             </a>
           </div>
@@ -136,7 +134,7 @@ export default function Landing() {
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <a
-              href={`${WEB_URL}/auth/register`}
+              href={`${WEB_URL}/register`}
               className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 text-white font-semibold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-200 hover:-translate-y-0.5"
             >
               Mulai Gratis <ArrowRight className="w-5 h-5" />
@@ -261,7 +259,7 @@ export default function Landing() {
                 Bergabung dengan ribuan keluarga Indonesia yang sudah menggunakan Digsan.
               </p>
               <a
-                href={`${WEB_URL}/auth/register`}
+                href={`${WEB_URL}/register`}
                 className="inline-flex items-center gap-2 mt-8 px-8 py-4 bg-white text-blue-600 font-semibold rounded-2xl hover:bg-blue-50 transition-all shadow-lg hover:-translate-y-0.5"
               >
                 Daftar Sekarang — Gratis <ChevronRight className="w-5 h-5" />
@@ -277,10 +275,7 @@ export default function Landing() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
             <div className="md:col-span-1">
               <a href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Trees className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-lg font-bold text-gray-900">Digsan</span>
+                <Image src="/logo-full.svg" alt="Digsan" width={100} height={32} className="h-8 w-auto" />
               </a>
               <p className="mt-4 text-sm text-gray-500 leading-relaxed">
                 Platform keluarga Indonesia untuk silsilah digital, jasa profesional, dan gamifikasi.

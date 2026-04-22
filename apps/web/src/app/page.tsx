@@ -1,9 +1,14 @@
+import Image from 'next/image';
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
       <div className="text-center space-y-6">
-        <h1 className="text-5xl font-bold text-white">
-          Digsan <span className="text-blue-400">V2</span>
+        <div className="flex justify-center">
+          <Image src="/logo-white.svg" alt="Digsan" width={200} height={60} priority className="h-16 w-auto" />
+        </div>
+        <h1 className="text-3xl font-bold text-white">
+          Platform Keluarga <span className="text-blue-400">Indonesia</span>
         </h1>
         <p className="text-xl text-slate-300 max-w-md mx-auto">
           Platform Keluarga Indonesia — Rebuilt with NestJS + Next.js + Flutter

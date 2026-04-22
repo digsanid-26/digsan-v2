@@ -1,0 +1,16 @@
+{
+  "name": "Digsan — Platform Keluarga Indonesia",
+  "short_name": "Digsan",
+  "description": "Platform sosial media keluarga Indonesia. Bangun silsilah, jaga koneksi, raih prestasi.",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#2563eb",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/"
+}

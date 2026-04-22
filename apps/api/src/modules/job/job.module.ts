@@ -7,6 +7,7 @@ import { WorkerController } from './worker/worker.controller';
 import { WorkerService } from './worker/worker.service';
 import { PaymentController } from './payment/payment.controller';
 import { PaymentService } from './payment/payment.service';
+import { IpaymuService } from './payment/ipaymu.service';
 import { ReviewController } from './review/review.controller';
 import { ReviewService } from './review/review.service';
 
@@ -23,6 +24,7 @@ import { ReviewService } from './review/review.service';
     OrderService,
     WorkerService,
     PaymentService,
+    IpaymuService,
     ReviewService,
   ],
   exports: [
@@ -30,6 +32,7 @@ import { ReviewService } from './review/review.service';
     OrderService,
     WorkerService,
     PaymentService,
+    IpaymuService,
     ReviewService,
   ],
 })

@@ -245,7 +245,7 @@ apt install -y nginx certbot python3-certbot-nginx
 
 ```bash
 cd /opt
-git clone https://github.com/your-repo/digsan-v2.git
+git clone https://github.com/digsanid-26/digsan-v2.git
 cd digsan-v2
 
 # Install dependencies
@@ -326,10 +326,14 @@ SMTP_USER=digsanid@gmail.com
 SMTP_FROM=Digsan <noreply@digsan.id>
 GOOGLE_REFRESH_TOKEN=your-google-refresh-token
 
-# Midtrans
-MIDTRANS_SERVER_KEY=your-midtrans-server-key
-MIDTRANS_CLIENT_KEY=your-midtrans-client-key
-MIDTRANS_IS_PRODUCTION=true
+# Payment Gateway
+PAYMENT_GATEWAY=ipaymu
+
+# iPaymu
+IPAYMU_VA=your-ipaymu-va-number
+IPAYMU_API_KEY=your-ipaymu-api-key
+IPAYMU_IS_PRODUCTION=true
+IPAYMU_CALLBACK_URL=https://api.digsan.id/api/jobs/payments/webhook
 
 # Cloudinary
 CLOUDINARY_CLOUD_NAME=your-cloud-name

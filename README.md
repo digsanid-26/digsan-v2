@@ -95,3 +95,17 @@ Swagger UI available at: http://localhost:4000/api/docs
 | Landing (Next.js) | 3001 |
 | PostgreSQL | 5432 |
 | Redis | 6379 |
+
+## Documentation
+
+- **[DEMO_GUIDE.md](docs/DEMO_GUIDE.md)** — Panduan menjalankan di localhost (Windows PowerShell)
+- **[DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)** — 3 tier deployment (gratis, medium, premium)
+- **[DEPLOY_IDCLOUDHOST.md](docs/DEPLOY_IDCLOUDHOST.md)** — Step-by-step deployment ke VPS IDCloudHost Jakarta
+
+## Repository
+
+**GitHub**: [https://github.com/digsanid-26/digsan-v2](https://github.com/digsanid-26/digsan-v2)
+
+## License
+
+Private — © 2026 Digsan Indonesia

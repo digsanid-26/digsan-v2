@@ -3,13 +3,25 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../common/database/prisma.service';
 import { CreatePaymentDto, PaymentWebhookDto, UploadPaymentProofDto } from './dto/create-payment.dto';
+import { IpaymuService } from './ipaymu.service';
 
 @Injectable()
 export class PaymentService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(PaymentService.name);
+  private readonly paymentGateway: string;
+
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+    private ipaymuService: IpaymuService,
+  ) {
+    this.paymentGateway = this.configService.get<string>('PAYMENT_GATEWAY') || 'ipaymu';
+  }
 
   // ─── CREATE PAYMENT ─────────────────────────────────────────
 
@@ -27,19 +39,51 @@ export class PaymentService {
       throw new BadRequestException('Order sudah dibatalkan');
     }
 
+    // Get customer details
+    const customer = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true, phone: true },
+    });
+
+    let paymentData: any = {
+      orderId: dto.orderId,
+      amount: order.totalPrice,
+      method: dto.method as any,
+      status: 'PENDING',
+    };
+
+    // Integrate with payment gateway
+    if (this.paymentGateway === 'ipaymu') {
+      try {
+        const callbackUrl = this.configService.get<string>('IPAYMU_CALLBACK_URL') || '';
+        const ipaymuResponse = await this.ipaymuService.createDirectPayment({
+          orderNumber: order.orderNumber,
+          customerName: customer?.name || 'Customer',
+          customerEmail: customer?.email || 'customer@example.com',
+          customerPhone: customer?.phone || '08123456789',
+          amount: order.totalPrice,
+          productName: `Order ${order.orderNumber}`,
+          notifyUrl: callbackUrl,
+        });
+
+        paymentData = {
+          ...paymentData,
+          transactionId: ipaymuResponse.Data.TransactionId,
+          snapToken: ipaymuResponse.Data.SessionID,
+          snapUrl: ipaymuResponse.Data.PaymentNo,
+          metadata: ipaymuResponse.Data as any,
+        };
+
+        this.logger.log(`iPaymu payment created: ${ipaymuResponse.Data.TransactionId}`);
+      } catch (error) {
+        this.logger.error('Failed to create iPaymu payment:', error);
+        throw new BadRequestException('Gagal membuat pembayaran. Silakan coba lagi.');
+      }
+    }
+
     // Create payment record
     const payment = await this.prisma.jobPayment.create({
-      data: {
-        orderId: dto.orderId,
-        amount: order.totalPrice,
-        method: dto.method as any,
-        status: 'PENDING',
-        // In production, integrate with Midtrans here:
-        // const snap = await midtrans.createTransaction(...)
-        // transactionId: snap.transaction_id,
-        // snapToken: snap.token,
-        // snapUrl: snap.redirect_url,
-      },
+      data: paymentData,
       include: {
         order: {
           select: { id: true, orderNumber: true, totalPrice: true, status: true },
@@ -93,7 +137,7 @@ export class PaymentService {
     });
   }
 
-  // ─── WEBHOOK (Midtrans) ─────────────────────────────────────
+  // ─── WEBHOOK (iPaymu / Midtrans) ────────────────────────────
 
   async handleWebhook(dto: PaymentWebhookDto) {
     // Find payment by transaction ID
@@ -109,14 +153,28 @@ export class PaymentService {
 
     if (!payment) {
       // Log but don't throw — webhook may retry
+      this.logger.warn(`Payment not found for transaction: ${dto.transactionId}`);
       return { message: 'Payment not found, ignoring webhook' };
     }
 
     const status = dto.transactionStatus;
     const now = new Date();
 
-    if (status === 'capture' || status === 'settlement') {
-      // Payment success
+    // Map status based on payment gateway
+    let internalStatus: 'PAID' | 'FAILED' | 'EXPIRED' | 'REFUNDED' | 'PENDING' = 'PENDING';
+
+    if (this.paymentGateway === 'ipaymu') {
+      internalStatus = this.ipaymuService.mapStatus(status);
+    } else {
+      // Midtrans mapping
+      if (status === 'capture' || status === 'settlement') internalStatus = 'PAID';
+      else if (status === 'deny' || status === 'cancel' || status === 'failure') internalStatus = 'FAILED';
+      else if (status === 'expire') internalStatus = 'EXPIRED';
+      else if (status === 'refund' || status === 'partial_refund') internalStatus = 'REFUNDED';
+    }
+
+    // Update payment based on status
+    if (internalStatus === 'PAID') {
       await this.prisma.$transaction([
         this.prisma.jobPayment.update({
           where: { id: payment.id },
@@ -134,10 +192,11 @@ export class PaymentService {
           },
         }),
       ]);
+      this.logger.log(`Payment ${payment.id} marked as PAID`);
       return { message: 'Payment marked as PAID' };
     }
 
-    if (status === 'deny' || status === 'cancel' || status === 'failure') {
+    if (internalStatus === 'FAILED') {
       await this.prisma.jobPayment.update({
         where: { id: payment.id },
         data: {
@@ -145,10 +204,11 @@ export class PaymentService {
           metadata: dto as any,
         },
       });
+      this.logger.log(`Payment ${payment.id} marked as FAILED`);
       return { message: 'Payment marked as FAILED' };
     }
 
-    if (status === 'expire') {
+    if (internalStatus === 'EXPIRED') {
       await this.prisma.$transaction([
         this.prisma.jobPayment.update({
           where: { id: payment.id },
@@ -159,10 +219,11 @@ export class PaymentService {
           data: { paymentStatus: 'EXPIRED' },
         }),
       ]);
+      this.logger.log(`Payment ${payment.id} marked as EXPIRED`);
       return { message: 'Payment marked as EXPIRED' };
     }
 
-    if (status === 'refund' || status === 'partial_refund') {
+    if (internalStatus === 'REFUNDED') {
       await this.prisma.$transaction([
         this.prisma.jobPayment.update({
           where: { id: payment.id },
@@ -173,9 +234,11 @@ export class PaymentService {
           data: { paymentStatus: 'REFUNDED', status: 'REFUNDED' },
         }),
       ]);
+      this.logger.log(`Payment ${payment.id} marked as REFUNDED`);
       return { message: 'Payment marked as REFUNDED' };
     }
 
+    this.logger.warn(`Unhandled payment status: ${status}`);
     return { message: `Unhandled status: ${status}` };
   }
 

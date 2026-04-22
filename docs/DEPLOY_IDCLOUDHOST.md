@@ -111,7 +111,7 @@ A       api               203.xxx.xxx.xxx
 
 ```bash
 # SSH ke server
-ssh root@203.xxx.xxx.xxx
+ssh root@103.191.92.37
 
 # 1. Update system
 apt update && apt upgrade -y
@@ -166,7 +166,7 @@ su - digsan  # atau skip jika pakai root
 
 # Clone repo
 cd ~
-git clone https://github.com/your-username/digsan-v2.git
+git clone https://github.com/digsanid-26/digsan-v2.git
 cd digsan-v2
 
 # Install dependencies
@@ -255,7 +255,7 @@ REDIS_PASSWORD=RedisPass456!
 # JWT (GANTI DENGAN STRING RANDOM 32+ KARAKTER!)
 # Generate: openssl rand -base64 32
 # ═══════════════════════════════════════════════════════════
-JWT_SECRET="your-super-secret-jwt-key-change-this-immediately"
+JWT_SECRET="IcceuW6mQ6wx5KIMP3V4xI2OoRay6TBNhK7dDsWaOxY="
 JWT_ACCESS_EXPIRATION=15m
 JWT_REFRESH_EXPIRATION=30d
 
@@ -278,7 +278,7 @@ LANDING_URL=https://digsan.id
 GOOGLE_CLIENT_ID="your-google-client-id.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 GOOGLE_CALLBACK_URL=https://api.digsan.id/api/auth/google/callback
-GOOGLE_REFRESH_TOKEN="your-google-refresh-token-for-smtp"
+GOOGLE_REFRESH_TOKEN="your-google-refresh-token"
 
 # ═══════════════════════════════════════════════════════════
 # SMTP / EMAIL
@@ -289,29 +289,31 @@ SMTP_FROM="Digsan <noreply@digsan.id>"
 # ═══════════════════════════════════════════════════════════
 # FONNTE WHATSAPP (Opsional)
 # ═══════════════════════════════════════════════════════════
-FONNTE_API_KEY="your-fonnte-api-key"
-FONNTE_SENDER="628xxxxxxxxxx"
+FONNTE_API_KEY="7cpwWzJS1HKeMmMMaehH"
+FONNTE_SENDER="6285876832016"
 
 # ═══════════════════════════════════════════════════════════
-# MIDTRANS PAYMENT (Isi untuk production payment)
+# IPAYMU PAYMENT (Isi untuk production payment)
+# Daftar di: https://ipaymu.com
 # ═══════════════════════════════════════════════════════════
-MIDTRANS_SERVER_KEY="Mid-server-xxxxxxxx"
-MIDTRANS_CLIENT_KEY="Mid-client-xxxxxxxx"
-MIDTRANS_IS_PRODUCTION=true
+IPAYMU_VA="your-ipaymu-va-number"
+IPAYMU_API_KEY="your-ipaymu-api-key"
+IPAYMU_IS_PRODUCTION=true
+IPAYMU_CALLBACK_URL=https://api.digsan.id/api/payment/ipaymu/callback
 
 # ═══════════════════════════════════════════════════════════
 # CLOUDINARY (Untuk upload gambar)
 # ═══════════════════════════════════════════════════════════
-CLOUDINARY_CLOUD_NAME="your-cloud-name"
-CLOUDINARY_API_KEY="your-api-key"
-CLOUDINARY_API_SECRET="your-api-secret"
+CLOUDINARY_CLOUD_NAME="dp1d7xgvz"
+CLOUDINARY_API_KEY="466171199784419"
+CLOUDINARY_API_SECRET="uzzYn8tGwTec8m4JZ9Hw6qp4sLA"
 
 # ═══════════════════════════════════════════════════════════
 # FIREBASE FCM (Untuk push notification)
 # ═══════════════════════════════════════════════════════════
-FIREBASE_PROJECT_ID="your-firebase-project"
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nxxx\n-----END PRIVATE KEY-----"
-FIREBASE_CLIENT_EMAIL="firebase-adminsdk@your-project.iam.gserviceaccount.com"
+FIREBASE_PROJECT_ID="digsanid-6dbf6"
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC3e3CEMEHpM8ZA\nDESqvoyk6ir0ULg5feIJZqfIqkcP9qS06qU1i3cK1OafmMtZiPVb4raLt+bMzZpb\nRugHA/niMYl/Kx9F1ae+bWehhy2ufBXs1FEIn0oi57voa8XRe2yZp7j1Em/X7JrA\n/zf8cu3UvB9X5wSkEO6DAjlDbqzcmXy6RA+ICcUX/ycyMmkdLkNm3IKU8c4TR9vE\ndZdDXETp29RhXJoKaRXVrQWXzCA2Yli30MoY+A2URYzrbm4ysDFHLzloAZy+Ytzq\n7DvoSfGbdh5GuEJrHsrl+YckQoXkQdSPO8YhKSeAkdPmNxu1cO4nuplmzOc0GisV\n89M4Iom9AgMBAAECgf8otFTwWPBLgj8iVgME0R9s0RHk+rMpxY564e9rsBekjh6u\newz38bvqGSU01ikLMVMy+9vypFxAlGkkxzpnTEWBu26yBFdCW9yjNQmljzx4AMld\nsqUbiRle+lTdls0USHgBrgka4OOkCcsz3EkkBHT/TvBu1unsIV6FLffRLbNXlLH1\n3SliQ26AsvI555iOW6ad+ULSXzn9kMTA6rMcpTYG6dPeU5+pIgaWzuWw91VUhrXh\nI0iLr8SFOFke8pVC3ZD0r02p9jUAsm1far7t9kis3F/X1+XdKtDDwJZ14G3enFf2\nVIkwybKEIdGHPwSeKJXa0LD4Per6JlogVKCgfPMCgYEA7Mi26n6uZhoJ+qUdzARX\nPxtYknLwMrp2zmwvER5AkyOUlUfV4FHnLb+ZphgQMKXrWpMZijQdjuMl4Lxdy63K\nXeMsGo7Z3jkh2ZTP8pwxO0V3H+Atv1dilyx+c5GGMAf1IX17+B5SZ0kniDKCoRQd\nCDejSIz2LR5Sybx55KOofMsCgYEAxl9ba61bbcBJ15XVphtkdeTlQ6vpwiUY2S9C\nLoEes2km9br30LPvnc2EzseswQnqWGbrVP2B6bDiBh6GR3izG5EMrMS+92PVgrEr\ncAH9nX6ShO/WmeMnza1Qdtn4dMgnfuFc2c0QWjjGpnliSnqx+8dPhYtNdK/e2PfI\n/d2DCpcCgYEAiIF2Il4CAM7GLf9+3B0shy8mstccbsJct8haog3EwI7km+McBARz\nuEYbOEvrGYCt3Dutn6VH3RZKwfMWR9PbNKFAzdbI93oMb7mA4Kb3Iup7MJ83AHZK\nWkjGZa3hpFMSGMqU64ffjbf42GX2NRK5YgFhWvQZAA3ZQIAt7YgEHF0CgYADMX/I\nQPcq0iCeLtRMoz4/w5qJN1hA/tXikScwlnWHD9dHt2XL30mpMajEp2Q5i05Rc/6v\n1JDl0SoiTRV+SwwfEnuwwE4Or3W9b9qyJ+YMRgBX0YCT45s9bV/ROfsM7jfsi/Yx\nr2JnAWj5PxT8+/KnifLWxIJPsZEVzw9WPt2gKwKBgQDhHvyDvLdXtQEcKubRRFN+\nRnxlyV+HYUOUlr7n4kSTTcXN6L9k9SmUL/dDNKlY0NC0p1Ni5vVcnV/zLc+PQcQl\nWTljsOJ/f2/0hek0kaZ5CJ43IwRT+tg4Vv0eNaHqr1ixLTVl5zBOOkXYXqzhJFiO\nZgiFGqtX1dHsseTYe0Xk9Q==\n-----END PRIVATE KEY-----\n-----END PRIVATE KEY-----"
+FIREBASE_CLIENT_EMAIL="firebase-adminsdk-fbsvc@digsanid-6dbf6.iam.gserviceaccount.com"
 EOF
 
 # Set permissions (hanya owner bisa baca)
@@ -379,17 +381,17 @@ module.exports = {
   apps: [
     {
       name: 'digsan-api',
-      cwd: '/home/digsan/digsan-v2/apps/api',  # Sesuaikan path!
+      cwd: '/home/digsanid/digsan-v2/apps/api',
       script: 'dist/main.js',
       instances: 1,
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
       },
-      env_file: '/home/digsan/digsan-v2/.env',
+      env_file: '/home/digsanid/digsan-v2/.env',
       max_memory_restart: '500M',
-      error_file: '/home/digsan/digsan-v2/logs/api-error.log',
-      out_file: '/home/digsan/digsan-v2/logs/api-out.log',
+      error_file: '/home/digsanid/digsan-v2/logs/api-error.log',
+      out_file: '/home/digsanid/digsan-v2/logs/api-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       autorestart: true,
@@ -397,8 +399,8 @@ module.exports = {
     },
     {
       name: 'digsan-web',
-      cwd: '/home/digsan/digsan-v2/apps/web',
-      script: 'node_modules/.bin/next',
+      cwd: '/home/digsanid/digsan-v2/apps/web',
+      script: 'node_modules/next/dist/bin/next',
       args: 'start -p 3000',
       instances: 1,
       exec_mode: 'fork',
@@ -406,27 +408,28 @@ module.exports = {
         NODE_ENV: 'production',
         NEXT_PUBLIC_API_URL: 'https://api.digsan.id/api',
       },
-      env_file: '/home/digsan/digsan-v2/.env',
+      env_file: '/home/digsanid/digsan-v2/.env',
       max_memory_restart: '400M',
-      error_file: '/home/digsan/digsan-v2/logs/web-error.log',
-      out_file: '/home/digsan/digsan-v2/logs/web-out.log',
+      error_file: '/home/digsanid/digsan-v2/logs/web-error.log',
+      out_file: '/home/digsanid/digsan-v2/logs/web-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       autorestart: true,
       watch: false,
     },
     {
       name: 'digsan-landing',
-      cwd: '/home/digsan/digsan-v2/apps/landing',
-      script: 'node_modules/.bin/next',
+      cwd: '/home/digsanid/digsan-v2/apps/landing',
+      script: 'node_modules/next/dist/bin/next',
       args: 'start -p 3001',
       instances: 1,
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
+        NEXT_PUBLIC_WEB_URL: 'https://app.digsan.id',
       },
       max_memory_restart: '300M',
-      error_file: '/home/digsan/digsan-v2/logs/landing-error.log',
-      out_file: '/home/digsan/digsan-v2/logs/landing-out.log',
+      error_file: '/home/digsanid/digsan-v2/logs/landing-error.log',
+      out_file: '/home/digsanid/digsan-v2/logs/landing-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       autorestart: true,
       watch: false,
@@ -569,23 +572,25 @@ server {
     # Increase max body size untuk upload file
     client_max_body_size 10M;
 
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-
-    # CORS headers (backup jika API CORS belum configured)
-    add_header 'Access-Control-Allow-Origin' 'https://app.digsan.id' always;
-    add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
-    add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
-
-    # Handle preflight
-    if ($request_method = 'OPTIONS') {
-        add_header 'Access-Control-Max-Age' 1728000;
-        add_header 'Content-Type' 'text/plain; charset=utf-8';
-        add_header 'Content-Length' 0;
-        return 204;
-    }
-
     location / {
+        # CORS & Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header 'Access-Control-Allow-Origin' 'https://app.digsan.id' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+
+        # Handle preflight (OPTIONS)
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' 'https://app.digsan.id';
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
+
         proxy_pass http://127.0.0.1:4000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -695,8 +700,8 @@ cat > deploy.sh << 'EOF'
 #!/bin/bash
 set -e
 
-PROJECT_DIR="/home/digsan/digsan-v2"
-LOG_FILE="/home/digsan/digsan-v2/logs/deploy-$(date +%Y%m%d-%H%M%S).log"
+PROJECT_DIR="/home/digsanid/digsan-v2"
+LOG_FILE="/home/digsanid/digsan-v2/logs/deploy-$(date +%Y%m%d-%H%M%S).log"
 
 exec > >(tee -a "$LOG_FILE")
 exec 2>&1
@@ -779,7 +784,7 @@ pm2 flush
 
 ```bash
 cat > /etc/logrotate.d/digsan << 'EOF'
-/home/digsan/digsan-v2/logs/*.log {
+/home/digsanid/digsan-v2/logs/*.log {
     daily
     missingok
     rotate 14
