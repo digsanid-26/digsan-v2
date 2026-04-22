@@ -1,0 +1,70 @@
+﻿node.exe : [31m[Nest] 11708  - [39m02/04/2026, 11.59.33 [31m  ERROR[39m [38;5;3m[EmailService] [39m[31mFailed to init email transporter: Error: Unexpected Gaxios Error[39m
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31m[Nest] 117...xios Error[39m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+PASS test/job.e2e-spec.ts (410.613 s)
+  Job Module (e2e)
+    Catalog
+      ΓêÜ GET /api/jobs/catalog/categories ΓÇö should list categories (366 ms)
+      ΓêÜ GET /api/jobs/catalog/categories/:slug ΓÇö should get category by slug (111 ms)
+      ΓêÜ GET /api/jobs/catalog/categories/:slug ΓÇö 404 for unknown slug (59 ms)
+      ΓêÜ GET /api/jobs/catalog/services ΓÇö should list services (991 ms)
+      ΓêÜ GET /api/jobs/catalog/services?categoryId=X ΓÇö should filter by category (76 ms)
+      ΓêÜ GET /api/jobs/catalog/services/:slug ΓÇö should get service by slug (75 ms)
+      ΓêÜ GET /api/jobs/catalog/services/:slug ΓÇö 404 for unknown slug (63 ms)
+    Worker
+      ΓêÜ POST /api/jobs/workers/register ΓÇö should register as worker (349 ms)
+      ΓêÜ POST /api/jobs/workers/register ΓÇö should reject duplicate registration (57 ms)
+      ΓêÜ POST /api/jobs/workers/register ΓÇö should require auth (26 ms)
+      ΓêÜ GET /api/jobs/workers/me ΓÇö should get own worker profile (94 ms)
+      ΓêÜ GET /api/jobs/workers/me ΓÇö 404 for non-worker user (54 ms)
+      ΓêÜ PUT /api/jobs/workers/me ΓÇö should update profile (93 ms)
+      ΓêÜ GET /api/jobs/workers/profile/:id ΓÇö should get profile by ID (public) (71 ms)
+      ΓêÜ GET /api/jobs/workers/profile/:id ΓÇö 404 for unknown ID (37 ms)
+      ΓêÜ POST /api/jobs/workers/me/skills ΓÇö should add a skill (90 ms)
+      ΓêÜ POST /api/jobs/workers/me/skills ΓÇö should reject duplicate skill (55 ms)
+      ΓêÜ DELETE /api/jobs/workers/me/skills/:id ΓÇö should remove a skill (62 ms)
+      ΓêÜ PUT /api/jobs/workers/me/schedule ΓÇö should replace schedule (87 ms)
+      ΓêÜ PUT /api/jobs/workers/me/areas ΓÇö should replace service areas (65 ms)
+      ΓêÜ GET /api/jobs/workers ΓÇö should search workers (public) (69 ms)
+      ΓêÜ GET /api/jobs/workers?subCategoryId=X ΓÇö should filter by skill (57 ms)
+    Orders
+      ΓêÜ POST /api/jobs/orders ΓÇö should create order (159 ms)
+      ΓêÜ POST /api/jobs/orders ΓÇö should create order without provider (PENDING) (99 ms)
+      ΓêÜ POST /api/jobs/orders ΓÇö should require auth (20 ms)
+      ΓêÜ POST /api/jobs/orders ΓÇö should reject invalid service ID (48 ms)
+      ΓêÜ GET /api/jobs/orders ΓÇö should list customer orders (95 ms)
+      ΓêÜ GET /api/jobs/orders ΓÇö should list provider orders (102 ms)
+      ΓêÜ GET /api/jobs/orders/:id ΓÇö should get order detail (104 ms)
+      ΓêÜ GET /api/jobs/orders/:id ΓÇö 403 for unauthorized user (3754 ms)
+      ΓêÜ GET /api/jobs/orders/by-number/:orderNumber ΓÇö should find by order number (111 ms)
+      ΓêÜ PUT /api/jobs/orders/:id/status ΓÇö provider confirms order (80 ms)
+      ΓêÜ PUT /api/jobs/orders/:id/status ΓÇö customer cannot confirm (123 ms)
+      ΓêÜ PUT /api/jobs/orders/:id/status ΓÇö provider starts work (56 ms)
+      ΓêÜ PUT /api/jobs/orders/:id/status ΓÇö provider completes work (54 ms)
+      ΓêÜ PUT /api/jobs/orders/:id/status ΓÇö cancel order (123 ms)
+    Payment
+      ΓêÜ POST /api/jobs/payments ΓÇö should create payment (82 ms)
+      ΓêÜ POST /api/jobs/payments ΓÇö should reject duplicate payment (69 ms)
+      ΓêÜ GET /api/jobs/payments/order/:orderId ΓÇö should get payment (54 ms)
+      ΓêÜ PUT /api/jobs/payments/:id/proof ΓÇö should upload payment proof (62 ms)
+      ΓêÜ PUT /api/jobs/payments/:id/confirm ΓÇö admin confirms payment (84 ms)
+      ΓêÜ POST /api/jobs/payments/webhook ΓÇö should handle payment webhook (46 ms)
+    Review
+      ΓêÜ POST /api/jobs/reviews ΓÇö should create review for completed order (130 ms)
+      ΓêÜ POST /api/jobs/reviews ΓÇö should reject duplicate review (44 ms)
+      ΓêÜ POST /api/jobs/reviews ΓÇö should require auth (21 ms)
+      ΓêÜ GET /api/jobs/reviews/provider/:providerId ΓÇö should list provider reviews (51 ms)
+      ΓêÜ GET /api/jobs/reviews/order/:orderId ΓÇö should get review for order (24 ms)
+      ΓêÜ GET /api/jobs/reviews/order/:orderId ΓÇö 404 for order without review (50 ms)
+      ΓêÜ Worker rating should be updated after review (10 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       49 passed, 49 total
+Snapshots:   0 total
+Time:        411.843 s
+Ran all test suites matching /job.e2e-spec/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

@@ -1,0 +1,32 @@
+{
+  "name": "digsan-v2",
+  "version": "2.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "clean": "turbo clean && rm -rf node_modules",
+    "dev:api": "turbo dev --filter=@digsan/api",
+    "dev:web": "turbo dev --filter=@digsan/web",
+    "dev:landing": "turbo dev --filter=@digsan/landing",
+    "build:api": "turbo build --filter=@digsan/api",
+    "build:web": "turbo build --filter=@digsan/web",
+    "build:landing": "turbo build --filter=@digsan/landing",
+    "db:generate": "turbo db:generate",
+    "db:push": "turbo db:push",
+    "db:migrate": "turbo db:migrate",
+    "db:studio": "turbo db:studio",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4",
+    "prettier": "^3.5.0",
+    "@types/node": "^22.15.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

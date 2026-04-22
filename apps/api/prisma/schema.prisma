@@ -1,0 +1,849 @@
+// ================================================================
+// DIGSAN V2 — Unified Prisma Schema
+// Merged from: digsan-ecosystem + medja/panggilaja
+// ================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ================================================================
+// AUTH & USERS
+// ================================================================
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  phone         String?    @unique
+  isWhatsapp    Boolean    @default(false) @map("is_whatsapp")
+  passwordHash  String?    @map("password_hash")
+  name          String
+  avatar        String?
+  bio           String?
+  googleId      String?    @unique @map("google_id")
+  provider      String     @default("credentials")
+  emailVerified DateTime?  @map("email_verified")
+  phoneVerified DateTime?  @map("phone_verified")
+  status        UserStatus @default(PENDING)
+  lastLoginAt   DateTime?  @map("last_login_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  // Auth relations
+  sessions           Session[]
+  refreshTokens      RefreshToken[]
+  verificationTokens VerificationToken[]
+  loginHistory       LoginHistory[]
+
+  // Role relations
+  userRoles UserRole[]
+
+  // Digsan feature relations
+  familyTrees   FamilyTree[]
+  familyMembers FamilyMember[]
+  points        Point[]
+  badges        UserBadge[]
+  notifications Notification[]
+
+  // Job/Medja relations
+  jobWorkerProfile JobWorkerProfile?
+  customerOrders   JobOrder[]         @relation("CustomerOrders")
+  providerOrders   JobOrder[]         @relation("ProviderOrders")
+  jobReviews       JobReview[]
+  addresses        Address[]
+  deviceTokens     DeviceToken[]
+
+  // Chat relations
+  chatMembers  ChatMember[]
+  chatMessages ChatMessage[]
+
+  @@map("users")
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DORMANT
+  INACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+// ================================================================
+// SESSIONS & TOKENS
+// ================================================================
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  refreshToken String   @unique @map("refresh_token")
+  tokenVersion Int      @default(0) @map("token_version")
+  device       String?
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  isActive     Boolean  @default(true) @map("is_active")
+  expiresAt    DateTime @map("expires_at")
+  lastActivityAt DateTime @default(now()) @map("last_activity_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model VerificationToken {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  token     String           @unique
+  type      VerificationType
+  expiresAt DateTime         @map("expires_at")
+  used      Boolean          @default(false)
+  attempts  Int              @default(0)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([expiresAt])
+  @@map("verification_tokens")
+}
+
+enum VerificationType {
+  EMAIL
+  WHATSAPP
+  PHONE
+  PASSWORD_RESET
+  WORKER_REGISTRATION
+  LOGIN
+}
+
+model LoginHistory {
+  id         String      @id @default(cuid())
+  userId     String?     @map("user_id")
+  identifier String
+  status     LoginStatus
+  reason     String?
+  device     String?
+  ipAddress  String?     @map("ip_address")
+  userAgent  String?     @map("user_agent")
+  timestamp  DateTime    @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([identifier])
+  @@index([timestamp])
+  @@map("login_history")
+}
+
+enum LoginStatus {
+  SUCCESS
+  FAILED
+  BLOCKED
+}
+
+// ================================================================
+// ROLES & PERMISSIONS (RBAC)
+// ================================================================
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  permissions Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+// ================================================================
+// FAMILY TREE
+// ================================================================
+
+model FamilyTree {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  name        String
+  description String?
+  isPublic    Boolean  @default(false) @map("is_public")
+  coverImage  String?  @map("cover_image")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members FamilyMember[]
+  cardStyle CardStyle?
+  hubConnections FamilyHubConnection[] @relation("SourceTree")
+  hubTargets     FamilyHubConnection[] @relation("TargetTree")
+  invitations    TreeInvitation[]
+
+  @@map("family_trees")
+}
+
+model CardStyle {
+  id              String  @id @default(cuid())
+  treeId          String  @unique @map("tree_id")
+  backgroundColor String? @map("background_color")
+  textColor       String? @map("text_color")
+  borderColor     String? @map("border_color")
+  borderRadius    Int?    @map("border_radius")
+  fontFamily      String? @map("font_family")
+
+  tree FamilyTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
+  @@map("card_styles")
+}
+
+model FamilyMember {
+  id           String    @id @default(cuid())
+  treeId       String    @map("tree_id")
+  userId       String?   @map("user_id")
+  name         String
+  gender       String?
+  birthDate    DateTime? @map("birth_date")
+  birthPlace   String?   @map("birth_place")
+  deathDate    DateTime? @map("death_date")
+  photo        String?
+  phone        String?
+  email        String?
+  isWhatsapp   Boolean   @default(false) @map("is_whatsapp")
+  isCreator    Boolean   @default(false) @map("is_creator")
+  familyRole   String?   @map("family_role")
+  childOrder   Int?      @map("child_order")
+  accountStatus String?  @map("account_status")
+  inviteToken  String?   @map("invite_token")
+  parentId     String?   @map("parent_id")
+  spouseId     String?   @map("spouse_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  tree     FamilyTree    @relation(fields: [treeId], references: [id], onDelete: Cascade)
+  user     User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  parent   FamilyMember? @relation("ParentChild", fields: [parentId], references: [id])
+  children FamilyMember[] @relation("ParentChild")
+  spouse   FamilyMember? @relation("Spouse", fields: [spouseId], references: [id])
+  spouseOf FamilyMember[] @relation("Spouse")
+
+  @@map("family_members")
+}
+
+model FamilyHubConnection {
+  id           String           @id @default(cuid())
+  sourceTreeId String           @map("source_tree_id")
+  targetTreeId String           @map("target_tree_id")
+  type         HubConnectionType
+  status       ConnectionStatus @default(PENDING)
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  sourceTree FamilyTree @relation("SourceTree", fields: [sourceTreeId], references: [id], onDelete: Cascade)
+  targetTree FamilyTree @relation("TargetTree", fields: [targetTreeId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceTreeId, targetTreeId])
+  @@map("family_hub_connections")
+}
+
+enum HubConnectionType {
+  MARRIAGE
+  SIBLING
+  PARENT_CHILD
+  EXTENDED
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model TreeInvitation {
+  id        String           @id @default(cuid())
+  treeId    String           @map("tree_id")
+  email     String?
+  phone     String?
+  token     String           @unique
+  status    InvitationStatus @default(PENDING)
+  expiresAt DateTime         @map("expires_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  tree FamilyTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
+  @@map("tree_invitations")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+// ================================================================
+// GAMIFICATION
+// ================================================================
+
+model Point {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  amount    Int
+  type      String
+  reason    String?
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("points")
+}
+
+model Badge {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  icon        String?
+  category    String?
+  tier        String?
+  maxTreeLimit Int?   @map("max_tree_limit")
+
+  requirements BadgeRequirement[]
+  userBadges   UserBadge[]
+
+  @@map("badges")
+}
+
+model BadgeRequirement {
+  id       String @id @default(cuid())
+  badgeId  String @map("badge_id")
+  type     String
+  value    Int
+  metadata Json?
+
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@map("badge_requirements")
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  badgeId   String   @map("badge_id")
+  earnedAt  DateTime @default(now()) @map("earned_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+// ================================================================
+// NOTIFICATIONS (unified: digsan + medja)
+// ================================================================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  // Digsan
+  TREE_INVITATION
+  MEMBER_ADDED
+  BADGE_EARNED
+  POINT_RECEIVED
+  SYSTEM
+  // Job/Medja
+  ORDER_CREATED
+  ORDER_CONFIRMED
+  ORDER_COMPLETED
+  ORDER_CANCELLED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  REVIEW_RECEIVED
+}
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String
+  platform  String   @default("android")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("device_tokens")
+}
+
+// ================================================================
+// CHAT (family & job messaging)
+// ================================================================
+
+model ChatRoom {
+  id        String       @id @default(cuid())
+  name      String?
+  type      ChatRoomType @default(DIRECT)
+  avatar    String?
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  members  ChatMember[]
+  messages ChatMessage[]
+
+  @@map("chat_rooms")
+}
+
+enum ChatRoomType {
+  DIRECT
+  GROUP
+  FAMILY
+  ORDER
+}
+
+model ChatMember {
+  id        String    @id @default(cuid())
+  roomId    String    @map("room_id")
+  userId    String    @map("user_id")
+  role      String    @default("member")
+  joinedAt  DateTime  @default(now()) @map("joined_at")
+  lastRead  DateTime? @map("last_read")
+  isMuted   Boolean   @default(false) @map("is_muted")
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@map("chat_members")
+}
+
+model ChatMessage {
+  id        String          @id @default(cuid())
+  roomId    String          @map("room_id")
+  senderId  String          @map("sender_id")
+  content   String          @db.Text
+  type      ChatMessageType @default(TEXT)
+  metadata  Json?
+  isEdited  Boolean         @default(false) @map("is_edited")
+  deletedAt DateTime?       @map("deleted_at")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@map("chat_messages")
+}
+
+enum ChatMessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+// ================================================================
+// ADDRESS (shared: used by job orders + potentially tree)
+// ================================================================
+
+model Address {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  label       String
+  fullAddress String   @map("full_address")
+  street      String?
+  city        String?
+  province    String?
+  postalCode  String?  @map("postal_code")
+  latitude    Decimal? @db.Decimal(10, 8)
+  longitude   Decimal? @db.Decimal(11, 8)
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobOrders JobOrder[]
+
+  @@map("addresses")
+}
+
+// ================================================================
+// JOB MODULE (ex-Medja/PanggilAja)
+// ================================================================
+
+// --- Catalog: 3-Level Hierarchy ---
+
+model JobCategory {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  icon        String?
+  image       String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  subCategories JobSubCategory[]
+
+  @@map("job_categories")
+}
+
+model JobSubCategory {
+  id          String   @id @default(cuid())
+  categoryId  String   @map("category_id")
+  name        String
+  slug        String   @unique
+  description String?
+  icon        String?
+  image       String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  category JobCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  services JobService[]
+  workerSkills JobWorkerSkill[]
+  orders   JobOrder[]
+
+  @@index([categoryId])
+  @@map("job_sub_categories")
+}
+
+model JobService {
+  id          String   @id @default(cuid())
+  subCategoryId String @map("sub_category_id")
+  name        String
+  slug        String   @unique
+  description String?
+  icon        String?
+  image       String?
+  basePrice   Decimal  @db.Decimal(10, 2) @map("base_price")
+  priceUnit   String   @map("price_unit")
+  duration    Int?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true) @map("is_active")
+  isFeatured  Boolean  @default(false) @map("is_featured")
+  viewCount   Int      @default(0) @map("view_count")
+  orderCount  Int      @default(0) @map("order_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  subCategory JobSubCategory @relation(fields: [subCategoryId], references: [id], onDelete: Cascade)
+  orders      JobOrder[]
+
+  @@index([subCategoryId])
+  @@index([isFeatured])
+  @@map("job_services")
+}
+
+// --- Worker/Provider ---
+
+model JobWorkerProfile {
+  id              String        @id @default(cuid())
+  userId          String        @unique @map("user_id")
+  gender          String?
+  age             Int?
+  whatsappNumber  String?       @map("whatsapp_number")
+  idCardPhoto     String?       @map("id_card_photo")
+  profilePhoto    String?       @map("profile_photo")
+  bio             String?
+  intro           String?
+  location        String?
+  fullAddress     String?       @map("full_address")
+  providerStatus  WorkerStatus  @default(PENDING) @map("provider_status")
+  rating          Decimal?      @db.Decimal(3, 2)
+  totalJobs       Int           @default(0) @map("total_jobs")
+  totalReviews    Int           @default(0) @map("total_reviews")
+  bankName        String?       @map("bank_name")
+  bankAccount     String?       @map("bank_account")
+  bankAccountName String?       @map("bank_account_name")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills        JobWorkerSkill[]
+  workSchedules JobWorkSchedule[]
+  serviceAreas  JobServiceArea[]
+
+  @@map("job_worker_profiles")
+}
+
+enum WorkerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model JobWorkerSkill {
+  id                  String      @id @default(cuid())
+  profileId           String      @map("profile_id")
+  subCategoryId       String      @map("sub_category_id")
+  pricingType         JobPricingType @map("pricing_type")
+  rate                Decimal     @db.Decimal(10, 2)
+  canProvideEquipment Boolean     @default(false) @map("can_provide_equipment")
+  equipmentList       String?     @map("equipment_list")
+  isActive            Boolean     @default(true) @map("is_active")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  profile     JobWorkerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  subCategory JobSubCategory   @relation(fields: [subCategoryId], references: [id])
+
+  @@map("job_worker_skills")
+}
+
+enum JobPricingType {
+  PER_JAM
+  PER_PROJECT
+}
+
+model JobWorkSchedule {
+  id        String   @id @default(cuid())
+  profileId String   @map("profile_id")
+  dayOfWeek String   @map("day_of_week")
+  startTime String   @map("start_time")
+  endTime   String   @map("end_time")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  profile JobWorkerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("job_work_schedules")
+}
+
+model JobServiceArea {
+  id        String   @id @default(cuid())
+  profileId String   @map("profile_id")
+  areaName  String   @map("area_name")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  profile JobWorkerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("job_service_areas")
+}
+
+// --- Orders ---
+
+model JobOrder {
+  id              String         @id @default(cuid())
+  orderNumber     String         @unique @map("order_number")
+  customerId      String         @map("customer_id")
+  providerId      String?        @map("provider_id")
+  serviceId       String         @map("service_id")
+  subCategoryId   String?        @map("sub_category_id")
+  addressId       String         @map("address_id")
+  serviceName     String?        @map("service_name")
+  categoryName    String?        @map("category_name")
+  description     String
+  scheduledDate   DateTime       @map("scheduled_date")
+  scheduledTime   String         @map("scheduled_time")
+  duration        Int
+  pricingType     JobPricingType @default(PER_JAM) @map("pricing_type")
+  basePrice       Decimal        @db.Decimal(10, 2) @map("base_price")
+  serviceFee      Decimal        @db.Decimal(10, 2) @map("service_fee")
+  totalPrice      Decimal        @db.Decimal(10, 2) @map("total_price")
+  status          JobOrderStatus @default(PENDING)
+  paymentStatus   JobPaymentStatus @default(PENDING) @map("payment_status")
+  customerNotes   String?        @map("customer_notes")
+  providerNotes   String?        @map("provider_notes")
+  adminNotes      String?        @map("admin_notes")
+  actualStartTime String?        @map("actual_start_time")
+  actualEndTime   String?        @map("actual_end_time")
+  actualDuration  Int?           @map("actual_duration")
+  isEarlyCompletion Boolean      @default(false) @map("is_early_completion")
+  earlyCompletionMinutes Int?    @map("early_completion_minutes")
+  workerResponseAt DateTime?     @map("worker_response_at")
+  workerRejectionReason String?  @map("worker_rejection_reason")
+  paymentExpiresAt DateTime?     @map("payment_expires_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  paidAt          DateTime?      @map("paid_at")
+  confirmedAt     DateTime?      @map("confirmed_at")
+  startedAt       DateTime?      @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+  cancelledAt     DateTime?      @map("cancelled_at")
+
+  customer    User            @relation("CustomerOrders", fields: [customerId], references: [id])
+  provider    User?           @relation("ProviderOrders", fields: [providerId], references: [id])
+  service     JobService      @relation(fields: [serviceId], references: [id])
+  subCategory JobSubCategory? @relation(fields: [subCategoryId], references: [id])
+  address     Address         @relation(fields: [addressId], references: [id])
+  payment     JobPayment?
+  review      JobReview?
+  images      JobOrderImage[]
+
+  @@map("job_orders")
+}
+
+enum JobOrderStatus {
+  PENDING
+  WAITING_WORKER
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum JobPaymentStatus {
+  PENDING
+  CONFIRMING
+  PAID
+  FAILED
+  REFUNDED
+  EXPIRED
+}
+
+model JobOrderImage {
+  id        String   @id @default(cuid())
+  orderId   String   @map("order_id")
+  imageUrl  String   @map("image_url")
+  fileName  String?  @map("file_name")
+  fileSize  Int?     @map("file_size")
+  mimeType  String?  @map("mime_type")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  order JobOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("job_order_images")
+}
+
+// --- Payment ---
+
+model JobPayment {
+  id              String           @id @default(cuid())
+  orderId         String           @unique @map("order_id")
+  amount          Decimal          @db.Decimal(10, 2)
+  method          JobPaymentMethod
+  status          JobPaymentStatus @default(PENDING)
+  transactionId   String?          @unique @map("transaction_id")
+  paymentUrl      String?          @map("payment_url")
+  snapToken       String?          @map("snap_token")
+  snapUrl         String?          @map("snap_url")
+  metadata        Json?
+  proofImage      String?          @map("proof_image")
+  proofUploadedAt DateTime?        @map("proof_uploaded_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  paidAt          DateTime?        @map("paid_at")
+
+  order JobOrder @relation(fields: [orderId], references: [id])
+
+  @@map("job_payments")
+}
+
+enum JobPaymentMethod {
+  BANK_TRANSFER
+  E_WALLET
+  CREDIT_CARD
+  CASH
+}
+
+// --- Reviews ---
+
+model JobReview {
+  id        String   @id @default(cuid())
+  orderId   String   @unique @map("order_id")
+  userId    String   @map("user_id")
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  order JobOrder @relation(fields: [orderId], references: [id])
+  user  User     @relation(fields: [userId], references: [id])
+
+  @@map("job_reviews")
+}
+
+// ================================================================
+// SYSTEM CONFIG
+// ================================================================
+
+model AppConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  type        String   @default("string")
+  category    String   @default("general")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("app_configs")
+}
+
+model SystemSettings {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  type        String   @default("string")
+  label       String
+  description String?
+  category    String   @default("general")
+  isPublic    Boolean  @default(false) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([key])
+  @@map("system_settings")
+}
