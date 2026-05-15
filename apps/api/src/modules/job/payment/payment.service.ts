@@ -61,7 +61,7 @@ export class PaymentService {
           customerName: customer?.name || 'Customer',
           customerEmail: customer?.email || 'customer@example.com',
           customerPhone: customer?.phone || '08123456789',
-          amount: order.totalPrice,
+          amount: Number(order.totalPrice),
           productName: `Order ${order.orderNumber}`,
           notifyUrl: callbackUrl,
         });
