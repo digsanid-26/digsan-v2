@@ -101,6 +101,6 @@ export class AuthController {
       refreshToken: result.refreshToken,
       user: JSON.stringify(result.user),
     });
-    return res.redirect(`${webUrl}/auth/google/callback?${params.toString()}`);
+    return res.redirect(`${webUrl}/google/callback?${params.toString()}`);
   }
 }
