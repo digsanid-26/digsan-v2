@@ -366,8 +366,25 @@ pnpm --filter @digsan/landing build
 ls -la apps/api/dist/
 ls -la apps/web/.next/
 ls -la apps/landing/.next/
-```
 
+# 1. Pull perubahan terbaru
+cd ~/digsan-v2
+git pull origin master
+
+# 2. Rebuild API (jika perlu)
+cd apps/api
+pnpm install
+pnpm build
+
+# 3. Rebuild Web App
+cd ../web
+pnpm install
+pnpm build
+
+# 4. Restart PM2
+pm2 restart digsan-api
+pm2 restart digsan-web
+pm2 save
 ---
 
 ## Langkah 9: Setup PM2 Process Manager
