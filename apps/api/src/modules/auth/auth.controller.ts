@@ -1,8 +1,9 @@
-import { Controller, Post, Body, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -12,7 +13,10 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('register')
   @Throttle({ default: { ttl: 60000, limit: 3 } })
@@ -89,7 +93,14 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth callback' })
-  async googleAuthCallback(@Req() req: Request) {
-    return this.authService.googleLogin(req.user as any);
+  async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
+    const result = await this.authService.googleLogin(req.user as any);
+    const webUrl = this.configService.get<string>('WEB_URL', 'http://localhost:3000');
+    const params = new URLSearchParams({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: JSON.stringify(result.user),
+    });
+    return res.redirect(`${webUrl}/auth/google/callback?${params.toString()}`);
   }
 }
