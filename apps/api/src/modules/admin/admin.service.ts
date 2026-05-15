@@ -83,9 +83,9 @@ export class AdminService {
     ]);
 
     return {
-      users: users.map((u) => ({
+      users: users.map((u: any) => ({
         ...u,
-        roles: u.userRoles.map((ur) => ur.role.name),
+        roles: u.userRoles.map((ur: any) => ur.role.name),
         userRoles: undefined,
       })),
       total,
@@ -116,7 +116,7 @@ export class AdminService {
     const { passwordHash, ...safeUser } = user;
     return {
       ...safeUser,
-      roles: user.userRoles.map((ur) => ur.role.name),
+      roles: user.userRoles.map((ur: any) => ur.role.name),
     };
   }
 

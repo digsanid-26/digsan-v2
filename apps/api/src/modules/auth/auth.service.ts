@@ -479,7 +479,7 @@ export class AuthService {
     });
     if (tokens.length > 0) {
       await this.prisma.refreshToken.deleteMany({
-        where: { id: { in: tokens.map((t) => t.id) } },
+        where: { id: { in: tokens.map((t: any) => t.id) } },
       });
     }
   }

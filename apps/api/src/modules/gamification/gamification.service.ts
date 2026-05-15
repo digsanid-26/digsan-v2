@@ -62,19 +62,19 @@ export class GamificationService {
     });
 
     // Fetch user details for leaderboard entries
-    const userIds = leaderboard.map((entry) => entry.userId);
+    const userIds = leaderboard.map((entry: any) => entry.userId);
     const users = await this.prisma.user.findMany({
       where: { id: { in: userIds } },
       select: { id: true, name: true, avatar: true },
     });
 
-    const userMap = new Map(users.map((u) => [u.id, u]));
+    const userMap = new Map(users.map((u: any) => [u.id, u]));
 
-    return leaderboard.map((entry, index) => ({
+    return leaderboard.map((entry: any, index: number) => ({
       rank: index + 1,
       userId: entry.userId,
-      name: userMap.get(entry.userId)?.name || 'Unknown',
-      avatar: userMap.get(entry.userId)?.avatar || null,
+      name: (userMap.get(entry.userId) as any)?.name || 'Unknown',
+      avatar: (userMap.get(entry.userId) as any)?.avatar || null,
       totalPoints: entry._sum.amount || 0,
     }));
   }
@@ -110,9 +110,9 @@ export class GamificationService {
         where: { userId },
         select: { badgeId: true },
       })
-    ).map((ub) => ub.badgeId);
+    ).map((ub: any) => ub.badgeId);
 
-    const unearnedBadges = allBadges.filter((b) => !earnedBadgeIds.includes(b.id));
+    const unearnedBadges = allBadges.filter((b: any) => !earnedBadgeIds.includes(b.id));
 
     const awarded: string[] = [];
 

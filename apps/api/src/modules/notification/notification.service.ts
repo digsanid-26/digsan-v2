@@ -1,9 +1,23 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
-import { NotificationType } from '@prisma/client';
 import { EmailService } from './email.service';
 import { WhatsappService } from './whatsapp.service';
 import { PushService } from './push.service';
+
+enum NotificationType {
+  TREE_INVITATION = 'TREE_INVITATION',
+  MEMBER_ADDED = 'MEMBER_ADDED',
+  BADGE_EARNED = 'BADGE_EARNED',
+  POINT_RECEIVED = 'POINT_RECEIVED',
+  SYSTEM = 'SYSTEM',
+  ORDER_CREATED = 'ORDER_CREATED',
+  ORDER_CONFIRMED = 'ORDER_CONFIRMED',
+  ORDER_COMPLETED = 'ORDER_COMPLETED',
+  ORDER_CANCELLED = 'ORDER_CANCELLED',
+  PAYMENT_SUCCESS = 'PAYMENT_SUCCESS',
+  PAYMENT_FAILED = 'PAYMENT_FAILED',
+  REVIEW_RECEIVED = 'REVIEW_RECEIVED',
+}
 
 @Injectable()
 export class NotificationService {

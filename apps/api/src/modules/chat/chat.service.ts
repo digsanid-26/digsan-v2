@@ -86,8 +86,8 @@ export class ChatService {
 
     // Add unread count per room
     const result = await Promise.all(
-      rooms.map(async (room) => {
-        const member = room.members.find((m) => m.userId === userId);
+      rooms.map(async (room: any) => {
+        const member = room.members.find((m: any) => m.userId === userId);
         const unreadCount = member?.lastRead
           ? await this.prisma.chatMessage.count({
               where: {

@@ -506,7 +506,7 @@ export class TreeService {
     });
 
     // Build nodes and edges for tree visualization
-    const nodes = members.map((m) => ({
+    const nodes = members.map((m: any) => ({
       id: m.id,
       name: m.name,
       gender: m.gender,
@@ -597,24 +597,26 @@ export class TreeService {
     });
 
     const total = members.length;
-    const male = members.filter((m) => m.gender === 'male').length;
-    const female = members.filter((m) => m.gender === 'female').length;
-    const living = members.filter((m) => !m.deathDate).length;
-    const deceased = members.filter((m) => m.deathDate).length;
+    const male = members.filter((m: any) => m.gender === 'male').length;
+    const female = members.filter((m: any) => m.gender === 'female').length;
+    const living = members.filter((m: any) => !m.deathDate).length;
+    const deceased = members.filter((m: any) => m.deathDate).length;
 
     // Count generations (depth of tree)
     const allMembers = await this.prisma.familyMember.findMany({
       where: { treeId },
       select: { id: true, parentId: true },
     });
-    const parentMap = new Map(allMembers.map((m) => [m.id, m.parentId]));
+    const parentMap = new Map(allMembers.map((m: { id: string; parentId: string | null }) => [m.id, m.parentId]));
+
     let maxGeneration = 0;
     for (const m of allMembers) {
       let depth = 0;
-      let pid: string | null | undefined = m.parentId;
-      while (pid) {
+      let pid: string | null | undefined = m.id;
+
+      while (pid && depth < 100) {
         depth++;
-        pid = parentMap.get(pid);
+        pid = parentMap.get(pid) as string | null | undefined;
       }
       maxGeneration = Math.max(maxGeneration, depth);
     }

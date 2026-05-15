@@ -35,7 +35,7 @@ export class PushService {
       return { sent: 0 };
     }
 
-    const tokens = devices.map((d) => d.token);
+    const tokens = devices.map((d: any) => d.token);
     return this.sendToTokens(tokens, title, body, data);
   }
 
