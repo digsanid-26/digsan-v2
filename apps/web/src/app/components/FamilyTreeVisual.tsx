@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, User, Pencil } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { getUser } from '@/lib/auth';
 
 export default function FamilyTreeVisual() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -15,6 +16,11 @@ export default function FamilyTreeVisual() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; avatar: string | null } | null>(null);
+
+  useEffect(() => {
+    setCurrentUser(getUser());
+  }, []);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.digsan.id/api';
 
@@ -278,26 +284,77 @@ export default function FamilyTreeVisual() {
           className="main-circle absolute left-[260px] top-[260px] w-[180px] h-[180px] rounded-full flex items-center justify-center cursor-pointer z-20 border border-blue-400/30"
           style={{ background: '#254474', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
         >
-          <div
-            id="logo-container"
-            className="w-[120px] h-[120px] flex items-center justify-center transition-all duration-500"
-            style={{ filter: 'blur(1.5px) brightness(0.85)' }}
-          >
-            <Image src="/logo-icon.svg" alt="Digsan" width={88} height={88} style={{ filter: 'brightness(0) invert(1)' }} />
-          </div>
-
-          {/* Connect Now overlay */}
-          <div
-            className="connect-btn absolute inset-0 flex flex-col items-center justify-center rounded-full cursor-pointer"
-            style={{ opacity: 0, transition: 'opacity 0.3s ease', pointerEvents: 'none', zIndex: 5 }}
-            onClick={(e) => { e.stopPropagation(); setShowModal(true); }}
-          >
-            <div className="text-center px-3">
-              <div className="text-[9px] text-blue-200 font-medium tracking-widest uppercase mb-1">Mulai</div>
-              <div className="text-[13px] font-bold text-white leading-tight">Masuk Sekarang</div>
-              <div className="mt-2 mx-auto w-5 h-px bg-white/40" />
-            </div>
-          </div>
+          {currentUser ? (
+            /* ── Logged in ── */
+            <>
+              <div
+                id="logo-container"
+                className="w-[120px] h-[120px] flex items-center justify-center transition-all duration-500 rounded-full overflow-hidden"
+                style={{ filter: 'blur(1.5px) brightness(0.85)' }}
+              >
+                {currentUser.avatar ? (
+                  <Image
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    width={120}
+                    height={120}
+                    className="rounded-full object-cover w-full h-full"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <User size={44} className="text-white/70" />
+                    <a
+                      href="/dashboard"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 text-[10px] text-blue-300 hover:text-blue-200 transition-colors"
+                      title="Edit foto profil"
+                    >
+                      <Pencil size={11} />
+                      <span>Edit foto</span>
+                    </a>
+                  </div>
+                )}
+              </div>
+              {/* Hover overlay for logged-in user */}
+              <div
+                className="connect-btn absolute inset-0 flex flex-col items-center justify-center rounded-full cursor-pointer"
+                style={{ opacity: 0, transition: 'opacity 0.3s ease', pointerEvents: 'none', zIndex: 5 }}
+                onClick={(e) => { e.stopPropagation(); window.location.href = '/dashboard'; }}
+              >
+                <div className="text-center px-3">
+                  <div className="text-[9px] text-blue-200 font-medium tracking-widest uppercase mb-1">
+                    {currentUser.name.split(' ')[0]}
+                  </div>
+                  <div className="text-[12px] font-bold text-white leading-tight">Buka Dashboard</div>
+                  <div className="mt-2 mx-auto w-5 h-px bg-white/40" />
+                </div>
+              </div>
+            </>
+          ) : (
+            /* ── Not logged in ── */
+            <>
+              <div
+                id="logo-container"
+                className="w-[120px] h-[120px] flex items-center justify-center transition-all duration-500"
+                style={{ filter: 'blur(1.5px) brightness(0.85)' }}
+              >
+                <Image src="/logo-icon.svg" alt="Digsan" width={88} height={88} style={{ filter: 'brightness(0) invert(1)' }} />
+              </div>
+              {/* Connect Now overlay */}
+              <div
+                className="connect-btn absolute inset-0 flex flex-col items-center justify-center rounded-full cursor-pointer"
+                style={{ opacity: 0, transition: 'opacity 0.3s ease', pointerEvents: 'none', zIndex: 5 }}
+                onClick={(e) => { e.stopPropagation(); setShowModal(true); }}
+              >
+                <div className="text-center px-3">
+                  <div className="text-[9px] text-blue-200 font-medium tracking-widest uppercase mb-1">Mulai</div>
+                  <div className="text-[13px] font-bold text-white leading-tight">Masuk Sekarang</div>
+                  <div className="mt-2 mx-auto w-5 h-px bg-white/40" />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Lines */}
@@ -327,8 +384,8 @@ export default function FamilyTreeVisual() {
         <span className="text-white/70">Klik tengah untuk menutup</span>
       </p>
 
-      {/* Login / Register Modal */}
-      {showModal && (
+      {/* Login / Register Modal — only for non-logged-in users */}
+      {showModal && !currentUser && (
         <div
           className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[200] p-4"
           onClick={() => { if (!loading) setShowModal(false); }}
