@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import FamilyTreeVisual from './components/FamilyTreeVisual';
+import HeaderNav from './components/HeaderNav';
 
 export default function Home() {
   return (
@@ -10,20 +11,7 @@ export default function Home() {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
         <Image src="/logo-white.svg" alt="Digsan" width={110} height={28} priority className="h-7 w-auto" />
-        <nav className="flex items-center gap-3">
-          <a
-            href="/login"
-            className="px-4 py-2 text-sm text-white/60 hover:text-white transition-colors"
-          >
-            Masuk
-          </a>
-          <a
-            href="/register"
-            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors"
-          >
-            Daftar Gratis
-          </a>
-        </nav>
+        <HeaderNav />
       </header>
 
       {/* Hero */}

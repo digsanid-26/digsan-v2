@@ -42,9 +42,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profile = await auth.getProfile(tokens.accessToken);
       setUser(profile);
       saveUser(profile);
-    } catch {
-      clearAuth();
-      setUser(null);
+    } catch (err: any) {
+      if (err?.status === 401 || err?.status === 403) {
+        clearAuth();
+        setUser(null);
+      }
+      // Network/server errors: keep cached user, don't kick out
     } finally {
       setLoading(false);
     }
