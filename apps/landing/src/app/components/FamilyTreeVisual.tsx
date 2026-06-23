@@ -21,13 +21,13 @@ export default function FamilyTreeVisual() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => { window.location.href = appUrl; }, 1500);
+    window.location.href = `${appUrl}/login`;
   };
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => { window.location.href = `${appUrl}/register`; }, 1500);
+    window.location.href = `${appUrl}/register`;
   };
 
   useEffect(() => {
@@ -514,7 +514,7 @@ export default function FamilyTreeVisual() {
                 {/* Google */}
                 <button
                   type="button"
-                  onClick={() => { window.location.href = `${appUrl}/auth/google`; }}
+                  onClick={() => { window.location.href = `${appUrl}/login?method=google`; }}
                   className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/80 font-medium rounded-xl text-sm transition-all flex items-center justify-center gap-3"
                 >
                   <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
