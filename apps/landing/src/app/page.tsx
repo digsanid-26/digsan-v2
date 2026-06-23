@@ -1,5 +1,6 @@
 import Image from 'next/image';
-import { Trees, MessageCircle, Trophy, Briefcase, Shield, Users, ChevronRight, Star, ArrowRight } from 'lucide-react';
+import { Trees, MessageCircle, Trophy, Briefcase, Shield, Users, ChevronRight, ArrowRight, Star } from 'lucide-react';
+import FamilyTreeVisual from './components/FamilyTreeVisual';
 
 const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || 'https://app.digsan.id';
 
@@ -8,43 +9,43 @@ const features = [
     icon: Trees,
     title: 'Silsilah Digital',
     desc: 'Dokumentasi pohon keluarga dengan visualisasi interaktif. Simpan sejarah keluarga untuk generasi mendatang.',
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50',
+    accent: 'text-emerald-400',
+    glow: 'bg-emerald-500/10 border-emerald-500/20',
   },
   {
     icon: Briefcase,
     title: 'Digsan Kerja',
     desc: 'Marketplace jasa harian terpercaya. Temukan tukang, asisten rumah tangga, hingga guru les terverifikasi.',
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
+    accent: 'text-blue-400',
+    glow: 'bg-blue-500/10 border-blue-500/20',
   },
   {
     icon: MessageCircle,
     title: 'Chat Keluarga',
     desc: 'Obrolan real-time pribadi & grup. Tetap terhubung dengan keluarga besar di mana saja.',
-    color: 'text-violet-600',
-    bg: 'bg-violet-50',
+    accent: 'text-violet-400',
+    glow: 'bg-violet-500/10 border-violet-500/20',
   },
   {
     icon: Trophy,
     title: 'Gamifikasi',
     desc: 'Kumpulkan poin dan badge dari aktivitas keluarga. Naik peringkat di leaderboard komunitas.',
-    color: 'text-amber-600',
-    bg: 'bg-amber-50',
+    accent: 'text-amber-400',
+    glow: 'bg-amber-500/10 border-amber-500/20',
   },
   {
     icon: Shield,
     title: 'Privasi & Keamanan',
     desc: 'Data keluarga terenkripsi. Kontrol penuh siapa yang bisa melihat silsilah dan informasi Anda.',
-    color: 'text-rose-600',
-    bg: 'bg-rose-50',
+    accent: 'text-rose-400',
+    glow: 'bg-rose-500/10 border-rose-500/20',
   },
   {
     icon: Users,
     title: 'Multi-Platform',
     desc: 'Akses dari web browser maupun aplikasi mobile Android & iOS. Sinkronisasi otomatis.',
-    color: 'text-cyan-600',
-    bg: 'bg-cyan-50',
+    accent: 'text-cyan-400',
+    glow: 'bg-cyan-500/10 border-cyan-500/20',
   },
 ];
 
@@ -85,23 +86,45 @@ const stats = [
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#05050f] text-white overflow-x-hidden">
+
+      {/* ─── Ambient Background ─── */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/8 rounded-full blur-[120px]" />
+        <div className="absolute top-[30%] right-[-15%] w-[500px] h-[500px] bg-indigo-600/6 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[700px] h-[400px] bg-emerald-600/5 rounded-full blur-[120px]" />
+      </div>
+
       {/* ─── Navbar ─── */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-100">
-        <div className="flex items-center justify-between px-6 md:px-8 py-4 max-w-7xl mx-auto">
-          <a href="/" className="flex items-center gap-2">
-            <Image src="/logo-full.svg" alt="Digsan" width={120} height={36} priority className="h-9 w-auto" />
+      <nav className="glass border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-screen-xl mx-auto px-6 md:px-8 h-16 flex items-center justify-between">
+          <a href="/" className="flex items-center gap-x-3">
+            <Image src="/logo-white.svg" alt="Digsan" width={110} height={34} priority className="h-8 w-auto" />
           </a>
-          <div className="hidden md:flex items-center gap-8 text-sm text-gray-600">
-            <a href="#fitur" className="hover:text-blue-600 transition-colors">Fitur</a>
-            <a href="#cara-kerja" className="hover:text-blue-600 transition-colors">Cara Kerja</a>
-            <a href="#testimoni" className="hover:text-blue-600 transition-colors">Testimoni</a>
+
+          <div className="hidden md:flex items-center gap-x-1 text-sm">
+            <a href="#fitur" className="px-4 py-2 text-white/60 hover:text-white hover:bg-white/5 rounded-2xl transition-colors">
+              Fitur
+            </a>
+            <a href="#cara-kerja" className="px-4 py-2 text-white/60 hover:text-white hover:bg-white/5 rounded-2xl transition-colors">
+              Cara Kerja
+            </a>
+            <a href="#testimoni" className="px-4 py-2 text-white/60 hover:text-white hover:bg-white/5 rounded-2xl transition-colors">
+              Testimoni
+            </a>
           </div>
-          <div className="flex items-center gap-3">
-            <a href={`${WEB_URL}/login`} className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+
+          <div className="flex items-center gap-x-2 text-sm">
+            <a
+              href={`${WEB_URL}/login`}
+              className="px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-2xl transition-colors"
+            >
               Masuk
             </a>
-            <a href={`${WEB_URL}/register`} className="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200">
+            <a
+              href={`${WEB_URL}/register`}
+              className="px-5 py-2 bg-white text-[#05050f] hover:bg-white/90 font-semibold rounded-2xl flex items-center gap-x-2 transition-all active:scale-[0.985]"
+            >
               Daftar Gratis
             </a>
           </div>
@@ -109,209 +132,209 @@ export default function Landing() {
       </nav>
 
       {/* ─── Hero ─── */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-emerald-50" />
-        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-200/30 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-emerald-200/20 rounded-full blur-3xl" />
-
-        <div className="relative max-w-7xl mx-auto px-6 md:px-8 pt-20 pb-28 md:pt-28 md:pb-36 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-50 border border-blue-100 rounded-full text-sm text-blue-700 font-medium mb-8">
-            <Star className="w-4 h-4 fill-blue-500 text-blue-500" />
-            Platform Keluarga #1 di Indonesia
+      <section className="relative max-w-screen-xl mx-auto px-6 md:px-8 pt-16 pb-8">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-x-2 px-4 py-1.5 rounded-3xl bg-white/5 border border-white/10 mb-5">
+            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+            <span className="text-emerald-400 text-sm font-medium">Silsilah Keluarga Digital</span>
           </div>
 
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-gray-900 leading-[1.1] tracking-tight">
-            Jaga Koneksi Keluarga,
+          <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-semibold tracking-tighter">
+            Pohon Keluarga Anda,
             <br />
-            <span className="bg-gradient-to-r from-blue-600 to-emerald-500 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
               Lintas Generasi
             </span>
           </h1>
-
-          <p className="mt-6 text-lg md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-            Bangun silsilah digital, temukan jasa profesional terpercaya, dan raih pencapaian bersama keluarga besar Anda.
+          <p className="mt-4 text-lg md:text-xl text-white/60 max-w-xl mx-auto leading-relaxed">
+            Jelajahi, bangun, dan rawat hubungan keluarga dalam satu tempat yang indah. Dokumentasikan sejarah keluarga untuk anak cucu.
           </p>
 
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
               href={`${WEB_URL}/register`}
-              className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 text-white font-semibold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-200 hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 px-7 py-3.5 bg-white text-[#05050f] font-semibold rounded-2xl hover:bg-white/90 transition-all active:scale-[0.985] shadow-lg"
             >
-              Mulai Gratis <ArrowRight className="w-5 h-5" />
+              Mulai Gratis <ArrowRight className="w-4 h-4" />
             </a>
             <a
               href="#fitur"
-              className="inline-flex items-center gap-2 px-8 py-4 text-gray-700 font-semibold rounded-2xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
+              className="inline-flex items-center gap-2 px-7 py-3.5 text-white/70 hover:text-white font-medium rounded-2xl border border-white/15 hover:border-white/30 hover:bg-white/5 transition-all"
             >
               Pelajari Lebih Lanjut
             </a>
           </div>
+        </div>
 
-          {/* Stats */}
-          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto">
-            {stats.map((s) => (
-              <div key={s.label} className="text-center">
-                <div className="text-3xl md:text-4xl font-extrabold text-gray-900">{s.value}</div>
-                <div className="mt-1 text-sm text-gray-500">{s.label}</div>
-              </div>
-            ))}
+        {/* Interactive Tree Visual */}
+        <div className="flex justify-center overflow-hidden">
+          <div className="scale-[0.55] sm:scale-[0.75] md:scale-[0.85] lg:scale-100 origin-top transition-transform">
+            <FamilyTreeVisual />
           </div>
+        </div>
+      </section>
+
+      {/* ─── Stats ─── */}
+      <section className="relative max-w-screen-xl mx-auto px-6 md:px-8 py-16">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {stats.map((s) => (
+            <div key={s.label} className="glass rounded-2xl p-6 text-center border border-white/10">
+              <div className="font-display text-3xl md:text-4xl font-semibold text-white">{s.value}</div>
+              <div className="mt-1.5 text-sm text-white/50">{s.label}</div>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* ─── Features ─── */}
-      <section id="fitur" className="py-24 md:py-32 bg-gray-50/50">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider">Fitur Unggulan</p>
-            <h2 className="mt-3 text-3xl md:text-4xl font-bold text-gray-900">
-              Semua yang Keluarga Anda Butuhkan
-            </h2>
-            <p className="mt-4 text-lg text-gray-500 max-w-xl mx-auto">
-              Satu platform untuk silsilah, komunikasi, jasa profesional, dan gamifikasi keluarga.
-            </p>
-          </div>
+      <section id="fitur" className="relative max-w-screen-xl mx-auto px-6 md:px-8 py-20 md:py-28">
+        <div className="text-center mb-14">
+          <p className="text-sm font-semibold text-blue-400 uppercase tracking-wider">Fitur Unggulan</p>
+          <h2 className="font-display mt-3 text-3xl md:text-4xl font-semibold tracking-tight">
+            Semua yang Keluarga Anda Butuhkan
+          </h2>
+          <p className="mt-4 text-white/50 max-w-xl mx-auto">
+            Satu platform untuk silsilah, komunikasi, jasa profesional, dan gamifikasi keluarga.
+          </p>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((f) => (
-              <div key={f.title} className="group p-8 bg-white rounded-2xl border border-gray-100 hover:border-blue-100 hover:shadow-lg hover:shadow-blue-50/50 transition-all duration-300">
-                <div className={`inline-flex items-center justify-center w-12 h-12 ${f.bg} rounded-xl mb-5`}>
-                  <f.icon className={`w-6 h-6 ${f.color}`} />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{f.title}</h3>
-                <p className="mt-3 text-gray-500 text-sm leading-relaxed">{f.desc}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {features.map((f) => (
+            <div
+              key={f.title}
+              className="group p-7 glass rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300 hover:-translate-y-1"
+            >
+              <div className={`inline-flex items-center justify-center w-11 h-11 ${f.glow} rounded-xl border mb-5`}>
+                <f.icon className={`w-5 h-5 ${f.accent}`} />
               </div>
-            ))}
-          </div>
+              <h3 className={`text-base font-semibold group-hover:${f.accent} transition-colors`}>{f.title}</h3>
+              <p className="mt-2.5 text-white/50 text-sm leading-relaxed">{f.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* ─── How It Works ─── */}
-      <section id="cara-kerja" className="py-24 md:py-32">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider">Cara Kerja</p>
-            <h2 className="mt-3 text-3xl md:text-4xl font-bold text-gray-900">
-              Mulai dalam 4 Langkah Mudah
-            </h2>
-          </div>
+      <section id="cara-kerja" className="relative max-w-screen-xl mx-auto px-6 md:px-8 py-20 md:py-28">
+        <div className="text-center mb-14">
+          <p className="text-sm font-semibold text-blue-400 uppercase tracking-wider">Cara Kerja</p>
+          <h2 className="font-display mt-3 text-3xl md:text-4xl font-semibold tracking-tight">
+            Mulai dalam 4 Langkah Mudah
+          </h2>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {steps.map((s, i) => (
-              <div key={s.num} className="relative">
-                {i < steps.length - 1 && (
-                  <div className="hidden lg:block absolute top-8 left-[calc(50%+2rem)] w-[calc(100%-4rem)] border-t-2 border-dashed border-blue-200" />
-                )}
-                <div className="relative flex flex-col items-center text-center">
-                  <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-200 mb-5">
-                    {s.num}
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">{s.title}</h3>
-                  <p className="mt-2 text-sm text-gray-500 max-w-[200px]">{s.desc}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {steps.map((s, i) => (
+            <div key={s.num} className="relative">
+              {i < steps.length - 1 && (
+                <div className="hidden lg:block absolute top-8 left-[calc(50%+2.5rem)] w-[calc(100%-5rem)] border-t border-dashed border-white/15" />
+              )}
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 glass border border-white/20 rounded-2xl flex items-center justify-center font-display font-semibold text-lg text-white mb-5">
+                  {s.num}
                 </div>
+                <h3 className="font-semibold text-white">{s.title}</h3>
+                <p className="mt-2 text-sm text-white/50 max-w-[200px]">{s.desc}</p>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* ─── Testimonials ─── */}
-      <section id="testimoni" className="py-24 md:py-32 bg-gray-50/50">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider">Testimoni</p>
-            <h2 className="mt-3 text-3xl md:text-4xl font-bold text-gray-900">
-              Dipercaya Keluarga Indonesia
-            </h2>
-          </div>
+      <section id="testimoni" className="relative max-w-screen-xl mx-auto px-6 md:px-8 py-20 md:py-28">
+        <div className="text-center mb-14">
+          <p className="text-sm font-semibold text-blue-400 uppercase tracking-wider">Testimoni</p>
+          <h2 className="font-display mt-3 text-3xl md:text-4xl font-semibold tracking-tight">
+            Dipercaya Keluarga Indonesia
+          </h2>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((t) => (
-              <div key={t.name} className="p-8 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex gap-1 mb-4">
-                  {Array.from({ length: t.rating }).map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-                <p className="text-gray-600 leading-relaxed">&ldquo;{t.text}&rdquo;</p>
-                <div className="mt-6 pt-6 border-t border-gray-100">
-                  <p className="font-semibold text-gray-900">{t.name}</p>
-                  <p className="text-sm text-gray-500">{t.role}</p>
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {testimonials.map((t) => (
+            <div key={t.name} className="p-7 glass rounded-2xl border border-white/10">
+              <div className="flex gap-1 mb-4">
+                {Array.from({ length: t.rating }).map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                ))}
               </div>
-            ))}
-          </div>
+              <p className="text-white/70 leading-relaxed text-sm">&ldquo;{t.text}&rdquo;</p>
+              <div className="mt-6 pt-5 border-t border-white/10">
+                <p className="font-semibold text-white">{t.name}</p>
+                <p className="text-xs text-white/40 mt-0.5">{t.role}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* ─── CTA ─── */}
-      <section className="py-24 md:py-32">
-        <div className="max-w-4xl mx-auto px-6 md:px-8">
-          <div className="relative overflow-hidden p-12 md:p-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl text-center">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/3" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-1/3 -translate-x-1/3" />
-            <div className="relative">
-              <h2 className="text-3xl md:text-4xl font-bold text-white">
-                Siap Membangun Silsilah
-                <br />Keluarga Anda?
-              </h2>
-              <p className="mt-4 text-lg text-blue-100 max-w-lg mx-auto">
-                Bergabung dengan ribuan keluarga Indonesia yang sudah menggunakan Digsan.
-              </p>
-              <a
-                href={`${WEB_URL}/register`}
-                className="inline-flex items-center gap-2 mt-8 px-8 py-4 bg-white text-blue-600 font-semibold rounded-2xl hover:bg-blue-50 transition-all shadow-lg hover:-translate-y-0.5"
-              >
-                Daftar Sekarang — Gratis <ChevronRight className="w-5 h-5" />
-              </a>
-            </div>
+      <section className="relative max-w-screen-xl mx-auto px-6 md:px-8 py-20 md:py-28">
+        <div className="relative overflow-hidden p-12 md:p-16 rounded-3xl text-center border border-white/10"
+          style={{ background: 'linear-gradient(135deg, rgba(37,99,235,0.25) 0%, rgba(16,185,129,0.15) 100%)' }}>
+          <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-56 h-56 bg-emerald-500/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
+          <div className="relative">
+            <h2 className="font-display text-3xl md:text-4xl font-semibold tracking-tight">
+              Siap Membangun Silsilah
+              <br />Keluarga Anda?
+            </h2>
+            <p className="mt-4 text-white/60 max-w-lg mx-auto">
+              Bergabung dengan ribuan keluarga Indonesia yang sudah menggunakan Digsan.
+            </p>
+            <a
+              href={`${WEB_URL}/register`}
+              className="inline-flex items-center gap-2 mt-8 px-8 py-4 bg-white text-[#05050f] font-semibold rounded-2xl hover:bg-white/90 transition-all active:scale-[0.985] shadow-lg"
+            >
+              Daftar Sekarang — Gratis <ChevronRight className="w-5 h-5" />
+            </a>
           </div>
         </div>
       </section>
 
       {/* ─── Footer ─── */}
-      <footer className="border-t border-gray-100 py-12">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
+      <footer className="border-t border-white/10 py-12">
+        <div className="max-w-screen-xl mx-auto px-6 md:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
             <div className="md:col-span-1">
               <a href="/" className="flex items-center gap-2">
-                <Image src="/logo-full.svg" alt="Digsan" width={100} height={32} className="h-8 w-auto" />
+                <Image src="/logo-white.svg" alt="Digsan" width={90} height={28} className="h-7 w-auto opacity-80" />
               </a>
-              <p className="mt-4 text-sm text-gray-500 leading-relaxed">
+              <p className="mt-4 text-sm text-white/40 leading-relaxed">
                 Platform keluarga Indonesia untuk silsilah digital, jasa profesional, dan gamifikasi.
               </p>
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 mb-4">Platform</h4>
-              <ul className="space-y-3 text-sm text-gray-500">
-                <li><a href="#fitur" className="hover:text-blue-600 transition-colors">Fitur</a></li>
-                <li><a href="#cara-kerja" className="hover:text-blue-600 transition-colors">Cara Kerja</a></li>
-                <li><a href="#testimoni" className="hover:text-blue-600 transition-colors">Testimoni</a></li>
+              <h4 className="font-semibold text-white/80 mb-4 text-sm">Platform</h4>
+              <ul className="space-y-3 text-sm text-white/40">
+                <li><a href="#fitur" className="hover:text-white transition-colors">Fitur</a></li>
+                <li><a href="#cara-kerja" className="hover:text-white transition-colors">Cara Kerja</a></li>
+                <li><a href="#testimoni" className="hover:text-white transition-colors">Testimoni</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 mb-4">Perusahaan</h4>
-              <ul className="space-y-3 text-sm text-gray-500">
-                <li><a href="#" className="hover:text-blue-600 transition-colors">Tentang Kami</a></li>
-                <li><a href="#" className="hover:text-blue-600 transition-colors">Karir</a></li>
-                <li><a href="#" className="hover:text-blue-600 transition-colors">Blog</a></li>
+              <h4 className="font-semibold text-white/80 mb-4 text-sm">Perusahaan</h4>
+              <ul className="space-y-3 text-sm text-white/40">
+                <li><a href="#" className="hover:text-white transition-colors">Tentang Kami</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Karir</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 mb-4">Legal</h4>
-              <ul className="space-y-3 text-sm text-gray-500">
-                <li><a href="#" className="hover:text-blue-600 transition-colors">Kebijakan Privasi</a></li>
-                <li><a href="#" className="hover:text-blue-600 transition-colors">Syarat & Ketentuan</a></li>
-                <li><a href="#" className="hover:text-blue-600 transition-colors">Kontak</a></li>
+              <h4 className="font-semibold text-white/80 mb-4 text-sm">Legal</h4>
+              <ul className="space-y-3 text-sm text-white/40">
+                <li><a href="#" className="hover:text-white transition-colors">Kebijakan Privasi</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Syarat & Ketentuan</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Kontak</a></li>
               </ul>
             </div>
           </div>
-          <div className="mt-12 pt-8 border-t border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-gray-400">&copy; {new Date().getFullYear()} Digsan. Hak cipta dilindungi.</p>
-            <div className="flex items-center gap-6 text-sm text-gray-400">
-              <a href="#" className="hover:text-blue-600 transition-colors">Twitter</a>
-              <a href="#" className="hover:text-blue-600 transition-colors">Instagram</a>
-              <a href="#" className="hover:text-blue-600 transition-colors">LinkedIn</a>
+          <div className="mt-12 pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-white/30">&copy; {new Date().getFullYear()} Digsan. Hak cipta dilindungi.</p>
+            <div className="flex items-center gap-6 text-sm text-white/30">
+              <a href="#" className="hover:text-white transition-colors">Twitter</a>
+              <a href="#" className="hover:text-white transition-colors">Instagram</a>
+              <a href="#" className="hover:text-white transition-colors">LinkedIn</a>
             </div>
           </div>
         </div>
