@@ -447,12 +447,23 @@ export default function TreeExplorer() {
             const st = STYLE[n.group];
             const isSelf = n.id === 'self';
             const isGroup = n.role === 'group';
-            const size = isSelf && !expanded ? 150 : st.size;
+            const isSelected = panel === 'member' && selected?.id === n.id;
+            const baseSize = isSelf && !expanded ? 150 : st.size;
+            const size = isSelected ? Math.round(baseSize * 1.35) : baseSize;
             const d = isGroup ? null : disp(n.id, n.name);
             return (
               <button key={n.id} data-node onClick={() => clickNode(n)}
                 className="family-node absolute flex items-center justify-center rounded-full border text-white overflow-hidden"
-                style={{ left: n.x, top: n.y, width: size, height: size, transform: 'translate(-50%,-50%)', background: st.bg, borderColor: st.border, boxShadow: `0 0 18px ${st.border}`, opacity: d && !d.alive ? 0.55 : 1 }}>
+                style={{
+                  left: n.x, top: n.y, width: size, height: size,
+                  transform: 'translate(-50%,-50%)', background: st.bg, borderColor: st.border,
+                  boxShadow: isSelected
+                    ? `0 0 0 4px ${st.border}, 0 0 34px 6px ${st.border}, 0 10px 30px rgba(0,0,0,0.35)`
+                    : `0 0 18px ${st.border}`,
+                  opacity: d && !d.alive ? 0.55 : 1,
+                  zIndex: isSelected ? 20 : 1,
+                  transition: drag.current ? 'none' : 'width 0.3s ease, height 0.3s ease, box-shadow 0.3s ease',
+                }}>
                 {isSelf && d?.photo ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={d.photo} alt={d.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
