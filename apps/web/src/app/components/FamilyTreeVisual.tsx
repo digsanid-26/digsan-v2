@@ -5,7 +5,7 @@ import { Eye, EyeOff, User, Pencil } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { getUser } from '@/lib/auth';
 
-export default function FamilyTreeVisual() {
+export default function FamilyTreeVisual({ compact = false }: { compact?: boolean } = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mainCircleRef = useRef<HTMLDivElement>(null);
 
@@ -376,11 +376,13 @@ export default function FamilyTreeVisual() {
         </div>
       </div>
 
-      <p className="text-white/50 text-xs sm:text-sm mt-2 text-center px-4">
-        Hover lingkaran utama untuk terhubung •{' '}
-        Klik lingkaran kecil untuk memperluas •{' '}
-        <span className="text-white/70">Klik tengah untuk menutup</span>
-      </p>
+      {!compact && (
+        <p className="text-slate-500 dark:text-white/50 text-xs sm:text-sm mt-2 text-center px-4">
+          Hover lingkaran utama untuk terhubung •{' '}
+          Klik lingkaran kecil untuk memperluas •{' '}
+          <span className="text-slate-700 dark:text-white/70">Klik tengah untuk menutup</span>
+        </p>
+      )}
 
       {/* Login / Register Modal — only for non-logged-in users */}
       {showModal && !currentUser && (

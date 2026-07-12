@@ -21,7 +21,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
+    <html lang="id" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('digsan_theme')||'dark';if(t==='dark'){document.documentElement.classList.add('dark');}else{document.documentElement.classList.remove('dark');}}catch(e){document.documentElement.classList.add('dark');}})();`,
+          }}
+        />
+      </head>
       <body className={`antialiased ${spaceGrotesk.variable} ${inter.variable}`} style={{ fontFamily: 'var(--font-inter, Inter, system-ui, sans-serif)' }}>{children}</body>
     </html>
   );

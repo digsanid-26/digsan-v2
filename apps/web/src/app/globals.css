@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
 .glass {
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(20px);
