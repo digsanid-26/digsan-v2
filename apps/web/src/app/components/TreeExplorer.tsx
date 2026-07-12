@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getUser } from '@/lib/auth';
+import { useTheme } from './ThemeProvider';
 import { Plus, Minus, Maximize2, Network, X, User } from 'lucide-react';
 
 type Group =
@@ -70,7 +71,7 @@ const RELATIONS = [
   { title: 'Anak', items: ['Anak 1', 'Anak 2', 'Anak 3', 'Anak 4'] },
 ];
 
-const OX = 1300, OY = 1000; // svg internal offset
+const OX = 1300, OY = 1000;
 
 type Poly = { points: number[][]; marriage?: boolean };
 
@@ -96,6 +97,8 @@ function buildLines(): Poly[] {
 const CLAMP = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 export default function TreeExplorer() {
+  const { theme } = useTheme();
+  const dark = theme === 'dark';
   const [me, setMe] = useState<{ name: string; avatar: string | null } | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -127,7 +130,6 @@ export default function TreeExplorer() {
   const nodes = expanded ? NODES : simpleNodes;
   const lines = expanded ? expandedLines : simpleLines;
 
-  // wheel zoom
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -159,8 +161,11 @@ export default function TreeExplorer() {
     setSelected(n);
   };
 
+  const strokeMarriage = dark ? 'rgba(147,197,253,0.55)' : 'rgba(37,99,235,0.45)';
+  const strokeNormal = dark ? 'rgba(255,255,255,0.22)' : 'rgba(51,65,85,0.28)';
+
   return (
-    <div className="relative w-full h-full overflow-hidden select-none" style={{ background: '#05050f' }}>
+    <div className="relative w-full h-full overflow-hidden select-none bg-slate-100 dark:bg-[#05050f]">
       {/* Toolbar */}
       <div className="absolute top-4 left-4 z-30 flex gap-2">
         <button onClick={expanded ? doCollapse : doExpand}
@@ -170,27 +175,27 @@ export default function TreeExplorer() {
       </div>
 
       {/* Zoom controls */}
-      <div className="absolute bottom-5 right-5 z-30 flex flex-col gap-1.5 p-1.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur">
-        <button onClick={() => setZoom((z) => CLAMP(z * 1.15, 0.25, 2))} className="w-9 h-9 flex items-center justify-center rounded-xl text-white/80 hover:bg-white/10" title="Perbesar"><Plus size={16} /></button>
-        <button onClick={reset} className="w-9 h-9 flex items-center justify-center rounded-xl text-white/80 hover:bg-white/10" title="Reset"><Maximize2 size={15} /></button>
-        <button onClick={() => setZoom((z) => CLAMP(z * 0.87, 0.25, 2))} className="w-9 h-9 flex items-center justify-center rounded-xl text-white/80 hover:bg-white/10" title="Perkecil"><Minus size={16} /></button>
+      <div className="absolute bottom-5 right-5 z-30 flex flex-col gap-1.5 p-1.5 rounded-2xl backdrop-blur
+        bg-white border border-slate-200 shadow-lg
+        dark:bg-white/5 dark:border-white/10 dark:shadow-none">
+        <button onClick={() => setZoom((z) => CLAMP(z * 1.15, 0.25, 2))} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10" title="Perbesar"><Plus size={16} /></button>
+        <button onClick={reset} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10" title="Reset"><Maximize2 size={15} /></button>
+        <button onClick={() => setZoom((z) => CLAMP(z * 0.87, 0.25, 2))} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10" title="Perkecil"><Minus size={16} /></button>
       </div>
 
-      <div className="absolute top-4 right-4 z-20 text-[11px] text-white/35">Zoom {Math.round(zoom * 100)}% • seret untuk geser</div>
+      <div className="absolute top-4 right-4 z-20 text-[11px] text-slate-400 dark:text-white/35">Zoom {Math.round(zoom * 100)}% • seret untuk geser</div>
 
       {/* Viewport */}
       <div ref={viewportRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
         className="absolute inset-0 cursor-grab active:cursor-grabbing">
         <div className="absolute left-1/2 top-1/2" style={{ width: 0, height: 0, transformOrigin: '0 0', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transition: drag.current ? 'none' : 'transform 0.3s ease' }}>
-          {/* Lines */}
           <svg width={2600} height={2000} viewBox="0 0 2600 2000" style={{ position: 'absolute', left: -OX, top: -OY, overflow: 'visible', pointerEvents: 'none' }}>
             {lines.map((l, i) => (
               <polyline key={i} points={l.points.map(([x, y]) => `${x + OX},${y + OY}`).join(' ')} fill="none"
-                stroke={l.marriage ? 'rgba(147,197,253,0.55)' : 'rgba(255,255,255,0.22)'} strokeWidth={l.marriage ? 3 : 2} strokeLinecap="round" strokeLinejoin="round" />
+                stroke={l.marriage ? strokeMarriage : strokeNormal} strokeWidth={l.marriage ? 3 : 2} strokeLinecap="round" strokeLinejoin="round" />
             ))}
           </svg>
 
-          {/* Nodes */}
           {nodes.map((n) => {
             const st = STYLE[n.group];
             const size = n.id === 'self' && !expanded ? 150 : st.size;
@@ -214,13 +219,14 @@ export default function TreeExplorer() {
       </div>
 
       {/* Right sidebar */}
-      <div className={`absolute top-0 right-0 h-full w-[330px] max-w-[85vw] z-40 transition-transform duration-300 ${selected ? 'translate-x-0' : 'translate-x-full'}`}
-        style={{ background: 'rgba(10,14,26,0.96)', backdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>
+      <div className={`absolute top-0 right-0 h-full w-[330px] max-w-[85vw] z-40 transition-transform duration-300 backdrop-blur-xl
+        border-l bg-white/95 border-slate-200 dark:bg-[#0a0e1a]/95 dark:border-white/10
+        ${selected ? 'translate-x-0' : 'translate-x-full'}`}>
         {selected && (
-          <div className="h-full flex flex-col text-white">
-            <div className="flex items-center justify-between p-5 border-b border-white/10">
+          <div className="h-full flex flex-col text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-white/10">
               <h3 className="font-semibold text-lg">Detail Anggota</h3>
-              <button onClick={() => setSelected(null)} className="w-8 h-8 flex items-center justify-center rounded-full text-white/50 hover:text-white hover:bg-white/10"><X size={18} /></button>
+              <button onClick={() => setSelected(null)} className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10"><X size={18} /></button>
             </div>
 
             <div className="p-5 overflow-y-auto flex-1">
@@ -232,7 +238,7 @@ export default function TreeExplorer() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-xl font-semibold truncate">{selected.id === 'self' ? (me?.name || 'Anda') : selected.name}</p>
-                  <p className="text-emerald-400 text-sm">{selected.role}</p>
+                  <p className="text-emerald-500 dark:text-emerald-400 text-sm">{selected.role}</p>
                 </div>
               </div>
 
@@ -240,10 +246,10 @@ export default function TreeExplorer() {
                 <div className="space-y-5">
                   {RELATIONS.map((r) => (
                     <div key={r.title}>
-                      <p className="text-[11px] uppercase tracking-wider text-white/40 mb-2">{r.title}</p>
+                      <p className="text-[11px] uppercase tracking-wider text-slate-400 dark:text-white/40 mb-2">{r.title}</p>
                       <div className="flex flex-wrap gap-2">
                         {r.items.map((it) => (
-                          <span key={it} className="px-3 py-1.5 rounded-full text-xs bg-white/5 border border-white/10 text-white/80">{it}</span>
+                          <span key={it} className="px-3 py-1.5 rounded-full text-xs bg-slate-100 border border-slate-200 text-slate-700 dark:bg-white/5 dark:border-white/10 dark:text-white/80">{it}</span>
                         ))}
                       </div>
                     </div>
@@ -255,15 +261,15 @@ export default function TreeExplorer() {
                   <Row label="Tempat Tinggal" value="Jakarta, Indonesia" />
                   <Row label="Hubungan" value={selected.role} />
                   <div className="pt-1">
-                    <p className="text-white/40 text-xs mb-1.5">CATATAN</p>
-                    <p className="text-white/75 italic">&ldquo;Anggota keluarga yang selalu memberi dukungan dan kasih sayang.&rdquo;</p>
+                    <p className="text-slate-400 dark:text-white/40 text-xs mb-1.5">CATATAN</p>
+                    <p className="text-slate-600 dark:text-white/75 italic">&ldquo;Anggota keluarga yang selalu memberi dukungan dan kasih sayang.&rdquo;</p>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="p-5 border-t border-white/10">
-              <button className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-semibold transition-colors">Lihat Riwayat Lengkap</button>
+            <div className="p-5 border-t border-slate-200 dark:border-white/10">
+              <button className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-colors">Lihat Riwayat Lengkap</button>
             </div>
           </div>
         )}
@@ -274,9 +280,9 @@ export default function TreeExplorer() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between border-b border-white/10 pb-3">
-      <span className="text-white/55">{label}</span>
-      <span className="font-medium text-white/90">{value}</span>
+    <div className="flex justify-between border-b border-slate-200 dark:border-white/10 pb-3">
+      <span className="text-slate-500 dark:text-white/55">{label}</span>
+      <span className="font-medium text-slate-800 dark:text-white/90">{value}</span>
     </div>
   );
 }
