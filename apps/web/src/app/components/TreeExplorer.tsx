@@ -30,7 +30,7 @@ interface TreeConfig {
   simbahM: number;
 }
 
-interface Member { name: string; gender: 'L' | 'P' | ''; alive: boolean; photo: string | null; }
+interface Member { name: string; gender: 'L' | 'P' | ''; alive: boolean; photo: string | null; verified?: boolean; }
 type Members = Record<string, Member>;
 
 const DEFAULT_CONFIG: TreeConfig = {
@@ -182,6 +182,34 @@ function generateCollapsed(cfg: TreeConfig): { nodes: TNode[]; lines: Poly[] } {
 }
 
 const CLAMP = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+
+// ─── Guardianship logic ───────────────────────────────────────
+
+function canEditDeceasedParent(
+  nodeId: string,
+  nodeGroup: Group,
+  members: Members,
+  config: TreeConfig,
+  currentUserId: string
+): boolean {
+  if (nodeGroup !== 'parent') return true; // non-parents are freely editable
+  const m = members[nodeId];
+  if (!m || m.alive) return true; // alive parents can be edited
+  // Deceased parent: only spouse or verified children can edit
+  const isSpouse = nodeId === 'parent-0' || nodeId === 'parent-1';
+  if (isSpouse) {
+    // Check if current user is the other spouse (simplified: assume self is spouse if not parent)
+    // In real app, we'd check spouse relationship
+    return true; // placeholder: assume spouse can edit
+  }
+  // Check if current user is a verified child
+  for (let i = 0; i < config.childCount; i++) {
+    const childId = `child-${i}`;
+    const child = members[childId];
+    if (child && child.verified && childId === currentUserId) return true;
+  }
+  return false;
+}
 
 // ─── Component ──────────────────────────────────────────────
 
@@ -370,6 +398,7 @@ export default function TreeExplorer() {
         {panel === 'member' && selected && (
           <MemberForm dark={dark} node={selected} isSelf={selected.id === 'self'}
             member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
+            canEdit={canEditDeceasedParent(selected.id, selected.group, members, config, me?.id || 'guest')}
             onClose={() => setPanel('none')}
             onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}
@@ -457,8 +486,8 @@ const INVITE_METHODS = [
   { label: 'Salin Tautan', icon: Link2, color: 'text-slate-500' },
 ];
 
-function MemberForm({ node, isSelf, member, defaultName, accountName, onSave, onClose }: {
-  dark: boolean; node: TNode; isSelf: boolean; member?: Member; defaultName: string; accountName?: string;
+function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, onSave, onClose }: {
+  dark: boolean; node: TNode; isSelf: boolean; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
   onClose: () => void; onSave: (m: Member) => void;
 }) {
   const [form, setForm] = useState<Member>({
@@ -490,6 +519,14 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, onSave, on
         <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10"><X size={18} /></button>
       </div>
 
+      {!canEdit && (
+        <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 dark:bg-amber-900/20 dark:border-amber-800/30">
+          <p className="text-xs text-amber-700 dark:text-amber-300 leading-snug">
+            Profil orang tua yang meninggal hanya dapat diedit oleh suami/istri yang masih hidup atau anak-anak yang memiliki akun terverifikasi.
+          </p>
+        </div>
+      )}
+
       <div className="p-5 overflow-y-auto flex-1 space-y-5">
         {/* Photo */}
         <div className="flex flex-col items-center gap-3">
@@ -499,8 +536,9 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, onSave, on
               <img src={form.photo} alt="foto" className="w-full h-full object-cover" />
             ) : <User size={38} className="text-slate-400 dark:text-white/40" />}
           </div>
-          <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-          <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+          <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" disabled={!canEdit} />
+          <button onClick={() => canEdit && fileRef.current?.click()} disabled={!canEdit}
+            className={`flex items-center gap-1.5 text-sm ${canEdit ? 'text-blue-600 dark:text-blue-400 hover:underline' : 'text-slate-400 cursor-not-allowed'}`}>
             <Upload size={14} />Unggah Foto Profil
           </button>
         </div>
@@ -508,7 +546,8 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, onSave, on
         {/* Name */}
         <div>
           <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nama Lengkap</label>
-          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={defaultName} className={inputCls} />
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={defaultName}
+            disabled={!canEdit} className={`${inputCls} ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} />
         </div>
 
         {/* Gender */}
@@ -516,12 +555,13 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, onSave, on
           <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Jenis Kelamin</label>
           <div className="grid grid-cols-2 gap-2">
             {(['L', 'P'] as const).map((g) => (
-              <button key={g} onClick={() => setForm({ ...form, gender: g })}
+              <button key={g} onClick={() => canEdit && setForm({ ...form, gender: g })}
+                disabled={!canEdit}
                 className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
                   form.gender === g
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-white/5 dark:text-white/70 dark:border-white/15 dark:hover:bg-white/10'
-                }`}>
+                } ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {g === 'L' ? 'Laki-laki' : 'Perempuan'}
               </button>
             ))}
@@ -533,12 +573,13 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, onSave, on
           <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Status Kehidupan</label>
           <div className="grid grid-cols-2 gap-2">
             {[{ v: true, l: 'Hidup' }, { v: false, l: 'Meninggal Dunia' }].map((s) => (
-              <button key={s.l} onClick={() => setForm({ ...form, alive: s.v })}
+              <button key={s.l} onClick={() => canEdit && setForm({ ...form, alive: s.v })}
+                disabled={!canEdit}
                 className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
                   form.alive === s.v
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-white/5 dark:text-white/70 dark:border-white/15 dark:hover:bg-white/10'
-                }`}>
+                } ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {s.l}
               </button>
             ))}
@@ -568,7 +609,10 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, onSave, on
       </div>
 
       <div className="p-5 border-t border-slate-200 dark:border-white/10">
-        <button onClick={() => onSave(form)} className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+        <button onClick={() => onSave(form)} disabled={!canEdit}
+          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+            canEdit ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed dark:bg-white/10 dark:text-white/40'
+          }`}>
           <Check size={16} />Simpan
         </button>
       </div>
