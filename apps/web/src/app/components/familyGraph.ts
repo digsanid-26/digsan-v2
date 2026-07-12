@@ -11,7 +11,7 @@
 // live UI still uses the config-driven layout until Phase 2 wires this in.
 // ─────────────────────────────────────────────────────────────
 
-import type { TreeConfig, Members } from './treeTypes';
+import type { TreeConfig, Members, TNode, Poly, Group as TGroup } from './treeTypes';
 
 export type FGender = 'L' | 'P' | '';
 
@@ -213,4 +213,115 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
   buildAncestors('M', config.simbahM > 0);
 
   return g;
+}
+
+// ─── Layout (relation-driven) ────────────────────────────────
+//
+// Reproduces the existing tree geometry from the relational graph. Being
+// relation-driven (rather than reading config counts), it can render extra
+// branches added in later phases (e.g. a deceased parent's siblings) without
+// changing the layout code.
+
+const LAYOUT_ANCESTORS_Y0 = -580;
+const ROW_CHILD = 210, ROW_PARENT = -210, ROW_GP = -420;
+const GP_CENTER = 300;
+
+const spreadX = (count: number, gap: number, cx: number): number[] => {
+  if (count <= 0) return [];
+  const total = (count - 1) * gap;
+  return Array.from({ length: count }, (_, i) => cx - total / 2 + i * gap);
+};
+
+function connectDown(lines: Poly[], midX: number, parentY: number, childXs: number[], childY: number) {
+  if (childXs.length === 0) return;
+  const trunkY = (parentY + childY) / 2;
+  lines.push({ points: [[midX, parentY], [midX, trunkY]] });
+  const xs = [...childXs, midX];
+  lines.push({ points: [[Math.min(...xs), trunkY], [Math.max(...xs), trunkY]] });
+  for (const cx of childXs) lines.push({ points: [[cx, trunkY], [cx, childY]] });
+}
+
+const idxOf = (id: string) => parseInt(id.split('-').pop() || '0', 10) || 0;
+const byIdx = (a: FMember, b: FMember) => idxOf(a.id) - idxOf(b.id);
+
+export function layoutGraph(g: FamilyGraph): { nodes: TNode[]; lines: Poly[] } {
+  const nodes: TNode[] = [];
+  const lines: Poly[] = [];
+  const self = Object.values(g).find((m) => m.isSelf) || g['self'];
+  if (!self) return { nodes, lines };
+
+  const push = (m: FMember, x: number, y: number) =>
+    nodes.push({ id: m.id, name: m.name, role: m.role, x, y, group: m.group as TGroup });
+
+  const byGroup = (grp: FGroup) => Object.values(g).filter((m) => m.group === grp).sort(byIdx);
+
+  // Self + spouses (y = 0)
+  const spouses = Object.values(g).filter((m) => m.group === 'spouse' && m.spouseId === self.id).sort(byIdx);
+  const coupleXs = spreadX(1 + spouses.length, 160, 0);
+  const selfX = coupleXs[0];
+  push(self, selfX, 0);
+  spouses.forEach((s, i) => { push(s, coupleXs[i + 1], 0); lines.push({ points: [[selfX, 0], [coupleXs[i + 1], 0]], marriage: true }); });
+  const coupleMid = coupleXs.reduce((a, b) => a + b, 0) / coupleXs.length;
+  const leftEdge = Math.min(...coupleXs);
+  const rightEdge = Math.max(...coupleXs);
+
+  // Children (y = 210) — anyone whose parent is self (or self's spouse)
+  const children = Object.values(g).filter((m) => m.group === 'child' && (m.parentId === self.id || (self.spouseId && m.parentId === self.spouseId))).sort(byIdx);
+  const childXs = spreadX(children.length, 150, coupleMid);
+  children.forEach((c, i) => push(c, childXs[i], ROW_CHILD));
+  connectDown(lines, coupleMid, 0, childXs, ROW_CHILD);
+
+  // Siblings (y = 0) — share self's parent
+  const older = byGroup('kakak').filter((m) => m.parentId === self.parentId);
+  const younger = byGroup('adik').filter((m) => m.parentId === self.parentId);
+  const olderXs = older.map((m, i) => { const x = leftEdge - 150 * (i + 1); push(m, x, 0); return x; });
+  const youngerXs = younger.map((m, i) => { const x = rightEdge + 150 * (i + 1); push(m, x, 0); return x; });
+
+  // Parents (y = -210)
+  const parents = byGroup('parent');
+  const parentXs = spreadX(parents.length, 160, 0);
+  parents.forEach((p, i) => push(p, parentXs[i], ROW_PARENT));
+  if (parents.length >= 2) lines.push({ points: [[parentXs[0], ROW_PARENT], [parentXs[parentXs.length - 1], ROW_PARENT]], marriage: true });
+  const parentMid = parentXs.length ? parentXs.reduce((a, b) => a + b, 0) / parentXs.length : 0;
+  if (parents.length > 0) connectDown(lines, parentMid, ROW_PARENT, [...olderXs, selfX, ...youngerXs], 0);
+
+  // Grandparents + ancestor chains, resolved via relations.
+  const fatherId = self.parentId || undefined;
+  const father = fatherId ? g[fatherId] : undefined;
+  const motherId = father?.spouseId || undefined;
+  const fatherX = parentXs[0];
+  const motherX = parentXs[parentXs.length - 1];
+
+  const buildAncestorsChain = (rootGpId: string | undefined, centerX: number) => {
+    if (!rootGpId || !g[rootGpId]) return;
+    let cur: string | undefined = g[rootGpId].parentId || undefined;
+    let prevY = ROW_GP;
+    let i = 0;
+    while (cur && g[cur]) {
+      const y = LAYOUT_ANCESTORS_Y0 - i * 150;
+      push(g[cur], centerX, y);
+      lines.push({ points: [[centerX, prevY], [centerX, y]] });
+      prevY = y;
+      cur = g[cur].parentId || undefined;
+      i++;
+    }
+  };
+
+  const buildGpSide = (rootParentX: number | undefined, gpRootId: string | undefined, centerX: number) => {
+    if (!gpRootId || !g[gpRootId]) return;
+    const gpNodes = [g[gpRootId]];
+    const sp = g[gpRootId].spouseId;
+    if (sp && g[sp]) gpNodes.push(g[sp]);
+    const xs = spreadX(gpNodes.length, 150, centerX);
+    gpNodes.forEach((gp, i) => push(gp, xs[i], ROW_GP));
+    if (gpNodes.length >= 2) lines.push({ points: [[xs[0], ROW_GP], [xs[xs.length - 1], ROW_GP]], marriage: true });
+    const mid = xs.reduce((a, b) => a + b, 0) / xs.length;
+    if (rootParentX !== undefined) connectDown(lines, mid, ROW_GP, [rootParentX], ROW_PARENT);
+    buildAncestorsChain(gpRootId, centerX);
+  };
+
+  buildGpSide(fatherX, father?.parentId || undefined, -GP_CENTER);
+  buildGpSide(motherX, motherId ? g[motherId]?.parentId || undefined : undefined, GP_CENTER);
+
+  return { nodes, lines };
 }

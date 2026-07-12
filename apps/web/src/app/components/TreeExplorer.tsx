@@ -6,6 +6,7 @@ import { treeApi } from '@/lib/tree';
 import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
 import { DEFAULT_CONFIG } from './treeTypes';
+import { configToGraph, layoutGraph } from './familyGraph';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
   Mail, MessageCircle, Share2, Link2, Upload, Check,
@@ -22,6 +23,7 @@ const STYLE: Record<Group, { bg: string; border: string; size: number }> = {
   kakak:       { bg: '#c2410c', border: 'rgba(251,146,60,0.7)', size: 70 },
   adik:        { bg: '#047857', border: 'rgba(52,211,153,0.7)', size: 70 },
   child:       { bg: '#b45309', border: 'rgba(251,191,36,0.7)', size: 64 },
+  uncle:       { bg: '#0e7490', border: 'rgba(103,232,249,0.7)', size: 66 },
 };
 
 const ANCESTORS = ['Buyut', 'Canggah', 'Wareng', 'Udheg-udheg', 'Gantung Siwur', 'Gropak Senthe'];
@@ -311,8 +313,11 @@ export default function TreeExplorer() {
     if (!config.configured) {
       return { nodes: [{ id: 'self', name: 'Anda', role: 'Diri Sendiri', x: 0, y: 0, group: 'self' as Group }], lines: [] as Poly[] };
     }
-    return expanded ? generateTree(config) : generateCollapsed(config);
-  }, [config, expanded]);
+    if (expanded) {
+      return layoutGraph(configToGraph(config, members, me?.name || 'Anda'));
+    }
+    return generateCollapsed(config);
+  }, [config, expanded, members, me]);
 
   // Display helper (applies member overrides)
   const disp = (id: string, fallback: string) => {
