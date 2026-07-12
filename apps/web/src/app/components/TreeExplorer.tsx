@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getUser } from '@/lib/auth';
+import { treeApi } from '@/lib/tree';
 import { useTheme } from './ThemeProvider';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
@@ -265,28 +266,81 @@ export default function TreeExplorer() {
   const drag = useRef<{ ox: number; oy: number; px: number; py: number } | null>(null);
   const uidRef = useRef('guest');
 
-  // Load persisted data
+  // Load persisted data — localStorage first (fast/offline cache), then
+  // reconcile with the server (source of truth) so data syncs across devices.
   useEffect(() => {
     const u = getUser();
     const uid = u?.id || 'guest';
     uidRef.current = uid;
     if (u) setMe({ id: uid, name: u.name, avatar: u.avatar });
+
+    let hadLocalConfig = false;
     try {
       const c = localStorage.getItem(`digsan_tree_cfg_${uid}`);
-      if (c) setConfig({ ...DEFAULT_CONFIG, ...JSON.parse(c) });
-      else setPanel('setup');
+      if (c) { setConfig({ ...DEFAULT_CONFIG, ...JSON.parse(c) }); hadLocalConfig = true; }
       const m = localStorage.getItem(`digsan_tree_mem_${uid}`);
       if (m) setMembers(JSON.parse(m));
     } catch { /* ignore */ }
+
+    // Only authenticated users can sync with the server.
+    if (!u) {
+      if (!hadLocalConfig) setPanel('setup');
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await treeApi.getLayout<Partial<TreeConfig>, Members>();
+        if (cancelled) return;
+
+        if (remote.config) {
+          const merged = { ...DEFAULT_CONFIG, ...remote.config };
+          setConfig(merged);
+          try { localStorage.setItem(`digsan_tree_cfg_${uid}`, JSON.stringify(merged)); } catch { /* ignore */ }
+        }
+        if (remote.members) {
+          setMembers(remote.members);
+          try { localStorage.setItem(`digsan_tree_mem_${uid}`, JSON.stringify(remote.members)); } catch { /* ignore */ }
+        }
+
+        // No config anywhere → prompt setup.
+        if (!remote.config && !hadLocalConfig) setPanel('setup');
+
+        // Local data existed but server had none → push local up so it syncs.
+        if (!remote.config && hadLocalConfig) {
+          try {
+            const c = localStorage.getItem(`digsan_tree_cfg_${uid}`);
+            const m = localStorage.getItem(`digsan_tree_mem_${uid}`);
+            await treeApi.saveLayout({
+              config: c ? JSON.parse(c) : undefined,
+              members: m ? JSON.parse(m) : undefined,
+            });
+          } catch { /* ignore */ }
+        }
+      } catch {
+        // Offline or API error → fall back to local cache.
+        if (!cancelled && !hadLocalConfig) setPanel('setup');
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, []);
+
+  const pushLayout = (payload: { config?: TreeConfig; members?: Members }) => {
+    if (uidRef.current === 'guest') return; // only sync for logged-in users
+    treeApi.saveLayout(payload).catch(() => { /* keep local cache; will retry on next save */ });
+  };
 
   const saveConfig = (c: TreeConfig) => {
     setConfig(c);
     try { localStorage.setItem(`digsan_tree_cfg_${uidRef.current}`, JSON.stringify(c)); } catch { /* ignore */ }
+    pushLayout({ config: c });
   };
   const saveMembers = (m: Members) => {
     setMembers(m);
     try { localStorage.setItem(`digsan_tree_mem_${uidRef.current}`, JSON.stringify(m)); } catch { /* ignore */ }
+    pushLayout({ members: m });
   };
 
   const { nodes, lines } = useMemo(() => {

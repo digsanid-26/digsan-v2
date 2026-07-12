@@ -12,6 +12,7 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { UpdateCardStyleDto } from './dto/card-style.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
+import { SaveLayoutDto } from './dto/save-layout.dto';
 
 // ─── AUTHENTICATED TREE ENDPOINTS ─────────────────────────────
 
@@ -34,6 +35,22 @@ export class TreeController {
   @ApiOperation({ summary: 'Create a new family tree (auto-adds creator as first member)' })
   async create(@CurrentUser('id') userId: string, @Body() dto: CreateTreeDto) {
     return this.treeService.create(userId, dto);
+  }
+
+  // ─── EXPLORER LAYOUT (cross-device sync) ────────────────────
+  // NOTE: must be declared before ':id' routes so 'layout' is not
+  // captured as a tree id parameter.
+
+  @Get('layout')
+  @ApiOperation({ summary: 'Get the config-driven explorer layout for the current user' })
+  async getLayout(@CurrentUser('id') userId: string) {
+    return this.treeService.getLayout(userId);
+  }
+
+  @Put('layout')
+  @ApiOperation({ summary: 'Save the config-driven explorer layout for the current user' })
+  async saveLayout(@CurrentUser('id') userId: string, @Body() dto: SaveLayoutDto) {
+    return this.treeService.saveLayout(userId, dto.config, dto.members);
   }
 
   @Get(':id')

@@ -129,6 +129,50 @@ export class TreeService {
     return { message: 'Pohon keluarga berhasil dihapus' };
   }
 
+  // ─── LAYOUT (config-driven explorer sync) ───────────────────
+
+  /** Returns the user's default tree (creating one if none exists). */
+  private async getOrCreateDefaultTree(userId: string) {
+    const existing = await this.prisma.familyTree.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (existing) return existing;
+
+    return this.prisma.familyTree.create({
+      data: { name: 'Pohon Keluarga Saya', userId },
+    });
+  }
+
+  /** Get the saved explorer layout (config + members) for the current user. */
+  async getLayout(userId: string) {
+    const tree = await this.getOrCreateDefaultTree(userId);
+    return {
+      treeId: tree.id,
+      config: tree.layoutConfig ?? null,
+      members: tree.layoutMembers ?? null,
+      updatedAt: tree.updatedAt,
+    };
+  }
+
+  /** Persist the explorer layout (config + members) for the current user. */
+  async saveLayout(userId: string, config: unknown, members: unknown) {
+    const tree = await this.getOrCreateDefaultTree(userId);
+    const updated = await this.prisma.familyTree.update({
+      where: { id: tree.id },
+      data: {
+        ...(config !== undefined && { layoutConfig: config as any }),
+        ...(members !== undefined && { layoutMembers: members as any }),
+      },
+    });
+    return {
+      treeId: updated.id,
+      config: updated.layoutConfig ?? null,
+      members: updated.layoutMembers ?? null,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
   // ─── MEMBERS ────────────────────────────────────────────────
 
   async getMembers(treeId: string, userId?: string) {
