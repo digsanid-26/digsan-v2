@@ -288,9 +288,7 @@ export default function FamilyTreeVisual() {
             /* ── Logged in ── */
             <>
               <div
-                id="logo-container"
                 className="w-[120px] h-[120px] flex items-center justify-center transition-all duration-500 rounded-full overflow-hidden"
-                style={{ filter: 'blur(1.5px) brightness(0.85)' }}
               >
                 {currentUser.avatar ? (
                   <Image
@@ -319,7 +317,7 @@ export default function FamilyTreeVisual() {
               {/* Hover overlay for logged-in user */}
               <div
                 className="connect-btn absolute inset-0 flex flex-col items-center justify-center rounded-full cursor-pointer"
-                style={{ opacity: 0, transition: 'opacity 0.3s ease', pointerEvents: 'none', zIndex: 5 }}
+                style={{ opacity: 0, transition: 'opacity 0.3s ease', pointerEvents: 'none', zIndex: 5, background: 'rgba(15,30,60,0.72)', backdropFilter: 'blur(2px)' }}
                 onClick={(e) => { e.stopPropagation(); window.location.href = '/dashboard'; }}
               >
                 <div className="text-center px-3">
