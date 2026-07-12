@@ -98,9 +98,9 @@ export default function DashboardPage() {
             </Link>
           }
         >
-          <div className="flex justify-center">
-            <div className="relative overflow-hidden" style={{ width: 300, height: 300 }}>
-              <div style={{ transform: 'scale(0.4286)', transformOrigin: 'top left' }}>
+          <div className="relative mx-auto" style={{ width: 300, height: 300 }}>
+            <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+              <div style={{ transform: 'scale(0.4)' }}>
                 <FamilyTreeVisual compact />
               </div>
             </div>
