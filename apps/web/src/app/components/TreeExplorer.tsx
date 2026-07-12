@@ -3,139 +3,252 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getUser } from '@/lib/auth';
 import { useTheme } from './ThemeProvider';
-import { Plus, Minus, Maximize2, Network, X, User } from 'lucide-react';
+import {
+  Plus, Minus, Maximize2, Network, X, User, Settings,
+  Mail, MessageCircle, Share2, Link2, Upload, Check,
+} from 'lucide-react';
+
+// ─── Types ──────────────────────────────────────────────────
 
 type Group =
-  | 'self' | 'spouse' | 'parent' | 'grandparent' | 'buyut'
-  | 'uncle' | 'kakak' | 'adik' | 'child' | 'grandchild';
+  | 'self' | 'spouse' | 'parent' | 'grandparent' | 'ancestor'
+  | 'kakak' | 'adik' | 'child';
 
-interface TNode { id: string; name: string; role: string; x: number; y: number; group: Group; }
+interface TNode { id: string; name: string; role: string; x: number; y: number; group: Group; count?: number; }
+type Poly = { points: number[][]; marriage?: boolean };
+
+interface TreeConfig {
+  configured: boolean;
+  mainFamilyName: string;
+  spouseCount: number;
+  childCount: number;
+  extFamilyName: string;
+  parentCount: number;
+  olderCount: number;
+  youngerCount: number;
+  simbahP: number;
+  simbahM: number;
+}
+
+interface Member { name: string; gender: 'L' | 'P' | ''; alive: boolean; photo: string | null; }
+type Members = Record<string, Member>;
+
+const DEFAULT_CONFIG: TreeConfig = {
+  configured: false,
+  mainFamilyName: '',
+  spouseCount: 1,
+  childCount: 2,
+  extFamilyName: '',
+  parentCount: 2,
+  olderCount: 2,
+  youngerCount: 2,
+  simbahP: 2,
+  simbahM: 2,
+};
+
+// ─── Styling per group ──────────────────────────────────────
 
 const STYLE: Record<Group, { bg: string; border: string; size: number }> = {
   self:        { bg: '#254474', border: 'rgba(96,165,250,0.85)', size: 96 },
   spouse:      { bg: '#7e22ce', border: 'rgba(216,180,254,0.7)', size: 76 },
   parent:      { bg: '#1d4ed8', border: 'rgba(96,165,250,0.7)', size: 74 },
   grandparent: { bg: '#4338ca', border: 'rgba(165,180,252,0.7)', size: 66 },
-  buyut:       { bg: '#6d28d9', border: 'rgba(196,181,253,0.7)', size: 58 },
-  uncle:       { bg: '#475569', border: 'rgba(148,163,184,0.7)', size: 64 },
+  ancestor:    { bg: '#6d28d9', border: 'rgba(196,181,253,0.7)', size: 58 },
   kakak:       { bg: '#c2410c', border: 'rgba(251,146,60,0.7)', size: 70 },
   adik:        { bg: '#047857', border: 'rgba(52,211,153,0.7)', size: 70 },
   child:       { bg: '#b45309', border: 'rgba(251,191,36,0.7)', size: 64 },
-  grandchild:  { bg: '#0d9488', border: 'rgba(94,234,212,0.7)', size: 54 },
 };
 
-const NODES: TNode[] = [
-  { id: 'kk2', name: 'Kakak 2', role: 'Saudara Tua', x: -560, y: 0, group: 'kakak' },
-  { id: 'kk1', name: 'Kakak 1', role: 'Saudara Tua', x: -400, y: 0, group: 'kakak' },
-  { id: 'self', name: 'Anda', role: 'Diri Sendiri', x: -70, y: 0, group: 'self' },
-  { id: 'spouse', name: 'Pasangan', role: 'Suami / Istri', x: 70, y: 0, group: 'spouse' },
-  { id: 'ad1', name: 'Adik 1', role: 'Saudara Muda', x: 400, y: 0, group: 'adik' },
-  { id: 'ad2', name: 'Adik 2', role: 'Saudara Muda', x: 560, y: 0, group: 'adik' },
-  { id: 'an1', name: 'Anak 1', role: 'Keturunan', x: -240, y: 200, group: 'child' },
-  { id: 'an2', name: 'Anak 2', role: 'Keturunan', x: -80, y: 200, group: 'child' },
-  { id: 'an3', name: 'Anak 3', role: 'Keturunan', x: 80, y: 200, group: 'child' },
-  { id: 'an4', name: 'Anak 4', role: 'Keturunan', x: 240, y: 200, group: 'child' },
-  { id: 'cu1', name: 'Cucu 1', role: 'Cucu', x: -140, y: 380, group: 'grandchild' },
-  { id: 'cu2', name: 'Cucu 2', role: 'Cucu', x: -20, y: 380, group: 'grandchild' },
-  { id: 'cu3', name: 'Cucu 3', role: 'Cucu', x: 120, y: 380, group: 'grandchild' },
-  { id: 'ayah', name: 'Ayah', role: 'Orang Tua', x: -70, y: -200, group: 'parent' },
-  { id: 'ibu', name: 'Ibu', role: 'Orang Tua', x: 70, y: -200, group: 'parent' },
-  { id: 'paman', name: 'Paman', role: 'Saudara Ayah', x: -360, y: -200, group: 'uncle' },
-  { id: 'bibi', name: 'Bibi', role: 'Saudara Ibu', x: 360, y: -200, group: 'uncle' },
-  { id: 'kakekP', name: 'Kakek', role: 'Kakek (dari Ayah)', x: -200, y: -380, group: 'grandparent' },
-  { id: 'nenekP', name: 'Nenek', role: 'Nenek (dari Ayah)', x: -60, y: -380, group: 'grandparent' },
-  { id: 'kakekM', name: 'Kakek', role: 'Kakek (dari Ibu)', x: 60, y: -380, group: 'grandparent' },
-  { id: 'nenekM', name: 'Nenek', role: 'Nenek (dari Ibu)', x: 200, y: -380, group: 'grandparent' },
-  { id: 'buyut1', name: 'Buyut', role: 'Buyut (dari Ayah)', x: -200, y: -540, group: 'buyut' },
-  { id: 'buyut2', name: 'Buyut', role: 'Buyut (dari Ayah)', x: -60, y: -540, group: 'buyut' },
-  { id: 'buyut3', name: 'Buyut', role: 'Buyut (dari Ibu)', x: 60, y: -540, group: 'buyut' },
-  { id: 'buyut4', name: 'Buyut', role: 'Buyut (dari Ibu)', x: 200, y: -540, group: 'buyut' },
-];
+const ANCESTORS = ['Buyut', 'Canggah', 'Wareng', 'Udheg-udheg', 'Gantung Siwur', 'Gropak Senthe'];
 
-const COUPLES: { parents: string[]; children: string[] }[] = [
-  { parents: ['self', 'spouse'], children: ['an1', 'an2', 'an3', 'an4'] },
-  { parents: ['ayah', 'ibu'], children: ['kk2', 'kk1', 'self', 'ad1', 'ad2'] },
-  { parents: ['kakekP', 'nenekP'], children: ['ayah', 'paman'] },
-  { parents: ['kakekM', 'nenekM'], children: ['ibu', 'bibi'] },
-  { parents: ['buyut1', 'buyut2'], children: ['kakekP'] },
-  { parents: ['buyut3', 'buyut4'], children: ['kakekM'] },
-  { parents: ['an2'], children: ['cu1', 'cu2'] },
-  { parents: ['an3'], children: ['cu3'] },
-];
+const OX = 1600, OY = 1600; // svg internal offset (large to fit ancestral chain)
 
-const RELATIONS = [
-  { title: 'Orang Tua', items: ['Ayah', 'Ibu'] },
-  { title: 'Kakak', items: ['Kakak 1', 'Kakak 2'] },
-  { title: 'Adik', items: ['Adik 1', 'Adik 2'] },
-  { title: 'Pasangan', items: ['Pasangan'] },
-  { title: 'Anak', items: ['Anak 1', 'Anak 2', 'Anak 3', 'Anak 4'] },
-];
+// ─── Geometry helpers ───────────────────────────────────────
 
-const OX = 1300, OY = 1000;
+const spread = (count: number, gap: number, cx: number): number[] => {
+  if (count <= 0) return [];
+  const total = (count - 1) * gap;
+  return Array.from({ length: count }, (_, i) => cx - total / 2 + i * gap);
+};
 
-type Poly = { points: number[][]; marriage?: boolean };
+function connectDown(lines: Poly[], midX: number, parentY: number, childXs: number[], childY: number) {
+  if (childXs.length === 0) return;
+  const trunkY = (parentY + childY) / 2;
+  lines.push({ points: [[midX, parentY], [midX, trunkY]] });
+  const xs = [...childXs, midX];
+  lines.push({ points: [[Math.min(...xs), trunkY], [Math.max(...xs), trunkY]] });
+  for (const cx of childXs) lines.push({ points: [[cx, trunkY], [cx, childY]] });
+}
 
-function buildLines(): Poly[] {
-  const by = Object.fromEntries(NODES.map((n) => [n.id, n]));
-  const out: Poly[] = [];
-  for (const c of COUPLES) {
-    const ps = c.parents.map((id) => by[id]);
-    const cs = c.children.map((id) => by[id]);
-    const midX = ps.reduce((s, p) => s + p.x, 0) / ps.length;
-    const py = ps[0].y;
-    if (ps.length === 2) out.push({ points: [[ps[0].x, py], [ps[1].x, py]], marriage: true });
-    const cy = cs[0].y;
-    const trunkY = (py + cy) / 2;
-    out.push({ points: [[midX, py], [midX, trunkY]] });
-    const xs = cs.map((n) => n.x).concat([midX]);
-    out.push({ points: [[Math.min(...xs), trunkY], [Math.max(...xs), trunkY]] });
-    for (const ch of cs) out.push({ points: [[ch.x, trunkY], [ch.x, cy]] });
+// ─── Full (expanded) tree generation ────────────────────────
+
+function generateTree(cfg: TreeConfig): { nodes: TNode[]; lines: Poly[] } {
+  const nodes: TNode[] = [];
+  const lines: Poly[] = [];
+
+  // Self + spouses (y = 0)
+  const coupleXs = spread(1 + cfg.spouseCount, 160, 0);
+  const selfX = coupleXs[0];
+  nodes.push({ id: 'self', name: 'Anda', role: 'Diri Sendiri', x: selfX, y: 0, group: 'self' });
+  for (let i = 0; i < cfg.spouseCount; i++) {
+    nodes.push({ id: `spouse-${i}`, name: cfg.spouseCount > 1 ? `Pasangan ${i + 1}` : 'Pasangan', role: 'Suami / Istri', x: coupleXs[i + 1], y: 0, group: 'spouse' });
+    lines.push({ points: [[selfX, 0], [coupleXs[i + 1], 0]], marriage: true });
   }
-  return out;
+  const coupleMid = coupleXs.reduce((a, b) => a + b, 0) / coupleXs.length;
+  const leftEdge = Math.min(...coupleXs);
+  const rightEdge = Math.max(...coupleXs);
+
+  // Children (y = 210)
+  const childXs = spread(cfg.childCount, 150, coupleMid);
+  childXs.forEach((x, i) => nodes.push({ id: `child-${i}`, name: `Anak ${i + 1}`, role: 'Keturunan', x, y: 210, group: 'child' }));
+  connectDown(lines, coupleMid, 0, childXs, 210);
+
+  // Siblings (y = 0)
+  const olderXs: number[] = [];
+  for (let i = 0; i < cfg.olderCount; i++) {
+    const x = leftEdge - 150 * (i + 1);
+    olderXs.push(x);
+    nodes.push({ id: `older-${i}`, name: `Kakak ${i + 1}`, role: 'Saudara Tua', x, y: 0, group: 'kakak' });
+  }
+  const youngerXs: number[] = [];
+  for (let i = 0; i < cfg.youngerCount; i++) {
+    const x = rightEdge + 150 * (i + 1);
+    youngerXs.push(x);
+    nodes.push({ id: `younger-${i}`, name: `Adik ${i + 1}`, role: 'Saudara Muda', x, y: 0, group: 'adik' });
+  }
+
+  // Parents (y = -210)
+  const parentXs = spread(cfg.parentCount, 160, 0);
+  const parentLabels = cfg.parentCount === 2 ? ['Ayah', 'Ibu'] : parentXs.map((_, i) => `Orang Tua ${i + 1}`);
+  parentXs.forEach((x, i) => nodes.push({ id: `parent-${i}`, name: parentLabels[i], role: 'Orang Tua', x, y: -210, group: 'parent' }));
+  if (cfg.parentCount >= 2) lines.push({ points: [[parentXs[0], -210], [parentXs[parentXs.length - 1], -210]], marriage: true });
+  const parentMid = parentXs.length ? parentXs.reduce((a, b) => a + b, 0) / parentXs.length : 0;
+  const parentKids = [...olderXs, selfX, ...youngerXs];
+  if (cfg.parentCount > 0) connectDown(lines, parentMid, -210, parentKids, 0);
+
+  // Grandparents (Simbah, y = -420) + ancestral chains
+  const buildAncestors = (side: 'P' | 'M', centerX: number) => {
+    let prevY = -420;
+    ANCESTORS.forEach((label, i) => {
+      const y = -580 - i * 150;
+      nodes.push({ id: `anc${side}-${i}`, name: label, role: `Leluhur — ${label}`, x: centerX, y, group: 'ancestor' });
+      lines.push({ points: [[centerX, prevY], [centerX, y]] });
+      prevY = y;
+    });
+  };
+
+  const pCenter = -300, mCenter = 300;
+  if (cfg.simbahP > 0) {
+    const xs = spread(cfg.simbahP, 150, pCenter);
+    const labels = cfg.simbahP === 2 ? ['Kakek', 'Nenek'] : xs.map((_, i) => `Simbah Ayah ${i + 1}`);
+    xs.forEach((x, i) => nodes.push({ id: `gpP-${i}`, name: labels[i], role: 'Simbah (dari Ayah)', x, y: -420, group: 'grandparent' }));
+    if (cfg.simbahP >= 2) lines.push({ points: [[xs[0], -420], [xs[xs.length - 1], -420]], marriage: true });
+    const mid = xs.reduce((a, b) => a + b, 0) / xs.length;
+    if (parentXs[0] !== undefined) connectDown(lines, mid, -420, [parentXs[0]], -210);
+    buildAncestors('P', pCenter);
+  }
+  if (cfg.simbahM > 0) {
+    const xs = spread(cfg.simbahM, 150, mCenter);
+    const labels = cfg.simbahM === 2 ? ['Kakek', 'Nenek'] : xs.map((_, i) => `Simbah Ibu ${i + 1}`);
+    xs.forEach((x, i) => nodes.push({ id: `gpM-${i}`, name: labels[i], role: 'Simbah (dari Ibu)', x, y: -420, group: 'grandparent' }));
+    if (cfg.simbahM >= 2) lines.push({ points: [[xs[0], -420], [xs[xs.length - 1], -420]], marriage: true });
+    const mid = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const ibuX = parentXs[parentXs.length - 1];
+    if (ibuX !== undefined) connectDown(lines, mid, -420, [ibuX], -210);
+    buildAncestors('M', mCenter);
+  }
+
+  return { nodes, lines };
+}
+
+// ─── Collapsed (homepage-like) generation ───────────────────
+
+function generateCollapsed(cfg: TreeConfig): { nodes: TNode[]; lines: Poly[] } {
+  const nodes: TNode[] = [];
+  const lines: Poly[] = [];
+  const coupleXs = spread(1 + cfg.spouseCount, 150, 0);
+  nodes.push({ id: 'self', name: 'Anda', role: 'Diri Sendiri', x: coupleXs[0], y: 0, group: 'self' });
+  for (let i = 0; i < cfg.spouseCount; i++) {
+    nodes.push({ id: `spouse-${i}`, name: cfg.spouseCount > 1 ? `Pasangan ${i + 1}` : 'Pasangan', role: 'Suami / Istri', x: coupleXs[i + 1], y: 0, group: 'spouse' });
+    lines.push({ points: [[coupleXs[0], 0], [coupleXs[i + 1], 0]], marriage: true });
+  }
+  const bubbles: TNode[] = [];
+  if (cfg.parentCount > 0) bubbles.push({ id: 'grp-ot', name: 'Orang Tua', role: 'group', x: 0, y: -235, group: 'parent', count: cfg.parentCount });
+  if (cfg.olderCount > 0) bubbles.push({ id: 'grp-kk', name: 'Kakak', role: 'group', x: -235, y: 0, group: 'kakak', count: cfg.olderCount });
+  if (cfg.youngerCount > 0) bubbles.push({ id: 'grp-ad', name: 'Adik', role: 'group', x: 235, y: 0, group: 'adik', count: cfg.youngerCount });
+  if (cfg.childCount > 0) bubbles.push({ id: 'grp-an', name: 'Anak', role: 'group', x: 0, y: 235, group: 'child', count: cfg.childCount });
+  bubbles.forEach((b) => { nodes.push(b); lines.push({ points: [[0, 0], [b.x, b.y]] }); });
+  return { nodes, lines };
 }
 
 const CLAMP = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
+// ─── Component ──────────────────────────────────────────────
+
 export default function TreeExplorer() {
   const { theme } = useTheme();
   const dark = theme === 'dark';
-  const [me, setMe] = useState<{ name: string; avatar: string | null } | null>(null);
+
+  const [me, setMe] = useState<{ id: string; name: string; avatar: string | null } | null>(null);
+  const [config, setConfig] = useState<TreeConfig>(DEFAULT_CONFIG);
+  const [members, setMembers] = useState<Members>({});
   const [expanded, setExpanded] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  const [panel, setPanel] = useState<'none' | 'setup' | 'member'>('none');
   const [selected, setSelected] = useState<TNode | null>(null);
+
   const viewportRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ ox: number; oy: number; px: number; py: number } | null>(null);
+  const uidRef = useRef('guest');
 
+  // Load persisted data
   useEffect(() => {
     const u = getUser();
-    if (u) setMe({ name: u.name, avatar: u.avatar });
+    const uid = u?.id || 'guest';
+    uidRef.current = uid;
+    if (u) setMe({ id: uid, name: u.name, avatar: u.avatar });
+    try {
+      const c = localStorage.getItem(`digsan_tree_cfg_${uid}`);
+      if (c) setConfig({ ...DEFAULT_CONFIG, ...JSON.parse(c) });
+      else setPanel('setup');
+      const m = localStorage.getItem(`digsan_tree_mem_${uid}`);
+      if (m) setMembers(JSON.parse(m));
+    } catch { /* ignore */ }
   }, []);
 
-  const expandedLines = useMemo(() => buildLines(), []);
+  const saveConfig = (c: TreeConfig) => {
+    setConfig(c);
+    try { localStorage.setItem(`digsan_tree_cfg_${uidRef.current}`, JSON.stringify(c)); } catch { /* ignore */ }
+  };
+  const saveMembers = (m: Members) => {
+    setMembers(m);
+    try { localStorage.setItem(`digsan_tree_mem_${uidRef.current}`, JSON.stringify(m)); } catch { /* ignore */ }
+  };
 
-  const simpleNodes: TNode[] = useMemo(() => [
-    { id: 'self', name: me?.name || 'Anda', role: 'Diri Sendiri', x: 0, y: 0, group: 'self' },
-    { id: 'grp-ot', name: 'Orang Tua', role: 'group', x: 0, y: -235, group: 'parent' },
-    { id: 'grp-kk', name: 'Kakak', role: 'group', x: -235, y: 0, group: 'kakak' },
-    { id: 'grp-ad', name: 'Adik', role: 'group', x: 235, y: 0, group: 'adik' },
-    { id: 'grp-an', name: 'Anak', role: 'group', x: 0, y: 235, group: 'child' },
-  ], [me]);
+  const { nodes, lines } = useMemo(() => {
+    if (!config.configured) {
+      return { nodes: [{ id: 'self', name: 'Anda', role: 'Diri Sendiri', x: 0, y: 0, group: 'self' as Group }], lines: [] as Poly[] };
+    }
+    return expanded ? generateTree(config) : generateCollapsed(config);
+  }, [config, expanded]);
 
-  const simpleLines: Poly[] = [
-    { points: [[0, 0], [0, -235]] }, { points: [[0, 0], [-235, 0]] },
-    { points: [[0, 0], [235, 0]] }, { points: [[0, 0], [0, 235]] },
-  ];
+  // Display helper (applies member overrides)
+  const disp = (id: string, fallback: string) => {
+    const m = members[id];
+    const name = id === 'self' ? (m?.name || me?.name || 'Anda') : (m?.name || fallback);
+    const photo = id === 'self' ? (m?.photo || me?.avatar || null) : (m?.photo || null);
+    return { name, photo, alive: m?.alive !== false, gender: m?.gender || '' };
+  };
 
-  const nodes = expanded ? NODES : simpleNodes;
-  const lines = expanded ? expandedLines : simpleLines;
-
+  // Wheel zoom
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      setZoom((z) => CLAMP(z * (e.deltaY < 0 ? 1.12 : 0.89), 0.25, 2));
+      setZoom((z) => CLAMP(z * (e.deltaY < 0 ? 1.12 : 0.89), 0.2, 2));
     };
     vp.addEventListener('wheel', onWheel, { passive: false });
     return () => vp.removeEventListener('wheel', onWheel);
@@ -152,13 +265,15 @@ export default function TreeExplorer() {
   };
   const onPointerUp = () => { drag.current = null; };
 
-  const doExpand = () => { setExpanded(true); setZoom(0.5); setPan({ x: 0, y: 0 }); };
+  const doExpand = () => { setExpanded(true); setZoom(0.42); setPan({ x: 0, y: 0 }); };
   const doCollapse = () => { setExpanded(false); setZoom(1); setPan({ x: 0, y: 0 }); };
-  const reset = () => { setZoom(expanded ? 0.5 : 1); setPan({ x: 0, y: 0 }); };
+  const reset = () => { setZoom(expanded ? 0.42 : 1); setPan({ x: 0, y: 0 }); };
 
   const clickNode = (n: TNode) => {
     if (n.role === 'group') { doExpand(); return; }
-    setSelected(n);
+    const d = disp(n.id, n.name);
+    setSelected({ ...n, name: d.name });
+    setPanel('member');
   };
 
   const strokeMarriage = dark ? 'rgba(147,197,253,0.55)' : 'rgba(37,99,235,0.45)';
@@ -168,9 +283,17 @@ export default function TreeExplorer() {
     <div className="relative w-full h-full overflow-hidden select-none bg-slate-100 dark:bg-[#05050f]">
       {/* Toolbar */}
       <div className="absolute top-4 left-4 z-30 flex gap-2">
-        <button onClick={expanded ? doCollapse : doExpand}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors shadow-lg">
-          <Network size={15} />{expanded ? 'Tutup Semua' : 'Expand All'}
+        {config.configured && (
+          <button onClick={expanded ? doCollapse : doExpand}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors shadow-lg">
+            <Network size={15} />{expanded ? 'Tutup Semua' : 'Expand All'}
+          </button>
+        )}
+        <button onClick={() => { setPanel('setup'); setSelected(null); }}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg
+            bg-white text-slate-700 hover:bg-slate-50 border border-slate-200
+            dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15">
+          <Settings size={15} />Pengaturan
         </button>
       </div>
 
@@ -178,18 +301,26 @@ export default function TreeExplorer() {
       <div className="absolute bottom-5 right-5 z-30 flex flex-col gap-1.5 p-1.5 rounded-2xl backdrop-blur
         bg-white border border-slate-200 shadow-lg
         dark:bg-white/5 dark:border-white/10 dark:shadow-none">
-        <button onClick={() => setZoom((z) => CLAMP(z * 1.15, 0.25, 2))} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10" title="Perbesar"><Plus size={16} /></button>
+        <button onClick={() => setZoom((z) => CLAMP(z * 1.15, 0.2, 2))} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10" title="Perbesar"><Plus size={16} /></button>
         <button onClick={reset} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10" title="Reset"><Maximize2 size={15} /></button>
-        <button onClick={() => setZoom((z) => CLAMP(z * 0.87, 0.25, 2))} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10" title="Perkecil"><Minus size={16} /></button>
+        <button onClick={() => setZoom((z) => CLAMP(z * 0.87, 0.2, 2))} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10" title="Perkecil"><Minus size={16} /></button>
       </div>
 
       <div className="absolute top-4 right-4 z-20 text-[11px] text-slate-400 dark:text-white/35">Zoom {Math.round(zoom * 100)}% • seret untuk geser</div>
+
+      {!config.configured && (
+        <div className="absolute inset-x-0 top-24 z-20 flex justify-center pointer-events-none">
+          <p className="px-4 py-2 rounded-full text-sm bg-white/90 text-slate-600 border border-slate-200 shadow dark:bg-white/10 dark:text-white/70 dark:border-white/10">
+            Atur bagan keluarga Anda melalui tombol <b>Pengaturan</b>
+          </p>
+        </div>
+      )}
 
       {/* Viewport */}
       <div ref={viewportRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
         className="absolute inset-0 cursor-grab active:cursor-grabbing">
         <div className="absolute left-1/2 top-1/2" style={{ width: 0, height: 0, transformOrigin: '0 0', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transition: drag.current ? 'none' : 'transform 0.3s ease' }}>
-          <svg width={2600} height={2000} viewBox="0 0 2600 2000" style={{ position: 'absolute', left: -OX, top: -OY, overflow: 'visible', pointerEvents: 'none' }}>
+          <svg width={OX * 2} height={OY * 2} viewBox={`0 0 ${OX * 2} ${OY * 2}`} style={{ position: 'absolute', left: -OX, top: -OY, overflow: 'visible', pointerEvents: 'none' }}>
             {lines.map((l, i) => (
               <polyline key={i} points={l.points.map(([x, y]) => `${x + OX},${y + OY}`).join(' ')} fill="none"
                 stroke={l.marriage ? strokeMarriage : strokeNormal} strokeWidth={l.marriage ? 3 : 2} strokeLinecap="round" strokeLinejoin="round" />
@@ -198,19 +329,29 @@ export default function TreeExplorer() {
 
           {nodes.map((n) => {
             const st = STYLE[n.group];
-            const size = n.id === 'self' && !expanded ? 150 : st.size;
             const isSelf = n.id === 'self';
+            const isGroup = n.role === 'group';
+            const size = isSelf && !expanded ? 150 : st.size;
+            const d = isGroup ? null : disp(n.id, n.name);
             return (
               <button key={n.id} data-node onClick={() => clickNode(n)}
                 className="family-node absolute flex items-center justify-center rounded-full border text-white overflow-hidden"
-                style={{ left: n.x, top: n.y, width: size, height: size, transform: 'translate(-50%,-50%)', background: st.bg, borderColor: st.border, boxShadow: `0 0 18px ${st.border}` }}>
-                {isSelf && me?.avatar ? (
+                style={{ left: n.x, top: n.y, width: size, height: size, transform: 'translate(-50%,-50%)', background: st.bg, borderColor: st.border, boxShadow: `0 0 18px ${st.border}`, opacity: d && !d.alive ? 0.55 : 1 }}>
+                {isSelf && d?.photo ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={me.avatar} alt={n.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                  <img src={d.photo} alt={d.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                ) : d?.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={d.photo} alt={d.name} className="w-full h-full object-cover" />
                 ) : isSelf ? (
                   <User size={size * 0.4} className="text-white/85" />
                 ) : (
-                  <span className="px-1 text-center leading-tight font-semibold" style={{ fontSize: Math.max(9, size * 0.16) }}>{n.name}</span>
+                  <span className="px-1 text-center leading-tight font-semibold" style={{ fontSize: Math.max(9, size * 0.15) }}>
+                    {isGroup ? <>{n.name}<br /><span className="opacity-70">×{n.count}</span></> : d?.name}
+                  </span>
+                )}
+                {d && !d.alive && (
+                  <span className="absolute top-0 right-0 w-4 h-4 rounded-full bg-slate-800 text-white text-[9px] flex items-center justify-center border border-white/40">&dagger;</span>
                 )}
               </button>
             );
@@ -218,71 +359,219 @@ export default function TreeExplorer() {
         </div>
       </div>
 
-      {/* Right sidebar */}
-      <div className={`absolute top-0 right-0 h-full w-[330px] max-w-[85vw] z-40 transition-transform duration-300 backdrop-blur-xl
-        border-l bg-white/95 border-slate-200 dark:bg-[#0a0e1a]/95 dark:border-white/10
-        ${selected ? 'translate-x-0' : 'translate-x-full'}`}>
-        {selected && (
-          <div className="h-full flex flex-col text-slate-900 dark:text-white">
-            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-white/10">
-              <h3 className="font-semibold text-lg">Detail Anggota</h3>
-              <button onClick={() => setSelected(null)} className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10"><X size={18} /></button>
-            </div>
-
-            <div className="p-5 overflow-y-auto flex-1">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shrink-0" style={{ background: STYLE[selected.group].bg, border: `2px solid ${STYLE[selected.group].border}` }}>
-                  {selected.id === 'self' && me?.avatar
-                    ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={me.avatar} alt={selected.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                    : <User size={26} className="text-white/85" />}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xl font-semibold truncate">{selected.id === 'self' ? (me?.name || 'Anda') : selected.name}</p>
-                  <p className="text-emerald-500 dark:text-emerald-400 text-sm">{selected.role}</p>
-                </div>
-              </div>
-
-              {selected.id === 'self' ? (
-                <div className="space-y-5">
-                  {RELATIONS.map((r) => (
-                    <div key={r.title}>
-                      <p className="text-[11px] uppercase tracking-wider text-slate-400 dark:text-white/40 mb-2">{r.title}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {r.items.map((it) => (
-                          <span key={it} className="px-3 py-1.5 rounded-full text-xs bg-slate-100 border border-slate-200 text-slate-700 dark:bg-white/5 dark:border-white/10 dark:text-white/80">{it}</span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-4 text-sm">
-                  <Row label="Tanggal Lahir" value="15 Maret 1985" />
-                  <Row label="Tempat Tinggal" value="Jakarta, Indonesia" />
-                  <Row label="Hubungan" value={selected.role} />
-                  <div className="pt-1">
-                    <p className="text-slate-400 dark:text-white/40 text-xs mb-1.5">CATATAN</p>
-                    <p className="text-slate-600 dark:text-white/75 italic">&ldquo;Anggota keluarga yang selalu memberi dukungan dan kasih sayang.&rdquo;</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-5 border-t border-slate-200 dark:border-white/10">
-              <button className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-colors">Lihat Riwayat Lengkap</button>
-            </div>
-          </div>
+      {/* Sidebar */}
+      <div className={`absolute top-0 right-0 h-full w-[360px] max-w-[90vw] z-40 transition-transform duration-300 backdrop-blur-xl
+        border-l bg-white/97 border-slate-200 dark:bg-[#0a0e1a]/97 dark:border-white/10
+        ${panel !== 'none' ? 'translate-x-0' : 'translate-x-full'}`}>
+        {panel === 'setup' && (
+          <SetupForm dark={dark} initial={config} onClose={() => setPanel('none')}
+            onSave={(c) => { saveConfig({ ...c, configured: true }); setPanel('none'); setExpanded(false); }} />
+        )}
+        {panel === 'member' && selected && (
+          <MemberForm dark={dark} node={selected} isSelf={selected.id === 'self'}
+            member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
+            onClose={() => setPanel('none')}
+            onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}
       </div>
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+// ─── Setup form ─────────────────────────────────────────────
+
+function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
-    <div className="flex justify-between border-b border-slate-200 dark:border-white/10 pb-3">
-      <span className="text-slate-500 dark:text-white/55">{label}</span>
-      <span className="font-medium text-slate-800 dark:text-white/90">{value}</span>
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <label className="text-sm text-slate-600 dark:text-white/70">{label}</label>
+      <div className="flex items-center rounded-lg border border-slate-200 dark:border-white/15 overflow-hidden">
+        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/10"><Minus size={13} /></button>
+        <input type="number" min={0} value={value} onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+          className="w-12 h-8 text-center text-sm bg-transparent text-slate-900 dark:text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+        <button type="button" onClick={() => onChange(value + 1)} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/10"><Plus size={13} /></button>
+      </div>
+    </div>
+  );
+}
+
+function SetupForm({ initial, onSave, onClose }: { dark: boolean; initial: TreeConfig; onSave: (c: TreeConfig) => void; onClose: () => void }) {
+  const [c, setC] = useState<TreeConfig>(initial);
+  const set = (patch: Partial<TreeConfig>) => setC((p) => ({ ...p, ...patch }));
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
+
+  return (
+    <div className="h-full flex flex-col text-slate-900 dark:text-white">
+      <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-white/10">
+        <h3 className="font-semibold text-lg">Pengaturan Bagan</h3>
+        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10"><X size={18} /></button>
+      </div>
+
+      <div className="p-5 overflow-y-auto flex-1 space-y-6">
+        <section>
+          <h4 className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-2">Keluarga Utama</h4>
+          <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nama Family</label>
+          <input value={c.mainFamilyName} onChange={(e) => set({ mainFamilyName: e.target.value })} placeholder="mis. Keluarga Budi" className={inputCls} />
+          <div className="mt-2">
+            <NumField label="Jumlah pasangan (suami/istri)" value={c.spouseCount} onChange={(v) => set({ spouseCount: v })} />
+            <NumField label="Jumlah anak" value={c.childCount} onChange={(v) => set({ childCount: v })} />
+          </div>
+        </section>
+
+        <section>
+          <h4 className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">Kelompok Keluarga Besar</h4>
+          <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nama Family</label>
+          <input value={c.extFamilyName} onChange={(e) => set({ extFamilyName: e.target.value })} placeholder="mis. Trah Kartodikromo" className={inputCls} />
+          <div className="mt-2">
+            <NumField label="Jumlah Orang Tua" value={c.parentCount} onChange={(v) => set({ parentCount: v })} />
+            <NumField label="Jumlah Saudara (Kakak)" value={c.olderCount} onChange={(v) => set({ olderCount: v })} />
+            <NumField label="Jumlah Saudara (Adik)" value={c.youngerCount} onChange={(v) => set({ youngerCount: v })} />
+          </div>
+        </section>
+
+        <section>
+          <h4 className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 mb-2">Kelompok Keluarga Simbah</h4>
+          <NumField label="Jumlah Simbah (Kakek-Nenek) dari pihak Ayah" value={c.simbahP} onChange={(v) => set({ simbahP: v })} />
+          <NumField label="Jumlah Simbah dari pihak Ibu" value={c.simbahM} onChange={(v) => set({ simbahM: v })} />
+        </section>
+
+        <p className="text-xs text-slate-400 dark:text-white/40 italic border-t border-slate-100 dark:border-white/10 pt-3">
+          Catatan: jumlah di atas termasuk anggota keluarga yang sudah meninggal dunia.
+        </p>
+      </div>
+
+      <div className="p-5 border-t border-slate-200 dark:border-white/10">
+        <button onClick={() => onSave(c)} className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+          <Check size={16} />Simpan & Susun Bagan
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Member form ────────────────────────────────────────────
+
+const INVITE_METHODS = [
+  { label: 'Email', icon: Mail, color: 'text-rose-500' },
+  { label: 'WhatsApp', icon: MessageCircle, color: 'text-emerald-500' },
+  { label: 'Media Sosial', icon: Share2, color: 'text-blue-500' },
+  { label: 'Salin Tautan', icon: Link2, color: 'text-slate-500' },
+];
+
+function MemberForm({ node, isSelf, member, defaultName, accountName, onSave, onClose }: {
+  dark: boolean; node: TNode; isSelf: boolean; member?: Member; defaultName: string; accountName?: string;
+  onClose: () => void; onSave: (m: Member) => void;
+}) {
+  const [form, setForm] = useState<Member>({
+    name: member?.name || (isSelf ? accountName || '' : ''),
+    gender: member?.gender || '',
+    alive: member?.alive !== false,
+    photo: member?.photo || null,
+  });
+  const [showInvite, setShowInvite] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, photo: reader.result as string }));
+    reader.readAsDataURL(file);
+  };
+
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
+
+  return (
+    <div className="h-full flex flex-col text-slate-900 dark:text-white">
+      <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-white/10">
+        <div>
+          <h3 className="font-semibold text-lg">Detail Anggota</h3>
+          <p className="text-emerald-500 dark:text-emerald-400 text-xs mt-0.5">{node.role}</p>
+        </div>
+        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10"><X size={18} /></button>
+      </div>
+
+      <div className="p-5 overflow-y-auto flex-1 space-y-5">
+        {/* Photo */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center bg-slate-100 dark:bg-white/5 border-2 border-slate-200 dark:border-white/15">
+            {form.photo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={form.photo} alt="foto" className="w-full h-full object-cover" />
+            ) : <User size={38} className="text-slate-400 dark:text-white/40" />}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+          <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+            <Upload size={14} />Unggah Foto Profil
+          </button>
+        </div>
+
+        {/* Name */}
+        <div>
+          <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nama Lengkap</label>
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={defaultName} className={inputCls} />
+        </div>
+
+        {/* Gender */}
+        <div>
+          <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Jenis Kelamin</label>
+          <div className="grid grid-cols-2 gap-2">
+            {(['L', 'P'] as const).map((g) => (
+              <button key={g} onClick={() => setForm({ ...form, gender: g })}
+                className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  form.gender === g
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-white/5 dark:text-white/70 dark:border-white/15 dark:hover:bg-white/10'
+                }`}>
+                {g === 'L' ? 'Laki-laki' : 'Perempuan'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Life status */}
+        <div>
+          <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Status Kehidupan</label>
+          <div className="grid grid-cols-2 gap-2">
+            {[{ v: true, l: 'Hidup' }, { v: false, l: 'Meninggal Dunia' }].map((s) => (
+              <button key={s.l} onClick={() => setForm({ ...form, alive: s.v })}
+                className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  form.alive === s.v
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-white/5 dark:text-white/70 dark:border-white/15 dark:hover:bg-white/10'
+                }`}>
+                {s.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Invite */}
+        {!isSelf && (
+          <div className="rounded-xl border border-slate-200 dark:border-white/10 p-4">
+            <p className="text-sm text-slate-600 dark:text-white/70 mb-1">Undang pemilik identitas</p>
+            <p className="text-xs text-slate-400 dark:text-white/40 mb-3">Agar melengkapi datanya sendiri secara lengkap.</p>
+            <button onClick={() => setShowInvite((s) => !s)} className="w-full py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
+              Undang / Invite
+            </button>
+            {showInvite && (
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                {INVITE_METHODS.map((m) => (
+                  <button key={m.label} onClick={() => alert(`Kirim undangan via ${m.label} (demo)`)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-white/5 dark:border-white/15 dark:text-white/80 dark:hover:bg-white/10">
+                    <m.icon size={15} className={m.color} />{m.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="p-5 border-t border-slate-200 dark:border-white/10">
+        <button onClick={() => onSave(form)} className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+          <Check size={16} />Simpan
+        </button>
+      </div>
     </div>
   );
 }
