@@ -185,30 +185,64 @@ const CLAMP = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 // ─── Guardianship logic ───────────────────────────────────────
 
-function canEditDeceasedParent(
+function canEditMember(
   nodeId: string,
   nodeGroup: Group,
   members: Members,
   config: TreeConfig,
   currentUserId: string
 ): boolean {
-  if (nodeGroup !== 'parent') return true; // non-parents are freely editable
   const m = members[nodeId];
-  if (!m || m.alive) return true; // alive parents can be edited
-  // Deceased parent: only spouse or verified children can edit
-  const isSpouse = nodeId === 'parent-0' || nodeId === 'parent-1';
-  if (isSpouse) {
-    // Check if current user is the other spouse (simplified: assume self is spouse if not parent)
-    // In real app, we'd check spouse relationship
-    return true; // placeholder: assume spouse can edit
+  if (!m || m.alive) return true; // alive members can be edited
+  if (nodeId === 'self') return true; // self can always edit
+
+  // Deceased members: check guardianship
+  if (nodeGroup === 'parent') {
+    // Deceased parent: spouse or verified children can edit
+    const isSpouse = nodeId === 'parent-0' || nodeId === 'parent-1';
+    if (isSpouse) {
+      // Placeholder: assume current user is spouse if not a child
+      // In real app, check spouse relationship
+      return true;
+    }
+    // Check if current user is a verified child
+    for (let i = 0; i < config.childCount; i++) {
+      const childId = `child-${i}`;
+      const child = members[childId];
+      if (child && child.verified && childId === currentUserId) return true;
+    }
+    return false;
   }
-  // Check if current user is a verified child
-  for (let i = 0; i < config.childCount; i++) {
-    const childId = `child-${i}`;
-    const child = members[childId];
-    if (child && child.verified && childId === currentUserId) return true;
+
+  if (nodeGroup === 'spouse') {
+    // Deceased spouse: user or verified children can edit
+    if (currentUserId === 'self') return true; // user is the owner
+    for (let i = 0; i < config.childCount; i++) {
+      const childId = `child-${i}`;
+      const child = members[childId];
+      if (child && child.verified && childId === currentUserId) return true;
+    }
+    return false;
   }
-  return false;
+
+  if (nodeGroup === 'child') {
+    // Deceased child: user (parent) or verified siblings can edit
+    if (currentUserId === 'self') return true; // user is the parent
+    // Check if current user is a verified sibling
+    for (let i = 0; i < config.olderCount; i++) {
+      const siblingId = `older-${i}`;
+      const sibling = members[siblingId];
+      if (sibling && sibling.verified && siblingId === currentUserId) return true;
+    }
+    for (let i = 0; i < config.youngerCount; i++) {
+      const siblingId = `younger-${i}`;
+      const sibling = members[siblingId];
+      if (sibling && sibling.verified && siblingId === currentUserId) return true;
+    }
+    return false;
+  }
+
+  return true; // other groups (grandparent, ancestor, kakak, adik) freely editable
 }
 
 // ─── Component ──────────────────────────────────────────────
@@ -398,7 +432,7 @@ export default function TreeExplorer() {
         {panel === 'member' && selected && (
           <MemberForm dark={dark} node={selected} isSelf={selected.id === 'self'}
             member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
-            canEdit={canEditDeceasedParent(selected.id, selected.group, members, config, me?.id || 'guest')}
+            canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest')}
             onClose={() => setPanel('none')}
             onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}
@@ -522,7 +556,10 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, o
       {!canEdit && (
         <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 dark:bg-amber-900/20 dark:border-amber-800/30">
           <p className="text-xs text-amber-700 dark:text-amber-300 leading-snug">
-            Profil orang tua yang meninggal hanya dapat diedit oleh suami/istri yang masih hidup atau anak-anak yang memiliki akun terverifikasi.
+            {node.group === 'parent' && 'Profil orang tua yang meninggal hanya dapat diedit oleh suami/istri yang masih hidup atau anak-anak yang memiliki akun terverifikasi.'}
+            {node.group === 'spouse' && 'Profil pasangan yang meninggal hanya dapat diedit oleh Anda atau anak-anak yang memiliki akun terverifikasi.'}
+            {node.group === 'child' && 'Profil anak yang meninggal hanya dapat diedit oleh Anda (orang tua) atau saudara yang memiliki akun terverifikasi.'}
+            {!['parent', 'spouse', 'child'].includes(node.group) && 'Profil ini tidak dapat diedit saat ini.'}
           </p>
         </div>
       )}
