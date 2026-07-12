@@ -4,48 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getUser } from '@/lib/auth';
 import { treeApi } from '@/lib/tree';
 import { useTheme } from './ThemeProvider';
+import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
+import { DEFAULT_CONFIG } from './treeTypes';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
   Mail, MessageCircle, Share2, Link2, Upload, Check,
 } from 'lucide-react';
-
-// ─── Types ──────────────────────────────────────────────────
-
-type Group =
-  | 'self' | 'spouse' | 'parent' | 'grandparent' | 'ancestor'
-  | 'kakak' | 'adik' | 'child';
-
-interface TNode { id: string; name: string; role: string; x: number; y: number; group: Group; count?: number; }
-type Poly = { points: number[][]; marriage?: boolean };
-
-interface TreeConfig {
-  configured: boolean;
-  mainFamilyName: string;
-  spouseCount: number;
-  childCount: number;
-  extFamilyName: string;
-  parentCount: number;
-  olderCount: number;
-  youngerCount: number;
-  simbahP: number;
-  simbahM: number;
-}
-
-interface Member { name: string; gender: 'L' | 'P' | ''; alive: boolean; photo: string | null; verified?: boolean; }
-type Members = Record<string, Member>;
-
-const DEFAULT_CONFIG: TreeConfig = {
-  configured: false,
-  mainFamilyName: '',
-  spouseCount: 1,
-  childCount: 2,
-  extFamilyName: '',
-  parentCount: 2,
-  olderCount: 2,
-  youngerCount: 2,
-  simbahP: 2,
-  simbahM: 2,
-};
 
 // ─── Styling per group ──────────────────────────────────────
 
