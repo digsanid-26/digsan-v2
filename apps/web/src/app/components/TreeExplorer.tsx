@@ -430,7 +430,7 @@ export default function TreeExplorer() {
             onSave={(c) => { saveConfig({ ...c, configured: true }); setPanel('none'); setExpanded(false); }} />
         )}
         {panel === 'member' && selected && (
-          <MemberForm dark={dark} node={selected} isSelf={selected.id === 'self'}
+          <MemberForm key={selected.id} dark={dark} node={selected} isSelf={selected.id === 'self'}
             member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
             canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest')}
             onClose={() => setPanel('none')}
@@ -529,6 +529,7 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, o
     gender: member?.gender || '',
     alive: member?.alive !== false,
     photo: member?.photo || null,
+    verified: member?.verified,
   });
   const [showInvite, setShowInvite] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
