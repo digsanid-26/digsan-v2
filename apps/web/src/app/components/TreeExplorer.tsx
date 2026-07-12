@@ -452,35 +452,48 @@ export default function TreeExplorer() {
             const size = isSelected ? Math.round(baseSize * 1.35) : baseSize;
             const d = isGroup ? null : disp(n.id, n.name);
             return (
-              <button key={n.id} data-node onClick={() => clickNode(n)}
-                className="family-node absolute flex items-center justify-center rounded-full border text-white overflow-hidden"
-                style={{
-                  left: n.x, top: n.y, width: size, height: size,
-                  transform: 'translate(-50%,-50%)', background: st.bg, borderColor: st.border,
-                  boxShadow: isSelected
-                    ? `0 0 0 4px ${st.border}, 0 0 34px 6px ${st.border}, 0 10px 30px rgba(0,0,0,0.35)`
-                    : `0 0 18px ${st.border}`,
-                  opacity: d && !d.alive ? 0.55 : 1,
-                  zIndex: isSelected ? 20 : 1,
-                  transition: drag.current ? 'none' : 'width 0.3s ease, height 0.3s ease, box-shadow 0.3s ease',
-                }}>
-                {isSelf && d?.photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={d.photo} alt={d.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                ) : d?.photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={d.photo} alt={d.name} className="w-full h-full object-cover" />
-                ) : isSelf ? (
-                  <User size={size * 0.4} className="text-white/85" />
-                ) : (
-                  <span className="px-1 text-center leading-tight font-semibold" style={{ fontSize: Math.max(9, size * 0.15) }}>
-                    {isGroup ? <>{n.name}<br /><span className="opacity-70">×{n.count}</span></> : d?.name}
+              <div key={n.id} className="group absolute"
+                style={{ left: n.x, top: n.y, transform: 'translate(-50%,-50%)', zIndex: isSelected ? 20 : 1 }}>
+                <button data-node onClick={() => clickNode(n)}
+                  className="family-node relative flex items-center justify-center rounded-full border text-white overflow-hidden"
+                  style={{
+                    width: size, height: size,
+                    background: st.bg, borderColor: st.border,
+                    boxShadow: isSelected
+                      ? `0 0 0 4px ${st.border}, 0 0 34px 6px ${st.border}, 0 10px 30px rgba(0,0,0,0.35)`
+                      : `0 0 18px ${st.border}`,
+                    opacity: d && !d.alive ? 0.55 : 1,
+                    transition: drag.current ? 'none' : 'width 0.3s ease, height 0.3s ease, box-shadow 0.3s ease',
+                  }}>
+                  {isSelf && d?.photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={d.photo} alt={d.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                  ) : d?.photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={d.photo} alt={d.name} className="w-full h-full object-cover" />
+                  ) : isSelf ? (
+                    <User size={size * 0.4} className="text-white/85" />
+                  ) : (
+                    <span className="px-1 text-center leading-tight font-semibold" style={{ fontSize: Math.max(9, size * 0.15) }}>
+                      {isGroup ? <>{n.name}<br /><span className="opacity-70">×{n.count}</span></> : d?.name}
+                    </span>
+                  )}
+                  {d && !d.alive && (
+                    <span className="absolute top-0 right-0 w-4 h-4 rounded-full bg-slate-800 text-white text-[9px] flex items-center justify-center border border-white/40">&dagger;</span>
+                  )}
+                </button>
+
+                {/* Name label — shown on hover/selected for nodes whose photo hides the name */}
+                {!isGroup && d?.photo && (
+                  <span
+                    className={`pointer-events-none absolute left-1/2 top-full -translate-x-1/2 -mt-1 z-30 inline-block max-w-[180px] truncate whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium shadow-lg backdrop-blur-md border transition-opacity duration-200
+                      bg-white/80 text-slate-800 border-slate-200
+                      dark:bg-black/55 dark:text-white dark:border-white/20
+                      ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    {d.name}
                   </span>
                 )}
-                {d && !d.alive && (
-                  <span className="absolute top-0 right-0 w-4 h-4 rounded-full bg-slate-800 text-white text-[9px] flex items-center justify-center border border-white/40">&dagger;</span>
-                )}
-              </button>
+              </div>
             );
           })}
         </div>
