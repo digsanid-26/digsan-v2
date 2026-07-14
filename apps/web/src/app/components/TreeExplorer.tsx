@@ -680,9 +680,14 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, o
               Karena anggota ini telah meninggal, Anda sebagai wali dapat menata keluarganya. Menambah saudara akan memunculkan cabang paman/bibi yang tersambung ke kakek-nenek (terlihat saat <b>Expand All</b>).
             </p>
             <NumField
-              label="Jumlah Saudara (Paman/Bibi)"
-              value={form.familyConfig?.siblingCount || 0}
-              onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, siblingCount: v } }))}
+              label="Jumlah Kakak (dari alm.)"
+              value={form.familyConfig?.olderCount ?? form.familyConfig?.siblingCount ?? 0}
+              onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, olderCount: v, siblingCount: undefined } }))}
+            />
+            <NumField
+              label="Jumlah Adik (dari alm.)"
+              value={form.familyConfig?.youngerCount || 0}
+              onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, youngerCount: v } }))}
             />
           </div>
         )}

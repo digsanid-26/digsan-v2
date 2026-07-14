@@ -220,13 +220,24 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
     if (!parent || !parent.parentId) return;
     const o = ov(parentId);
     const deceased = o ? o.alive === false : false;
-    const count = o?.familyConfig?.siblingCount || 0;
-    if (!deceased || count <= 0) return;
+    if (!deceased) return;
+    const fc = o?.familyConfig;
+    const older = fc?.olderCount ?? fc?.siblingCount ?? 0;
+    const younger = fc?.youngerCount ?? 0;
     const sideLabel = sideKey === 'P' ? 'Ayah' : 'Ibu';
-    for (let i = 0; i < count; i++) {
-      add(merge(`uncle${sideKey}-${i}`, {
-        name: `Saudara ${sideLabel} ${i + 1}`,
-        role: `Saudara ${sideLabel} (Paman/Bibi)`,
+    // 'o' before 'y' so id string sort keeps birth order (kakak, then adik).
+    for (let i = 0; i < older; i++) {
+      add(merge(`uncle${sideKey}o-${i}`, {
+        name: `Kakak ${sideLabel} ${i + 1}`,
+        role: `Kakak ${sideLabel} (Paman/Bibi)`,
+        group: 'uncle',
+        parentId: parent.parentId,
+      }));
+    }
+    for (let i = 0; i < younger; i++) {
+      add(merge(`uncle${sideKey}y-${i}`, {
+        name: `Adik ${sideLabel} ${i + 1}`,
+        role: `Adik ${sideLabel} (Paman/Bibi)`,
         group: 'uncle',
         parentId: parent.parentId,
       }));
@@ -344,7 +355,7 @@ export function layoutGraph(g: FamilyGraph): { nodes: TNode[]; lines: Poly[] } {
     // children of this grandparent couple, laid out on the parent row.
     const childXs: number[] = [];
     if (rootParentX !== undefined) childXs.push(rootParentX);
-    const uncles = Object.values(g).filter((m) => m.group === 'uncle' && m.parentId === gpRootId).sort(byIdx);
+    const uncles = Object.values(g).filter((m) => m.group === 'uncle' && m.parentId === gpRootId).sort((a, b) => a.id.localeCompare(b.id));
     uncles.forEach((u, i) => {
       const x = (rootParentX ?? centerX) + dir * 150 * (i + 1);
       push(u, x, ROW_PARENT);
