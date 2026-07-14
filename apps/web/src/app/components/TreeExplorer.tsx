@@ -8,6 +8,7 @@ import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
 import { DEFAULT_CONFIG } from './treeTypes';
 import { configToGraph, layoutGraph } from './familyGraph';
+import InvitationStudio from './InvitationStudio';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
   Mail, MessageCircle, Share2, Link2, Upload, Check,
@@ -229,6 +230,7 @@ export default function TreeExplorer() {
 
   const [panel, setPanel] = useState<'none' | 'setup' | 'member'>('none');
   const [selected, setSelected] = useState<TNode | null>(null);
+  const [showStudio, setShowStudio] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ ox: number; oy: number; px: number; py: number } | null>(null);
@@ -406,6 +408,14 @@ export default function TreeExplorer() {
             dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15">
           <Settings size={15} />Pengaturan
         </button>
+        {config.configured && (
+          <button onClick={() => setShowStudio(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg
+              bg-white text-slate-700 hover:bg-slate-50 border border-slate-200
+              dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15">
+            <Share2 size={15} />Undang
+          </button>
+        )}
       </div>
 
       {/* Zoom controls */}
@@ -513,6 +523,18 @@ export default function TreeExplorer() {
             onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}
       </div>
+
+      <InvitationStudio
+        open={showStudio}
+        onClose={() => setShowStudio(false)}
+        dark={dark}
+        nodes={nodes.map((n) => (n.role === 'group' ? n : { ...n, name: disp(n.id, n.name).name }))}
+        lines={lines}
+        palette={STYLE}
+        aliveOf={(id) => members[id]?.alive !== false}
+        inviterName={me?.name || 'Saya'}
+        treeName={config.mainFamilyName}
+      />
     </div>
   );
 }
