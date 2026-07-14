@@ -20,7 +20,13 @@ export interface TreeConfig {
   simbahM: number;
 }
 
-export interface Member { name: string; gender: 'L' | 'P' | ''; alive: boolean; photo: string | null; verified?: boolean; }
+export interface NodeFamilyConfig {
+  siblingCount?: number;
+  spouseCount?: number;
+  childCount?: number;
+}
+
+export interface Member { name: string; gender: 'L' | 'P' | ''; alive: boolean; photo: string | null; verified?: boolean; familyConfig?: NodeFamilyConfig; }
 export type Members = Record<string, Member>;
 
 export const DEFAULT_CONFIG: TreeConfig = {

@@ -212,6 +212,29 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
   buildAncestors('P', config.simbahP > 0);
   buildAncestors('M', config.simbahM > 0);
 
+  // Parent's siblings (uncles/aunts) — created from a DECEASED parent's
+  // per-node setup. They attach to that parent's parent (the grandparent),
+  // so they only appear once grandparents exist for that side.
+  const buildParentSiblings = (parentId: string, sideKey: 'P' | 'M') => {
+    const parent = g[parentId];
+    if (!parent || !parent.parentId) return;
+    const o = ov(parentId);
+    const deceased = o ? o.alive === false : false;
+    const count = o?.familyConfig?.siblingCount || 0;
+    if (!deceased || count <= 0) return;
+    const sideLabel = sideKey === 'P' ? 'Ayah' : 'Ibu';
+    for (let i = 0; i < count; i++) {
+      add(merge(`uncle${sideKey}-${i}`, {
+        name: `Saudara ${sideLabel} ${i + 1}`,
+        role: `Saudara ${sideLabel} (Paman/Bibi)`,
+        group: 'uncle',
+        parentId: parent.parentId,
+      }));
+    }
+  };
+  buildParentSiblings('parent-0', 'P');
+  buildParentSiblings('parent-1', 'M');
+
   return g;
 }
 
@@ -307,7 +330,7 @@ export function layoutGraph(g: FamilyGraph): { nodes: TNode[]; lines: Poly[] } {
     }
   };
 
-  const buildGpSide = (rootParentX: number | undefined, gpRootId: string | undefined, centerX: number) => {
+  const buildGpSide = (rootParentX: number | undefined, gpRootId: string | undefined, centerX: number, dir: -1 | 1) => {
     if (!gpRootId || !g[gpRootId]) return;
     const gpNodes = [g[gpRootId]];
     const sp = g[gpRootId].spouseId;
@@ -316,12 +339,23 @@ export function layoutGraph(g: FamilyGraph): { nodes: TNode[]; lines: Poly[] } {
     gpNodes.forEach((gp, i) => push(gp, xs[i], ROW_GP));
     if (gpNodes.length >= 2) lines.push({ points: [[xs[0], ROW_GP], [xs[xs.length - 1], ROW_GP]], marriage: true });
     const mid = xs.reduce((a, b) => a + b, 0) / xs.length;
-    if (rootParentX !== undefined) connectDown(lines, mid, ROW_GP, [rootParentX], ROW_PARENT);
+
+    // The parent (anchor) + that parent's siblings (uncles/aunts) are all
+    // children of this grandparent couple, laid out on the parent row.
+    const childXs: number[] = [];
+    if (rootParentX !== undefined) childXs.push(rootParentX);
+    const uncles = Object.values(g).filter((m) => m.group === 'uncle' && m.parentId === gpRootId).sort(byIdx);
+    uncles.forEach((u, i) => {
+      const x = (rootParentX ?? centerX) + dir * 150 * (i + 1);
+      push(u, x, ROW_PARENT);
+      childXs.push(x);
+    });
+    if (childXs.length) connectDown(lines, mid, ROW_GP, childXs, ROW_PARENT);
     buildAncestorsChain(gpRootId, centerX);
   };
 
-  buildGpSide(fatherX, father?.parentId || undefined, -GP_CENTER);
-  buildGpSide(motherX, motherId ? g[motherId]?.parentId || undefined : undefined, GP_CENTER);
+  buildGpSide(fatherX, father?.parentId || undefined, -GP_CENTER, -1);
+  buildGpSide(motherX, motherId ? g[motherId]?.parentId || undefined : undefined, GP_CENTER, 1);
 
   return { nodes, lines };
 }

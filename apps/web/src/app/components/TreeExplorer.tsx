@@ -577,6 +577,7 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, o
     alive: member?.alive !== false,
     photo: member?.photo || null,
     verified: member?.verified,
+    familyConfig: member?.familyConfig,
   });
   const [showInvite, setShowInvite] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -670,6 +671,21 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, o
             ))}
           </div>
         </div>
+
+        {/* Family setup for a deceased member (guardian may manage their network) */}
+        {!isSelf && !form.alive && node.group === 'parent' && canEdit && (
+          <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-4">
+            <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Atur Keluarga (Alm.)</p>
+            <p className="text-xs text-slate-500 dark:text-white/50 mb-3 leading-snug">
+              Karena anggota ini telah meninggal, Anda sebagai wali dapat menata keluarganya. Menambah saudara akan memunculkan cabang paman/bibi yang tersambung ke kakek-nenek (terlihat saat <b>Expand All</b>).
+            </p>
+            <NumField
+              label="Jumlah Saudara (Paman/Bibi)"
+              value={form.familyConfig?.siblingCount || 0}
+              onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, siblingCount: v } }))}
+            />
+          </div>
+        )}
 
         {/* Invite */}
         {!isSelf && (
