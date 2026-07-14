@@ -301,6 +301,8 @@ model TreeInvitation {
   treeId    String           @map("tree_id")
   email     String?
   phone     String?
+  nodeId    String?          @map("node_id")
+  message   String?
   token     String           @unique
   status    InvitationStatus @default(PENDING)
   expiresAt DateTime         @map("expires_at")

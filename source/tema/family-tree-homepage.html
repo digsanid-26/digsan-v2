@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pohon Keluarga • Homepage</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+        }
+        
+        .font-display {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .main-circle {
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.1),
+                        0 25px 50px -12px rgb(0 0 0 / 0.4);
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .main-circle:hover {
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.25),
+                        0 35px 60px -15px rgb(0 0 0 / 0.5);
+            transform: scale(1.02);
+        }
+
+        .peripheral-circle {
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
+        }
+
+        .line {
+            transition: all 0.4s ease;
+            box-shadow: 0 0 6px rgba(255,255,255,0.1);
+        }
+
+        .family-node {
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3),
+                        0 0 0 1px rgba(255,255,255,0.15);
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .family-node:hover {
+            transform: scale(1.1);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.3),
+                        0 0 0 1px rgba(255,255,255,0.3);
+        }
+
+        .tree-container {
+            filter: drop-shadow(0 25px 25px rgb(0 0 0 / 0.15));
+        }
+    </style>
+</head>
+<body class="bg-[#05050f] text-white overflow-x-hidden">
+    <!-- Navbar -->
+    <nav class="glass border-b border-white/10 sticky top-0 z-50">
+        <div class="max-w-screen-xl mx-auto px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-x-3">
+                <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <i class="fa-solid fa-tree text-white text-xl"></i>
+                </div>
+                <div>
+                    <span class="font-display text-2xl font-semibold tracking-tighter">Pohon Keluarga</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-x-2 text-sm">
+                <button onclick="resetDemo()" 
+                        class="px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-2xl flex items-center gap-x-2 transition-colors text-sm">
+                    <i class="fa-solid fa-undo text-xs"></i>
+                    <span>Reset Demo</span>
+                </button>
+                <button class="px-5 py-2 bg-white text-[#05050f] hover:bg-white/90 font-semibold rounded-2xl text-sm flex items-center gap-x-2 transition-all active:scale-[0.985]">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                    <span>Buat Pohon Baru</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero / Main Content -->
+    <div class="max-w-screen-xl mx-auto px-6 pt-12 pb-8">
+        <div class="text-center mb-10">
+            <div class="inline-flex items-center gap-x-2 px-4 py-1.5 rounded-3xl bg-white/5 border border-white/10 mb-4">
+                <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                <span class="text-emerald-400 text-sm font-medium">Interactive Demo</span>
+            </div>
+            
+            <h1 class="font-display text-6xl font-semibold tracking-tighter">Pohon Keluarga Anda</h1>
+            <p class="mt-3 text-xl text-white/60 max-w-md mx-auto">Jelajahi, bangun, dan rawat hubungan keluarga dalam satu tempat yang indah.</p>
+        </div>
+
+        <!-- Interactive Family Tree Visual -->
+        <div class="flex justify-center">
+            <div id="tree-container" 
+                 class="relative w-[700px] h-[700px] tree-container">
+                
+                <!-- Main Circle (180px) -->
+                <div id="main-circle"
+                     class="main-circle absolute left-[260px] top-[260px] w-[180px] h-[180px] rounded-full glass flex items-center justify-center cursor-pointer z-20 border border-white/20">
+                    
+                    <!-- Logo Container -->
+                    <div id="logo-container" 
+                         class="w-[120px] h-[120px] flex items-center justify-center transition-all duration-500"
+                         style="filter: blur(1.5px) brightness(0.85);">
+                        
+                        <!-- SVG Logo Placeholder -->
+                        <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="60" cy="60" r="52" stroke="#60a5fa" stroke-width="2.5" opacity="0.5"/>
+                            <line x1="60" y1="35" x2="42" y2="68" stroke="#60a5fa" stroke-width="2" opacity="0.6"/>
+                            <line x1="60" y1="35" x2="78" y2="68" stroke="#60a5fa" stroke-width="2" opacity="0.6"/>
+                            <circle cx="60" cy="32" r="11" fill="#bae6fd" opacity="0.9"/>
+                            <circle cx="38" cy="72" r="9" fill="#bae6fd" opacity="0.85"/>
+                            <circle cx="82" cy="72" r="9" fill="#bae6fd" opacity="0.85"/>
+                            <circle cx="60" cy="58" r="5" fill="#fff" opacity="0.9"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Vertical Line Top -->
+                <div id="line-top" 
+                     class="line absolute left-[349px] top-[80px] w-[2px] h-[180px] bg-white/20 rounded-full z-10"
+                     style="box-shadow: 0 0 8px rgba(255,255,255,0.1);"></div>
+                
+                <!-- Vertical Line Bottom -->
+                <div id="line-bottom" 
+                     class="line absolute left-[349px] top-[440px] w-[2px] h-[180px] bg-white/20 rounded-full z-10"
+                     style="box-shadow: 0 0 8px rgba(255,255,255,0.1);"></div>
+                
+                <!-- Horizontal Line Left -->
+                <div id="line-left" 
+                     class="line absolute left-[80px] top-[349px] h-[2px] w-[180px] bg-white/20 rounded-full z-10"
+                     style="box-shadow: 0 0 8px rgba(255,255,255,0.1);"></div>
+                
+                <!-- Horizontal Line Right -->
+                <div id="line-right" 
+                     class="line absolute left-[440px] top-[349px] h-[2px] w-[180px] bg-white/20 rounded-full z-10"
+                     style="box-shadow: 0 0 8px rgba(255,255,255,0.1);"></div>
+
+                <!-- OT - Orang Tua (Top) -->
+                <div id="ot-circle"
+                     class="peripheral-circle absolute left-[320px] top-[55px] w-[60px] h-[60px] rounded-full glass flex items-center justify-center cursor-pointer z-30 border border-white/30 opacity-40 hover:opacity-100"
+                     style="box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);">
+                    <span class="font-bold text-sm tracking-wider">OT</span>
+                </div>
+
+                <!-- KK - Kakak (Left) -->
+                <div id="kk-circle"
+                     class="peripheral-circle absolute left-[55px] top-[320px] w-[60px] h-[60px] rounded-full glass flex items-center justify-center cursor-pointer z-30 border border-white/30 opacity-40 hover:opacity-100"
+                     style="box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);">
+                    <span class="font-bold text-sm tracking-wider">KK</span>
+                </div>
+
+                <!-- AD - Adik (Right) -->
+                <div id="ad-circle"
+                     class="peripheral-circle absolute left-[585px] top-[320px] w-[60px] h-[60px] rounded-full glass flex items-center justify-center cursor-pointer z-30 border border-white/30 opacity-40 hover:opacity-100"
+                     style="box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);">
+                    <span class="font-bold text-sm tracking-wider">AD</span>
+                </div>
+
+                <!-- AN - Anak (Bottom) -->
+                <div id="an-circle"
+                     class="peripheral-circle absolute left-[320px] top-[585px] w-[60px] h-[60px] rounded-full glass flex items-center justify-center cursor-pointer z-30 border border-white/30 opacity-40 hover:opacity-100"
+                     style="box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);">
+                    <span class="font-bold text-sm tracking-wider">AN</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-8">
+            <p class="text-white/50 text-sm">Hover lingkaran utama • Klik lingkaran kecil untuk memperluas • <span class="text-white/70">Klik lingkaran besar di tengah untuk menutup semua cabang</span></p>
+        </div>
+    </div>
+
+    <script>
+        function initializeTailwind() {
+            // Tailwind is already loaded via CDN
+        }
+
+        let container;
+        let mainCircle;
+        let logoContainer;
+        let lines = [];
+        let peripheralCircles = [];
+
+        const CENTER = 350;
+        const PERIPHERAL_DISTANCE = 280;
+
+        function initElements() {
+            container = document.getElementById('tree-container');
+            mainCircle = document.getElementById('main-circle');
+            logoContainer = document.getElementById('logo-container');
+            
+            lines = [
+                document.getElementById('line-top'),
+                document.getElementById('line-bottom'),
+                document.getElementById('line-left'),
+                document.getElementById('line-right')
+            ];
+            
+            peripheralCircles = [
+                document.getElementById('ot-circle'),
+                document.getElementById('kk-circle'),
+                document.getElementById('ad-circle'),
+                document.getElementById('an-circle')
+            ];
+        }
+
+        // Hover effect on main circle - enhances lines and peripheral circles
+        function setupMainCircleHover() {
+            mainCircle.addEventListener('mouseenter', () => {
+                lines.forEach(line => {
+                    line.style.backgroundColor = 'rgba(255,255,255,0.55)';
+                    line.style.boxShadow = '0 0 12px rgba(255,255,255,0.35)';
+                });
+                
+                peripheralCircles.forEach(circle => {
+                    if (!circle.classList.contains('expanded')) {
+                        circle.style.opacity = '1';
+                        circle.style.borderColor = 'rgba(255,255,255,0.5)';
+                    }
+                });
+                
+                logoContainer.style.filter = 'blur(0px) brightness(1)';
+                logoContainer.style.transform = 'scale(1.05)';
+            });
+            
+            mainCircle.addEventListener('mouseleave', () => {
+                lines.forEach(line => {
+                    line.style.backgroundColor = 'rgba(255,255,255,0.2)';
+                    line.style.boxShadow = '0 0 8px rgba(255,255,255,0.1)';
+                });
+                
+                peripheralCircles.forEach(circle => {
+                    if (!circle.classList.contains('expanded')) {
+                        circle.style.opacity = '0.4';
+                        circle.style.borderColor = 'rgba(255,255,255,0.3)';
+                    }
+                });
+                
+                logoContainer.style.filter = 'blur(1.5px) brightness(0.85)';
+                logoContainer.style.transform = 'scale(1)';
+            });
+        }
+
+        // Setup hover text change for peripheral circles
+        function setupPeripheralHover() {
+            const ot = document.getElementById('ot-circle');
+            const kk = document.getElementById('kk-circle');
+            const ad = document.getElementById('ad-circle');
+            const an = document.getElementById('an-circle');
+
+            ot.addEventListener('mouseenter', () => {
+                ot.innerHTML = `<span class="text-[9px] font-bold leading-[11px] text-center">ORANG<br>TUA</span>`;
+            });
+            ot.addEventListener('mouseleave', () => {
+                ot.innerHTML = `<span class="font-bold text-sm tracking-wider">OT</span>`;
+            });
+
+            kk.addEventListener('mouseenter', () => {
+                kk.innerHTML = `<span class="text-[10px] font-bold tracking-wider">KAKAK</span>`;
+            });
+            kk.addEventListener('mouseleave', () => {
+                kk.innerHTML = `<span class="font-bold text-sm tracking-wider">KK</span>`;
+            });
+
+            ad.addEventListener('mouseenter', () => {
+                ad.innerHTML = `<span class="text-[10px] font-bold tracking-wider">ADIK</span>`;
+            });
+            ad.addEventListener('mouseleave', () => {
+                ad.innerHTML = `<span class="font-bold text-sm tracking-wider">AD</span>`;
+            });
+
+            an.addEventListener('mouseenter', () => {
+                an.innerHTML = `<span class="text-[10px] font-bold tracking-wider">ANAK</span>`;
+            });
+            an.addEventListener('mouseleave', () => {
+                an.innerHTML = `<span class="font-bold text-sm tracking-wider">AN</span>`;
+            });
+        }
+
+        // Create family node helper
+        function createFamilyNode(x, y, label, size = 52) {
+            const node = document.createElement('div');
+            node.className = `family-node absolute flex items-center justify-center text-white text-xs font-semibold rounded-full glass border border-white/30 cursor-pointer z-40`;
+            node.style.width = `${size}px`;
+            node.style.height = `${size}px`;
+            node.style.left = `${x - size/2}px`;
+            node.style.top = `${y - size/2}px`;
+            node.innerHTML = `<span class="px-1 text-center leading-tight">${label}</span>`;
+            container.appendChild(node);
+            return node;
+        }
+
+        // Show member detail modal
+        function showMemberDetail(name) {
+            const modal = document.createElement('div');
+            modal.className = `fixed inset-0 bg-black/80 flex items-center justify-center z-[100]`;
+            
+            let relation = 'Anggota Keluarga';
+            if (name.includes('Ayah') || name.includes('Ibu')) relation = 'Orang Tua';
+            else if (name.includes('Kakak')) relation = 'Saudara Tua';
+            else if (name.includes('Adik')) relation = 'Saudara Muda';
+            else if (name.includes('Anak')) relation = 'Keturunan';
+
+            modal.innerHTML = `
+                <div onclick="event.target.remove()" class="absolute inset-0"></div>
+                <div onclick="event.stopImmediatePropagation()" 
+                     class="glass border border-white/20 rounded-3xl p-8 max-w-md w-full mx-4 relative z-10">
+                    
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <h3 class="text-3xl font-semibold">${name}</h3>
+                            <p class="text-emerald-400 text-sm mt-1">${relation}</p>
+                        </div>
+                        <button onclick="this.closest('.fixed').remove()" 
+                                class="text-white/40 hover:text-white text-3xl leading-none w-8 h-8 flex items-center justify-center">×</button>
+                    </div>
+                    
+                    <div class="space-y-5 text-sm">
+                        <div class="flex justify-between border-b border-white/10 pb-4">
+                            <span class="text-white/60">Tanggal Lahir</span>
+                            <span class="font-medium">15 Maret 1985</span>
+                        </div>
+                        <div class="flex justify-between border-b border-white/10 pb-4">
+                            <span class="text-white/60">Tempat Tinggal</span>
+                            <span class="font-medium">Jakarta, Indonesia</span>
+                        </div>
+                        <div class="flex justify-between border-b border-white/10 pb-4">
+                            <span class="text-white/60">Hubungan</span>
+                            <span class="font-medium">${relation}</span>
+                        </div>
+                        
+                        <div class="pt-2">
+                            <div class="text-white/60 text-xs mb-1.5">CATATAN</div>
+                            <p class="text-white/80 italic">"Anggota keluarga yang selalu memberikan dukungan dan kasih sayang."</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 mt-8">
+                        <button onclick="this.closest('.fixed').remove()" 
+                                class="flex-1 py-3 bg-white/10 hover:bg-white/15 rounded-2xl text-sm font-medium transition-colors">
+                            Tutup
+                        </button>
+                        <button onclick="this.closest('.fixed').remove()" 
+                                class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl text-sm font-semibold transition-colors">
+                            Lihat Riwayat Lengkap
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Generic function: expand to horizontal row IN THE SAME POSITION as the original circle
+        function expandToHorizontalRow(originalEl, labels, baseX, baseY) {
+            // Mark as expanded
+            originalEl.classList.add('expanded');
+            
+            // Fade out original circle
+            originalEl.style.transition = 'all 0.4s cubic-bezier(0.23,1,0.32,1)';
+            originalEl.style.opacity = '0';
+            originalEl.style.transform = 'scale(0.5)';
+            
+            setTimeout(() => {
+                originalEl.style.display = 'none';
+                
+                const num = labels.length;
+                const spacing = 62;
+                const totalWidth = (num - 1) * spacing;
+                const startX = baseX - totalWidth / 2;
+                
+                for (let i = 0; i < num; i++) {
+                    const x = startX + (i * spacing);
+                    const label = labels[i];
+                    const node = createFamilyNode(x, baseY, label, 50);
+                    
+                    // Click to show detail
+                    node.addEventListener('click', () => showMemberDetail(label));
+                    
+                    // Smooth entry animation
+                    node.style.opacity = '0';
+                    node.style.transform = 'scale(0.6)';
+                    
+                    setTimeout(() => {
+                        node.style.transition = 'all 0.55s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                        node.style.opacity = '1';
+                        node.style.transform = 'scale(1)';
+                    }, 70 * i);
+                }
+            }, 420);
+        }
+
+        // Collapse all expanded family nodes and restore original peripheral circles
+        function collapseAllExpansions() {
+            // Find all dynamically created family nodes
+            const expandedNodes = container.querySelectorAll('.family-node');
+            
+            if (expandedNodes.length === 0) return; // nothing to collapse
+
+            // Animate out all expanded nodes
+            expandedNodes.forEach((node, index) => {
+                node.style.transition = 'all 0.35s cubic-bezier(0.23, 1, 0.32, 1)';
+                node.style.opacity = '0';
+                node.style.transform = 'scale(0.6)';
+                
+                setTimeout(() => {
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                }, 380);
+            });
+
+            // Restore original peripheral circles (OT, KK, AD, AN)
+            peripheralCircles.forEach(circle => {
+                if (circle.classList.contains('expanded')) {
+                    // Reset styles
+                    circle.style.transition = 'all 0.4s cubic-bezier(0.23, 1, 0.32, 1)';
+                    circle.style.opacity = '0.4';
+                    circle.style.transform = 'scale(1)';
+                    circle.style.display = 'flex';
+                    circle.style.borderColor = 'rgba(255,255,255,0.3)';
+                    
+                    // Remove expanded marker
+                    circle.classList.remove('expanded');
+                    
+                    // Restore original text content based on which circle it is
+                    if (circle.id === 'ot-circle') {
+                        circle.innerHTML = `<span class="font-bold text-sm tracking-wider">OT</span>`;
+                    } else if (circle.id === 'kk-circle') {
+                        circle.innerHTML = `<span class="font-bold text-sm tracking-wider">KK</span>`;
+                    } else if (circle.id === 'ad-circle') {
+                        circle.innerHTML = `<span class="font-bold text-sm tracking-wider">AD</span>`;
+                    } else if (circle.id === 'an-circle') {
+                        circle.innerHTML = `<span class="font-bold text-sm tracking-wider">AN</span>`;
+                    }
+                }
+            });
+        }
+
+        // Setup all click handlers
+        function setupClickHandlers() {
+            const ot = document.getElementById('ot-circle');
+            const kk = document.getElementById('kk-circle');
+            const ad = document.getElementById('ad-circle');
+            const an = document.getElementById('an-circle');
+
+            // Clicking the big central circle collapses all expansions
+            mainCircle.addEventListener('click', () => {
+                collapseAllExpansions();
+            });
+
+            // OT → Ayah & Ibu (horizontal row at top position)
+            ot.addEventListener('click', () => {
+                expandToHorizontalRow(ot, ['Ayah', 'Ibu'], CENTER, CENTER - PERIPHERAL_DISTANCE);
+            });
+
+            // KK → Kakak 1 & Kakak 2 (horizontal row at left position)
+            kk.addEventListener('click', () => {
+                expandToHorizontalRow(kk, ['Kakak 1', 'Kakak 2'], CENTER - PERIPHERAL_DISTANCE, CENTER);
+            });
+
+            // AD → Adik 1, 2, 3 (horizontal row at right position)
+            ad.addEventListener('click', () => {
+                expandToHorizontalRow(ad, ['Adik 1', 'Adik 2', 'Adik 3'], CENTER + PERIPHERAL_DISTANCE, CENTER);
+            });
+
+            // AN → Anak 1-4 (horizontal row at bottom position)
+            an.addEventListener('click', () => {
+                expandToHorizontalRow(an, ['Anak 1', 'Anak 2', 'Anak 3', 'Anak 4'], CENTER, CENTER + PERIPHERAL_DISTANCE);
+            });
+        }
+
+        // Reset demo (reload page)
+        function resetDemo() {
+            location.reload();
+        }
+
+        // Initialize everything
+        function initialize() {
+            initializeTailwind();
+            initElements();
+            setupMainCircleHover();
+            setupPeripheralHover();
+            setupClickHandlers();
+            
+            console.log('%c[Family Tree] Homepage interaktif berhasil dimuat dengan posisi horizontal tetap.', 'color:#64748b');
+        }
+
+        window.onload = initialize;
+    </script>
+</body>
+</html>

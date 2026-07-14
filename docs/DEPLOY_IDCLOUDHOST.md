@@ -374,7 +374,8 @@ git pull origin master
 # 2. Rebuild API (jika perlu)
 cd apps/api
 pnpm install
-pnpm build
+pnpm build 
+NODE_OPTIONS="--max-old-space-size=3072" pnpm build
 
 # 3. Rebuild Web App
 cd ../web
@@ -732,7 +733,7 @@ echo ""
 cd "$PROJECT_DIR"
 
 echo "📥 Step 1: Pulling latest code from git..."
-git pull origin main
+git pull origin master
 
 echo "📦 Step 2: Installing dependencies..."
 pnpm install
@@ -949,6 +950,7 @@ pm2 restart all
 ```bash
 # SSH
 digsan@203.xxx.xxx.xxx
+cd ~/digsan-v2
 
 # Deploy terbaru
 ~/digsan-v2/deploy.sh

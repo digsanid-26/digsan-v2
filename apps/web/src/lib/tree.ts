@@ -88,4 +88,24 @@ export const treeApi = {
     authRequest<GuardianConsent>(`/trees/consents/${consentId}`, {
       method: 'DELETE',
     }),
+
+  // ─── Email invitation ───────────────────────────────────────
+  inviteByEmail: (payload: { email: string; nodeId?: string; message?: string }) =>
+    authRequest<TreeInvitation>('/trees/invite', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 };
+
+export interface TreeInvitation {
+  id: string;
+  treeId: string;
+  email: string | null;
+  phone: string | null;
+  nodeId: string | null;
+  message: string | null;
+  token: string;
+  status: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED';
+  expiresAt: string;
+  createdAt: string;
+}

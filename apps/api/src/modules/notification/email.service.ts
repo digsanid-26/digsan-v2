@@ -98,6 +98,22 @@ export class EmailService {
     return this.sendEmail(to, 'Reset Password Digsan', html);
   }
 
+  async sendTreeInvitationEmail(to: string, inviterName: string, treeName: string, acceptUrl: string, message?: string) {
+    const safeMsg = (message || '').trim();
+    const html = this.wrapTemplate(`
+      <h2 style="color:#1e293b;margin:0 0 16px">Undangan Silsilah Keluarga</h2>
+      <p style="color:#475569;font-size:16px"><strong>${inviterName}</strong> mengundang Anda untuk bergabung & melengkapi silsilah keluarga <strong>${treeName}</strong> di Digsan.</p>
+      ${safeMsg ? `<blockquote style="margin:16px 0;padding:12px 16px;background:#f1f5f9;border-left:4px solid #3B82F6;color:#334155;font-size:15px">${safeMsg.replace(/</g, '&lt;')}</blockquote>` : ''}
+      <div style="text-align:center;margin:32px 0">
+        <a href="${acceptUrl}" style="display:inline-block;padding:14px 32px;background:#10B981;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px">
+          Terima Undangan
+        </a>
+      </div>
+      <p style="color:#94a3b8;font-size:14px">Dengan menerima, Anda dapat mengelola profil Anda sendiri dalam silsilah tersebut. Link ini berlaku selama 7 hari.</p>
+    `);
+    return this.sendEmail(to, `Undangan Silsilah Keluarga ${treeName}`, html);
+  }
+
   // ─── JOB EMAIL TEMPLATES ──────────────────────────────────
 
   async sendOrderCreatedEmail(to: string, name: string, orderNumber: string, serviceName: string, totalPrice: number) {

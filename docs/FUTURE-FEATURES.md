@@ -4,6 +4,10 @@
 - [x] Bila bagan sudah terisi penuh sampai ke Kelompok Keluarga Simbah, Ada bagan garis ke atas (lurus) muncul di atas lingkaran Simbah baik dari pihak Ayah maupun Ibu yang otomatis dibuat namun hanya terlihat bila expand All diberlakukan lalu discroll ke atas yaitu Buyut, Canggah, Wareng, Udheg-udheg, Gantung siwur, Gropak senthe. 
 - [x] User dapat mengisi bagan tree selain dirinya (misal istri, kakak, adik, orang tua, anak) yang dibuatnya sebatas mengisi nama lengkap, jenis kelamin, status kehidupan (hidup/meninggal dunia), dan upload foto profil. Untuk mengisi data lengkap nantinya akan ada fitur invite kepada pemilik identitas dengan cara klik invite dan muncul beberapa metode invitation seperti email, sosmed, whatsapp, dst.  
 
+## Sistem Self Styler
+- [ ] Fitur mempercantik tampilan tree masing-masing
+- [ ] Fitur mempercantik tampilan digsan idcard
+
 ## Tree Improvisasi
 - [x] Ketika user mengklik lingkaran profil orang lain (yang masih memiliki garis penghubung), selain memunculkan modal berisi Detil anggota / user tersebut juga membuat circle/lingkaran terpilih tersorot dan membesar, sementara profil sebelumnya mengecil ke semula.
 - [x] Untuk profil yang telah memiliki foto, nama mereka menghilang. Bisakah tetap ada namun ditempatkan di luar lingkaran? Bisa di bawah lingkaran, sedikit menyinggung lingkaran, dilindungi border dan blur background.
@@ -14,13 +18,39 @@
   - **Wali bersama:** saudara Ayah yang masih hidup dan akunnya aktif juga memiliki akses edit yang sama atas jaringan almarhum.
   - Catatan teknis: layout saat ini masih config-driven (topologi tetap). Rencana bertahap: (1) spesifikasi + model data; (2) layout graf rekursif berbasis relasi `FamilyMember` (parentId/spouseId/children) menggantikan `generateTree`; (3) form setup per-almarhum yang membuat record `FamilyMember` sungguhan; (4) alur perizinan anggota hidup + guardianship bersama.
 
+- [ ] node/lingkaran profil yang telah memiliki tree akan memiliki icon tree (berupa lingkaran background hijau dengan icon tree putih) di ujung kanan atas menyentuh garis lingkaran profilnya;
+- [ ] Ketika klik node/lingkaran profil yang memiliki icon tree (misal istri, ayah, kakek, anak, dst) yang masih terhubung, muncul tombol di bawah nama LIHAT SILSILAH.
+- [ ] Untuk keluarga yang telah meninggal dunia, pada bagian modal sidebar bagian Undang pemilik identitas perlu diubah menjadi Undang kerabat edit bersama yang mengacu pada aturan perijinan yang ada (bisa muncul list user(akun telah aktif) yang sesuai atau direkomendasikan)
+
 ## Sistem Notifikasi
+- [ ] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan seiring perkembangan aplikasi (karena saat ini masih proses pembangunan)
+- [ ] Cek kemungkinan membangun self-host email server di console idcloudhost (di virtual server lain) yang memungkinkan dengan domain sendiri (@digsan.id), untuk kedepannya juga mendukung multi domain name, terhubung dengan fitur digsan.id di mana user bisa membuat email @digsan.id dengan gratis, membaca dan mengirim email di dashboard email . 
+
+## Sistem navigasi
+- [ ] Membuat halaman Family | tree/nama-keluarga (misal tree/farisma-fam)
+- [ ] Membuat halaman profil personal | tree/nama-keluarga/nama-publik-anda (misal tree/farisma-fam/arisnwh)
+
+## Sistem Gamification
+- [ ] Poin pengabdian : Pengabdian dalam menyelesaikan task, pengabdian dalam mengembangkan jaringan / koneksi keluarga
+- [ ] Poin aktivitas : Keaktifan dalam aplikasi, keaktifan dalam mengikuti kegiatan online / offline, keaktifan mengisi/mengupdate konten/status
+- [ ] Poin produktivitas : Keaktifan dalam kegiatan bersifat ekonomis, keaktifan dalam mengikuti keanggotaan, keaktifan dalam wadah usaha/program bersama.
+
 
 ## Sistem Invitation
-- [ ] Sistem mengirim invitation via Whatsapp. Telusuri dan temukan cara bagaimana mengirim pesan undangan yang diteruskan ke nomor whatsapp dengan aman, terhindar dari anggapan spam, dan bisa langsung memberikan hasil signifikan (terundang mengunjungi profil yang dibuat user pengundang dan bisa register memakai nomor whatsappnya);
+- [ ] Mungkinkah membangun sistem build in screen capture pada tree? terdapat fitur capture berdasarkan mouse move dan select, menyimpannya ke pc, galeri (smartphone), atau langsung ke invitation form (melalui capture button);
+- [ ] Perlu dibuat format form invitation yang memungkinkan melampirkan gambar (misal screenshot tree) dan kata-kata invitation;
+- [ ] Sistem mengirim invitatian via pretty image yaitu gambar hasil dari gabungan image hasil screenshot tree yang diikuti dengan teks cantik ajakan kalimat lainnya (bisa diedit) yang bisa di preview dan didownload . Terdapat tombol Preview dan Download Image di bawahnya. User tinggal melampirkan gambar di sosmed/chat, atau lainnya;  
+- [ ] Sistem mengirim invitation via Whatsapp, telegram, dan social media. Telusuri dan temukan cara bagaimana mengirim pesan undangan yang diteruskan ke nomor whatsapp dengan aman, terhindar dari anggapan spam, dan bisa langsung memberikan hasil signifikan (terundang mengunjungi profil yang dibuat user pengundang dan bisa register memakai akunnya). Adakah platform pihak ketika yang memiliki fitur menghandle semuanya sekaligus?;
+- [ ] Sistem mengirim invitation via email. Misal user aktif mendapatkan email manual dari orangnya langsung, lalu menuliskannya di form Invitation via email di akun non-aktif yang akan diaktifkan (otomatis tersimpan). Lalu dari situ user aktif mengklik tombol Invite. Email invitation dikirim dan bila email diterima dan klik terima/accept, maka akun dapat langsung dikelola oleh user yang diundang tersebut.
 
 
 ## Sistem Ai Asisten / Helper
 - [ ] Apa yang diperlukan agar digsan.id dapat memunculkan data analisis berbasis database yang dihimpun yang kemudian diikuti dengan aksi merekomendasikan hubungan antar tree yang belum terhubung misalnya keluarga si A direkomendasikan untuk menjalin koneksi dengan keluarga si B (juga sebaliknya) karena memiliki keterkaitan/kesamaan silsilah kakek / nenek atau paman atau buyut, atau lainnya?
+
+## Fasilitas Digsan.id
+- [ ] Digital Membercard dengan foto profil, nomor keanggotaan, nama lengkap, alamat, qrcode yang bila discan mengarah ke profil public user tersebut;
+- [ ] Arisan Keluarga. Fasilitas yang otomatis aktif ketika sebuah koneksi telah menghubungkan lebih dari 50 orang dengan user aktif mencapai 70% lebih;
+- [ ] Koperasi Keluarga. Fasilitas upgrade keanggotaan yang akan aktif dalam bentuk penawaran kepada user yang telah berusia di atas 20 tahun dan memiliki keanggotaan aktif lebih dari 3 bulan;
+
 
 *Terakhir diperbarui: Juli 2026*

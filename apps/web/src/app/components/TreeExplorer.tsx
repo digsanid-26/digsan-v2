@@ -605,6 +605,7 @@ export default function TreeExplorer() {
             consent={consentFor(selected.id)}
             onRequestConsent={() => requestConsent(selected.id)}
             onRevokeConsent={(id) => revokeConsent(id)}
+            onInviteEmail={(email, message) => treeApi.inviteByEmail({ email, message, nodeId: selected.id })}
             onClose={() => setPanel('none')}
             onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}
@@ -699,17 +700,11 @@ function SetupForm({ initial, onSave, onClose }: { dark: boolean; initial: TreeC
 
 // ─── Member form ────────────────────────────────────────────
 
-const INVITE_METHODS = [
-  { label: 'Email', icon: Mail, color: 'text-rose-500' },
-  { label: 'WhatsApp', icon: MessageCircle, color: 'text-emerald-500' },
-  { label: 'Media Sosial', icon: Share2, color: 'text-blue-500' },
-  { label: 'Salin Tautan', icon: Link2, color: 'text-slate-500' },
-];
-
-function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onSave, onClose }: {
+function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onInviteEmail, onSave, onClose }: {
   dark: boolean; node: TNode; isSelf: boolean; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
   consent?: GuardianConsent;
   onRequestConsent: () => void; onRevokeConsent: (consentId: string) => void;
+  onInviteEmail: (email: string, message: string) => Promise<void>;
   onClose: () => void; onSave: (m: Member) => void;
 }) {
   const [form, setForm] = useState<Member>({
@@ -721,7 +716,23 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, c
     familyConfig: member?.familyConfig,
   });
   const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteMsg, setInviteMsg] = useState('');
+  const [inviteState, setInviteState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [inviteError, setInviteError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const sendInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviteState('sending'); setInviteError('');
+    try {
+      await onInviteEmail(inviteEmail.trim(), inviteMsg.trim());
+      setInviteState('sent');
+    } catch (e) {
+      setInviteState('error');
+      setInviteError(e instanceof Error ? e.message : 'Gagal mengirim undangan');
+    }
+  };
 
   const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -883,13 +894,38 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, c
               Undang / Invite
             </button>
             {showInvite && (
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                {INVITE_METHODS.map((m) => (
-                  <button key={m.label} onClick={() => alert(`Kirim undangan via ${m.label} (demo)`)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-white/5 dark:border-white/15 dark:text-white/80 dark:hover:bg-white/10">
-                    <m.icon size={15} className={m.color} />{m.label}
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-white/50">
+                  <Mail size={14} className="text-rose-500" />Undangan via Email
+                </div>
+                <input type="email" value={inviteEmail} onChange={(e) => { setInviteEmail(e.target.value); setInviteState('idle'); }}
+                  placeholder="email@contoh.com"
+                  className="w-full px-3 py-2 rounded-lg text-sm border bg-white border-slate-200 dark:bg-white/5 dark:border-white/15 dark:text-white" />
+                <textarea value={inviteMsg} onChange={(e) => setInviteMsg(e.target.value)} rows={2}
+                  placeholder="Pesan undangan (opsional)"
+                  className="w-full px-3 py-2 rounded-lg text-sm border resize-none bg-white border-slate-200 dark:bg-white/5 dark:border-white/15 dark:text-white" />
+                <button onClick={sendInvite} disabled={!inviteEmail.trim() || inviteState === 'sending'}
+                  className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    inviteState === 'sent'
+                      ? 'bg-emerald-500 text-white'
+                      : !inviteEmail.trim() || inviteState === 'sending'
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed dark:bg-white/10 dark:text-white/40'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}>
+                  {inviteState === 'sending' ? 'Mengirim…' : inviteState === 'sent' ? <><Check size={15} />Undangan Terkirim</> : <><Mail size={15} />Kirim Undangan</>}
+                </button>
+                {inviteState === 'error' && <p className="text-xs text-rose-500">{inviteError}</p>}
+                {inviteState === 'sent' && <p className="text-[11px] text-slate-400 dark:text-white/40">Email undangan telah dikirim. Setelah diterima & diaktifkan, orang tersebut dapat mengelola profilnya.</p>}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent((inviteMsg || 'Yuk lengkapi silsilah keluarga kita di digsan.id') + '\n' + (typeof window !== 'undefined' ? window.location.origin : 'https://digsan.id'))}`, '_blank', 'noopener')}
+                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-white/5 dark:border-white/15 dark:text-white/80 dark:hover:bg-white/10">
+                    <MessageCircle size={15} className="text-emerald-500" />WhatsApp
                   </button>
-                ))}
+                  <button onClick={() => { navigator.clipboard?.writeText(typeof window !== 'undefined' ? window.location.origin : 'https://digsan.id'); }}
+                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-white/5 dark:border-white/15 dark:text-white/80 dark:hover:bg-white/10">
+                    <Link2 size={15} className="text-slate-500" />Salin Tautan
+                  </button>
+                </div>
               </div>
             )}
           </div>

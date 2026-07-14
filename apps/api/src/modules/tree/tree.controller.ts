@@ -92,6 +92,12 @@ export class TreeController {
     return this.treeService.revokeConsent(userId, consentId);
   }
 
+  @Post('invite')
+  @ApiOperation({ summary: 'Send an email invitation for a node in the default tree' })
+  async inviteByEmail(@CurrentUser('id') userId: string, @Body() dto: InviteMemberDto) {
+    return this.treeService.inviteByEmail(userId, dto);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a family tree by ID (with members)' })
   async findOne(@Param('id') id: string, @CurrentUser('id') userId: string) {

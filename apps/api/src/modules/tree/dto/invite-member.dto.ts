@@ -11,4 +11,14 @@ export class InviteMemberDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiPropertyOptional({ example: 'parent-1', description: 'Layout node key this invitation is for' })
+  @IsOptional()
+  @IsString()
+  nodeId?: string;
+
+  @ApiPropertyOptional({ example: 'Yuk lengkapi data keluarga kita!' })
+  @IsOptional()
+  @IsString()
+  message?: string;
 }

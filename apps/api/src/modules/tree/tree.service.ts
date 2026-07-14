@@ -6,7 +6,9 @@ import {
   Logger,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/database/prisma.service';
+import { EmailService } from '../notification/email.service';
 import { CreateTreeDto } from './dto/create-tree.dto';
 import { UpdateTreeDto } from './dto/update-tree.dto';
 import { CreateMemberDto } from './dto/create-member.dto';
@@ -18,7 +20,11 @@ import { InviteMemberDto } from './dto/invite-member.dto';
 export class TreeService {
   private readonly logger = new Logger(TreeService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private email: EmailService,
+    private config: ConfigService,
+  ) {}
 
   // ─── TREE CRUD ──────────────────────────────────────────────
 
@@ -496,6 +502,16 @@ export class TreeService {
 
   // ─── INVITATIONS ────────────────────────────────────────────
 
+  /**
+   * Send an email invitation for a node in the current user's default tree.
+   * Works with the config-driven layout (no explicit treeId needed).
+   */
+  async inviteByEmail(userId: string, dto: InviteMemberDto) {
+    if (!dto.email) throw new BadRequestException('Email harus diisi');
+    const tree = await this.getOrCreateDefaultTree(userId);
+    return this.createInvitation(tree.id, userId, dto);
+  }
+
   async createInvitation(treeId: string, userId: string, dto: InviteMemberDto) {
     await this.ensureTreeOwner(treeId, userId);
 
@@ -507,15 +523,40 @@ export class TreeService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    return this.prisma.treeInvitation.create({
+    const invitation = await this.prisma.treeInvitation.create({
       data: {
         treeId,
         email: dto.email,
         phone: dto.phone,
+        nodeId: dto.nodeId,
+        message: dto.message,
         token,
         expiresAt,
       },
     });
+
+    // Fire the email (best-effort — EmailService logs when SMTP is unset).
+    if (dto.email) {
+      try {
+        const [tree, inviter] = await Promise.all([
+          this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { name: true } }),
+          this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+        ]);
+        const webUrl = this.config.get('WEB_URL', 'http://localhost:3000');
+        const acceptUrl = `${webUrl}/invite/${token}`;
+        await this.email.sendTreeInvitationEmail(
+          dto.email,
+          inviter?.name || 'Seseorang',
+          tree?.name || 'Keluarga',
+          acceptUrl,
+          dto.message,
+        );
+      } catch (err) {
+        this.logger.error(`Failed to send invitation email: ${err}`);
+      }
+    }
+
+    return invitation;
   }
 
   async getInvitations(treeId: string, userId: string) {
