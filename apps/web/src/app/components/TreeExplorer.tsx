@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getUser } from '@/lib/auth';
 import { treeApi } from '@/lib/tree';
+import type { GuardianConsent } from '@/lib/tree';
 import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
 import { DEFAULT_CONFIG } from './treeTypes';
@@ -221,6 +222,7 @@ export default function TreeExplorer() {
   const [me, setMe] = useState<{ id: string; name: string; avatar: string | null } | null>(null);
   const [config, setConfig] = useState<TreeConfig>(DEFAULT_CONFIG);
   const [members, setMembers] = useState<Members>({});
+  const [consents, setConsents] = useState<GuardianConsent[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -270,6 +272,12 @@ export default function TreeExplorer() {
           try { localStorage.setItem(`digsan_tree_mem_${uid}`, JSON.stringify(remote.members)); } catch { /* ignore */ }
         }
 
+        // Load guardianship consents (ignore failure — feature is optional).
+        try {
+          const cs = await treeApi.getConsents();
+          if (!cancelled) setConsents(cs);
+        } catch { /* ignore */ }
+
         // No config anywhere → prompt setup.
         if (!remote.config && !hadLocalConfig) setPanel('setup');
 
@@ -307,6 +315,24 @@ export default function TreeExplorer() {
     setMembers(m);
     try { localStorage.setItem(`digsan_tree_mem_${uidRef.current}`, JSON.stringify(m)); } catch { /* ignore */ }
     pushLayout({ members: m });
+  };
+
+  const consentFor = (nodeId: string) => consents.find((c) => c.nodeId === nodeId);
+
+  const requestConsent = async (nodeId: string) => {
+    if (uidRef.current === 'guest') return;
+    try {
+      const created = await treeApi.requestConsent({ nodeId });
+      setConsents((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+    } catch { /* surfaced via disabled state; ignore */ }
+  };
+
+  const revokeConsent = async (consentId: string) => {
+    if (uidRef.current === 'guest') return;
+    try {
+      const updated = await treeApi.revokeConsent(consentId);
+      setConsents((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    } catch { /* ignore */ }
   };
 
   const { nodes, lines } = useMemo(() => {
@@ -480,6 +506,9 @@ export default function TreeExplorer() {
           <MemberForm key={selected.id} dark={dark} node={selected} isSelf={selected.id === 'self'}
             member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
             canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest')}
+            consent={consentFor(selected.id)}
+            onRequestConsent={() => requestConsent(selected.id)}
+            onRevokeConsent={(id) => revokeConsent(id)}
             onClose={() => setPanel('none')}
             onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}
@@ -567,8 +596,10 @@ const INVITE_METHODS = [
   { label: 'Salin Tautan', icon: Link2, color: 'text-slate-500' },
 ];
 
-function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, onSave, onClose }: {
+function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onSave, onClose }: {
   dark: boolean; node: TNode; isSelf: boolean; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
+  consent?: GuardianConsent;
+  onRequestConsent: () => void; onRevokeConsent: (consentId: string) => void;
   onClose: () => void; onSave: (m: Member) => void;
 }) {
   const [form, setForm] = useState<Member>({
@@ -672,25 +703,66 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, o
           </div>
         </div>
 
-        {/* Family setup for a deceased member (guardian may manage their network) */}
-        {!isSelf && !form.alive && node.group === 'parent' && canEdit && (
-          <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-4">
-            <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Atur Keluarga (Alm.)</p>
-            <p className="text-xs text-slate-500 dark:text-white/50 mb-3 leading-snug">
-              Karena anggota ini telah meninggal, Anda sebagai wali dapat menata keluarganya. Menambah saudara akan memunculkan cabang paman/bibi yang tersambung ke kakek-nenek (terlihat saat <b>Expand All</b>).
-            </p>
-            <NumField
-              label="Jumlah Kakak (dari alm.)"
-              value={form.familyConfig?.olderCount ?? form.familyConfig?.siblingCount ?? 0}
-              onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, olderCount: v, siblingCount: undefined } }))}
-            />
-            <NumField
-              label="Jumlah Adik (dari alm.)"
-              value={form.familyConfig?.youngerCount || 0}
-              onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, youngerCount: v } }))}
-            />
-          </div>
-        )}
+        {/* Family setup — guardian manages a member's own network.
+            Deceased direct relative: unlocked. Living member: requires consent. */}
+        {!isSelf && node.group === 'parent' && (() => {
+          const deceased = !form.alive;
+          const granted = consent?.status === 'GRANTED';
+          const unlocked = deceased ? canEdit : granted;
+          return (
+            <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-4">
+              <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-1">
+                {deceased ? 'Atur Keluarga (Alm.)' : 'Atur Keluarga'}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-white/50 mb-3 leading-snug">
+                {deceased
+                  ? <>Karena anggota ini telah meninggal, Anda sebagai wali dapat menata keluarganya. Menambah saudara akan memunculkan cabang paman/bibi yang tersambung ke kakek-nenek (terlihat saat <b>Expand All</b>).</>
+                  : <>Anggota ini masih hidup. Menata silsilahnya memerlukan <b>izin</b> dari pemilik akun. Ajukan permintaan, dan setelah disetujui bagian ini akan terbuka.</>}
+              </p>
+
+              {!deceased && !granted && (
+                <div className="mb-3">
+                  {consent?.status === 'PENDING' ? (
+                    <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2">
+                      <span className="text-xs text-amber-700 dark:text-amber-300">Menunggu persetujuan…</span>
+                      <button type="button" onClick={() => consent && onRevokeConsent(consent.id)}
+                        className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:underline">Batalkan</button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={onRequestConsent}
+                      className="w-full py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
+                      {consent?.status === 'REJECTED' ? 'Ajukan Ulang Izin' : 'Minta Izin'}
+                    </button>
+                  )}
+                  {consent?.status === 'REJECTED' && (
+                    <p className="text-xs text-rose-500 mt-1.5">Permintaan sebelumnya ditolak.</p>
+                  )}
+                </div>
+              )}
+
+              {!deceased && granted && (
+                <div className="flex items-center justify-between gap-2 mb-3 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2">
+                  <span className="text-xs text-emerald-700 dark:text-emerald-300">Izin disetujui</span>
+                  <button type="button" onClick={() => consent && onRevokeConsent(consent.id)}
+                    className="text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:underline">Cabut</button>
+                </div>
+              )}
+
+              <div className={unlocked ? '' : 'opacity-40 pointer-events-none select-none'}>
+                <NumField
+                  label={deceased ? 'Jumlah Kakak (dari alm.)' : 'Jumlah Kakak'}
+                  value={form.familyConfig?.olderCount ?? form.familyConfig?.siblingCount ?? 0}
+                  onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, olderCount: v, siblingCount: undefined } }))}
+                />
+                <NumField
+                  label={deceased ? 'Jumlah Adik (dari alm.)' : 'Jumlah Adik'}
+                  value={form.familyConfig?.youngerCount || 0}
+                  onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, youngerCount: v } }))}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Invite */}
         {!isSelf && (

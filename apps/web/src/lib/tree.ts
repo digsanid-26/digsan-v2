@@ -33,6 +33,23 @@ async function authRequest<T>(endpoint: string, options: RequestInit = {}): Prom
   return data as T;
 }
 
+export type ConsentStatus = 'PENDING' | 'GRANTED' | 'REJECTED' | 'REVOKED';
+
+export interface GuardianConsent {
+  id: string;
+  treeId: string;
+  nodeId: string;
+  requesterId: string;
+  targetUserId: string | null;
+  targetEmail: string | null;
+  targetPhone: string | null;
+  status: ConsentStatus;
+  scope: string;
+  note: string | null;
+  createdAt: string;
+  respondedAt: string | null;
+}
+
 export const treeApi = {
   getLayout: <C = unknown, M = unknown>() =>
     authRequest<TreeLayout<C, M>>('/trees/layout'),
@@ -41,5 +58,34 @@ export const treeApi = {
     authRequest<TreeLayout<C, M>>('/trees/layout', {
       method: 'PUT',
       body: JSON.stringify(payload),
+    }),
+
+  // ─── Guardianship consent ───────────────────────────────────
+  getConsents: () => authRequest<GuardianConsent[]>('/trees/consents'),
+
+  getIncomingConsents: () =>
+    authRequest<GuardianConsent[]>('/trees/consents/incoming'),
+
+  requestConsent: (payload: {
+    nodeId: string;
+    targetUserId?: string;
+    targetEmail?: string;
+    targetPhone?: string;
+    note?: string;
+  }) =>
+    authRequest<GuardianConsent>('/trees/consents', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  respondConsent: (consentId: string, grant: boolean) =>
+    authRequest<GuardianConsent>(`/trees/consents/${consentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ grant }),
+    }),
+
+  revokeConsent: (consentId: string) =>
+    authRequest<GuardianConsent>(`/trees/consents/${consentId}`, {
+      method: 'DELETE',
     }),
 };

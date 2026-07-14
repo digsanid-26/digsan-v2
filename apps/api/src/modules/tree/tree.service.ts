@@ -173,6 +173,120 @@ export class TreeService {
     };
   }
 
+  // ─── GUARDIANSHIP CONSENT ───────────────────────────────────
+
+  /**
+   * A guardian (tree owner) requests permission to manage the sub-tree of a
+   * LIVING member (identified by its node key in the layout). Creates or
+   * refreshes a PENDING consent and notifies the target account if known.
+   */
+  async requestConsent(
+    userId: string,
+    dto: { nodeId: string; targetUserId?: string; targetEmail?: string; targetPhone?: string; note?: string },
+  ) {
+    const tree = await this.getOrCreateDefaultTree(userId);
+
+    const consent = await this.prisma.guardianConsent.upsert({
+      where: { treeId_nodeId_requesterId: { treeId: tree.id, nodeId: dto.nodeId, requesterId: userId } },
+      create: {
+        treeId: tree.id,
+        nodeId: dto.nodeId,
+        requesterId: userId,
+        targetUserId: dto.targetUserId || null,
+        targetEmail: dto.targetEmail || null,
+        targetPhone: dto.targetPhone || null,
+        note: dto.note || null,
+        status: 'PENDING',
+      },
+      update: {
+        // Re-requesting resets a previously rejected/revoked consent.
+        targetUserId: dto.targetUserId || null,
+        targetEmail: dto.targetEmail || null,
+        targetPhone: dto.targetPhone || null,
+        note: dto.note || null,
+        status: 'PENDING',
+        respondedAt: null,
+      },
+    });
+
+    if (consent.targetUserId) {
+      const requester = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+      await this.prisma.notification.create({
+        data: {
+          userId: consent.targetUserId,
+          type: 'SYSTEM',
+          title: 'Permintaan izin wali',
+          message: `${requester?.name || 'Seseorang'} meminta izin untuk mengelola profil dan silsilah Anda.`,
+          data: { kind: 'GUARDIAN_CONSENT', consentId: consent.id },
+        },
+      });
+    }
+
+    return consent;
+  }
+
+  /** Consents created by the current user for their own tree (with statuses). */
+  async getTreeConsents(userId: string) {
+    const tree = await this.getOrCreateDefaultTree(userId);
+    return this.prisma.guardianConsent.findMany({
+      where: { treeId: tree.id, requesterId: userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Pending consent requests addressed to the current user (to grant/reject). */
+  async getIncomingConsents(userId: string) {
+    return this.prisma.guardianConsent.findMany({
+      where: { targetUserId: userId, status: 'PENDING' },
+      include: { tree: { select: { id: true, name: true, userId: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Target user grants or rejects a consent request. */
+  async respondConsent(userId: string, consentId: string, grant: boolean) {
+    const consent = await this.prisma.guardianConsent.findUnique({ where: { id: consentId } });
+    if (!consent) throw new NotFoundException('Permintaan izin tidak ditemukan');
+    if (consent.targetUserId !== userId) {
+      throw new ForbiddenException('Hanya pemilik identitas yang dapat merespons izin ini');
+    }
+    if (consent.status !== 'PENDING') throw new BadRequestException('Permintaan izin sudah direspons');
+
+    const updated = await this.prisma.guardianConsent.update({
+      where: { id: consentId },
+      data: { status: grant ? 'GRANTED' : 'REJECTED', respondedAt: new Date() },
+    });
+
+    const responder = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    await this.prisma.notification.create({
+      data: {
+        userId: consent.requesterId,
+        type: 'SYSTEM',
+        title: grant ? 'Izin wali disetujui' : 'Izin wali ditolak',
+        message: `${responder?.name || 'Pengguna'} ${grant ? 'menyetujui' : 'menolak'} permintaan pengelolaan silsilah.`,
+        data: { kind: 'GUARDIAN_CONSENT', consentId: consent.id, granted: grant },
+      },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Revoke a consent. The target may revoke a granted access; the requester
+   * may cancel their own pending/granted request.
+   */
+  async revokeConsent(userId: string, consentId: string) {
+    const consent = await this.prisma.guardianConsent.findUnique({ where: { id: consentId } });
+    if (!consent) throw new NotFoundException('Permintaan izin tidak ditemukan');
+    if (consent.targetUserId !== userId && consent.requesterId !== userId) {
+      throw new ForbiddenException('Akses ditolak');
+    }
+    return this.prisma.guardianConsent.update({
+      where: { id: consentId },
+      data: { status: 'REVOKED', respondedAt: new Date() },
+    });
+  }
+
   // ─── MEMBERS ────────────────────────────────────────────────
 
   async getMembers(treeId: string, userId?: string) {

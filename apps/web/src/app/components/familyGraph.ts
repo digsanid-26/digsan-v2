@@ -219,11 +219,10 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
     const parent = g[parentId];
     if (!parent || !parent.parentId) return;
     const o = ov(parentId);
-    const deceased = o ? o.alive === false : false;
-    if (!deceased) return;
     const fc = o?.familyConfig;
     const older = fc?.olderCount ?? fc?.siblingCount ?? 0;
     const younger = fc?.youngerCount ?? 0;
+    if (older <= 0 && younger <= 0) return;
     const sideLabel = sideKey === 'P' ? 'Ayah' : 'Ibu';
     // 'o' before 'y' so id string sort keeps birth order (kakak, then adik).
     for (let i = 0; i < older; i++) {

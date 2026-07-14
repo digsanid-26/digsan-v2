@@ -215,6 +215,7 @@ model FamilyTree {
   hubConnections FamilyHubConnection[] @relation("SourceTree")
   hubTargets     FamilyHubConnection[] @relation("TargetTree")
   invitations    TreeInvitation[]
+  guardianConsents GuardianConsent[]
 
   @@map("family_trees")
 }
@@ -315,6 +316,40 @@ enum InvitationStatus {
   ACCEPTED
   EXPIRED
   CANCELLED
+}
+
+// ─── Guardianship consent ─────────────────────────────────────
+// A guardian (usually the tree owner) requests permission to manage
+// the sub-tree of a LIVING member. The living person (targetUser)
+// grants or rejects it via their own account. Deceased members with a
+// direct relation do NOT require consent (handled in app logic).
+model GuardianConsent {
+  id           String        @id @default(cuid())
+  treeId       String        @map("tree_id")
+  nodeId       String        @map("node_id")
+  requesterId  String        @map("requester_id")
+  targetUserId String?       @map("target_user_id")
+  targetEmail  String?       @map("target_email")
+  targetPhone  String?       @map("target_phone")
+  status       ConsentStatus @default(PENDING)
+  scope        String        @default("MANAGE")
+  note         String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  respondedAt  DateTime?     @map("responded_at")
+
+  tree FamilyTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
+  @@unique([treeId, nodeId, requesterId])
+  @@index([targetUserId, status])
+  @@index([requesterId])
+  @@map("guardian_consents")
+}
+
+enum ConsentStatus {
+  PENDING
+  GRANTED
+  REJECTED
+  REVOKED
 }
 
 // ================================================================

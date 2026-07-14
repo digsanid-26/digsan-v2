@@ -13,6 +13,7 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 import { UpdateCardStyleDto } from './dto/card-style.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { SaveLayoutDto } from './dto/save-layout.dto';
+import { RequestConsentDto, RespondConsentDto } from './dto/consent.dto';
 
 // ─── AUTHENTICATED TREE ENDPOINTS ─────────────────────────────
 
@@ -51,6 +52,44 @@ export class TreeController {
   @ApiOperation({ summary: 'Save the config-driven explorer layout for the current user' })
   async saveLayout(@CurrentUser('id') userId: string, @Body() dto: SaveLayoutDto) {
     return this.treeService.saveLayout(userId, dto.config, dto.members);
+  }
+
+  // ─── GUARDIANSHIP CONSENT ───────────────────────────────────
+  // NOTE: declared before ':id' routes so 'consents' is not captured as a
+  // tree id parameter.
+
+  @Get('consents')
+  @ApiOperation({ summary: 'List consent requests created by the current user (with statuses)' })
+  async getTreeConsents(@CurrentUser('id') userId: string) {
+    return this.treeService.getTreeConsents(userId);
+  }
+
+  @Post('consents')
+  @ApiOperation({ summary: 'Request permission to manage a living member\'s sub-tree' })
+  async requestConsent(@CurrentUser('id') userId: string, @Body() dto: RequestConsentDto) {
+    return this.treeService.requestConsent(userId, dto);
+  }
+
+  @Get('consents/incoming')
+  @ApiOperation({ summary: 'List pending consent requests addressed to the current user' })
+  async getIncomingConsents(@CurrentUser('id') userId: string) {
+    return this.treeService.getIncomingConsents(userId);
+  }
+
+  @Patch('consents/:consentId')
+  @ApiOperation({ summary: 'Grant or reject a consent request (target only)' })
+  async respondConsent(
+    @Param('consentId') consentId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: RespondConsentDto,
+  ) {
+    return this.treeService.respondConsent(userId, consentId, dto.grant);
+  }
+
+  @Delete('consents/:consentId')
+  @ApiOperation({ summary: 'Revoke/cancel a consent (target or requester)' })
+  async revokeConsent(@Param('consentId') consentId: string, @CurrentUser('id') userId: string) {
+    return this.treeService.revokeConsent(userId, consentId);
   }
 
   @Get(':id')
