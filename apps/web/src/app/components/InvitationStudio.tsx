@@ -18,7 +18,11 @@ interface Props {
   aliveOf?: (id: string) => boolean;
   inviterName: string;
   treeName?: string;
+  region?: Region | null;
+  highlightIds?: string[];
 }
+
+export interface Region { minX: number; maxX: number; minY: number; maxY: number; }
 
 // ─── Canvas drawing helpers ─────────────────────────────────
 
@@ -61,21 +65,32 @@ function drawInvitation(
     nodes: TNode[]; lines: Poly[]; palette: Palette;
     aliveOf?: (id: string) => boolean;
     title: string; message: string;
+    region?: Region | null; highlight?: Set<string>;
   },
 ): void {
-  const { nodes, lines, palette, aliveOf, title, message } = opts;
+  const { nodes, lines, palette, aliveOf, title, message, region, highlight } = opts;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  // Bounds of the tree in its own coordinate space.
   const rOf = (g: Group) => (palette[g]?.size ?? 60) / 2;
-  const xs = nodes.map((n) => n.x);
-  const ys = nodes.map((n) => n.y);
-  const rs = nodes.map((n) => rOf(n.group));
-  const minX = Math.min(...nodes.map((n, i) => n.x - rs[i]));
-  const maxX = Math.max(...nodes.map((n, i) => n.x + rs[i]));
-  const minY = Math.min(...nodes.map((n, i) => n.y - rs[i]));
-  const maxY = Math.max(...nodes.map((n, i) => n.y + rs[i]));
+
+  // Restrict to a selected region (drag-select) or use the whole tree.
+  let drawNodes = nodes;
+  let drawLines = lines;
+  let minX: number, maxX: number, minY: number, maxY: number;
+  if (region) {
+    const m = 44; // padding around the region (tree coords)
+    minX = region.minX - m; maxX = region.maxX + m;
+    minY = region.minY - m; maxY = region.maxY + m;
+    drawNodes = nodes.filter((n) => n.x >= minX && n.x <= maxX && n.y >= minY && n.y <= maxY);
+    drawLines = lines.filter((l) => l.points.every(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY));
+  } else {
+    const rs = nodes.map((n) => rOf(n.group));
+    minX = Math.min(...nodes.map((n, i) => n.x - rs[i]));
+    maxX = Math.max(...nodes.map((n, i) => n.x + rs[i]));
+    minY = Math.min(...nodes.map((n, i) => n.y - rs[i]));
+    maxY = Math.max(...nodes.map((n, i) => n.y + rs[i]));
+  }
   const labelPad = 46; // room for name labels under nodes
   const treeW = Math.max(1, maxX - minX);
   const treeH = Math.max(1, maxY - minY + labelPad);
@@ -133,7 +148,7 @@ function drawInvitation(
   const ty = (y: number) => offsetY + y * scale;
 
   // Connector lines.
-  for (const l of lines) {
+  for (const l of drawLines) {
     ctx.beginPath();
     l.points.forEach(([x, y], i) => {
       const px = tx(x), py = ty(y);
@@ -147,7 +162,7 @@ function drawInvitation(
   }
 
   // Nodes.
-  for (const n of nodes) {
+  for (const n of drawNodes) {
     const r = rOf(n.group) * scale;
     const cx = tx(n.x), cy = ty(n.y);
     const pal = palette[n.group] || palette.self;
@@ -175,6 +190,41 @@ function drawInvitation(
     const isGroup = n.role === 'group';
     ctx.fillText(isGroup ? `×${n.count ?? ''}` : initials(n.name), cx, cy);
     ctx.restore();
+
+    // Highlight ring + "Lengkapi" tag for nodes the invitee should fill/activate.
+    if (highlight?.has(n.id)) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + 6 * scale, 0, Math.PI * 2);
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = Math.max(2, 3 * scale);
+      ctx.setLineDash([8 * scale, 6 * scale]);
+      ctx.shadowColor = 'rgba(251,191,36,0.9)';
+      ctx.shadowBlur = 18 * scale;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
+      const tag = 'Lengkapi';
+      ctx.font = `700 ${Math.max(9, 12 * scale)}px system-ui, sans-serif`;
+      const tw = ctx.measureText(tag).width + 14 * scale;
+      const th = 22 * scale;
+      const bx = cx - tw / 2, by = cy - r - th - 6 * scale;
+      const rr = 6 * scale;
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.moveTo(bx + rr, by);
+      ctx.arcTo(bx + tw, by, bx + tw, by + th, rr);
+      ctx.arcTo(bx + tw, by + th, bx, by + th, rr);
+      ctx.arcTo(bx, by + th, bx, by, rr);
+      ctx.arcTo(bx, by, bx + tw, by, rr);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#1f2937';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tag, cx, by + th / 2);
+      ctx.restore();
+    }
 
     // Name label under node.
     if (!isGroup) {
@@ -215,7 +265,7 @@ function drawInvitation(
 // ─── Component ──────────────────────────────────────────────
 
 export default function InvitationStudio({
-  open, onClose, dark, nodes, lines, palette, aliveOf, inviterName, treeName,
+  open, onClose, dark, nodes, lines, palette, aliveOf, inviterName, treeName, region, highlightIds,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [title, setTitle] = useState('');
@@ -227,9 +277,13 @@ export default function InvitationStudio({
     () => (treeName ? `Silsilah Keluarga ${treeName}` : 'Silsilah Keluarga Kami'),
     [treeName],
   );
+  const highlightKey = (highlightIds ?? []).join(',');
+  const highlightSet = useMemo(() => new Set(highlightIds ?? []), [highlightKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const defaultMessage = useMemo(
-    () => `Halo! ${inviterName || 'Saya'} mengajak Anda melihat & melengkapi silsilah keluarga kita di digsan.id. Yuk bergabung!`,
-    [inviterName],
+    () => (highlightSet.size
+      ? `Halo! ${inviterName || 'Saya'} mengajak Anda bergabung di digsan.id. Mohon lengkapi/aktifkan bagian yang ditandai "Lengkapi" pada silsilah keluarga kita.`
+      : `Halo! ${inviterName || 'Saya'} mengajak Anda melihat & melengkapi silsilah keluarga kita di digsan.id. Yuk bergabung!`),
+    [inviterName, highlightSet],
   );
 
   // Seed defaults when opened.
@@ -247,9 +301,10 @@ export default function InvitationStudio({
       nodes, lines, palette, aliveOf,
       title: title || defaultTitle,
       message: message || defaultMessage,
+      region, highlight: highlightSet,
     });
     try { setPreviewUrl(canvas.toDataURL('image/png')); } catch { /* tainted canvas — ignore */ }
-  }, [nodes, lines, palette, aliveOf, title, message, defaultTitle, defaultMessage]);
+  }, [nodes, lines, palette, aliveOf, title, message, defaultTitle, defaultMessage, region, highlightSet]);
 
   // Redraw when opened or content changes.
   useEffect(() => {

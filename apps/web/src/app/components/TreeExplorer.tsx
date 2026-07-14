@@ -9,9 +9,10 @@ import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeType
 import { DEFAULT_CONFIG } from './treeTypes';
 import { configToGraph, layoutGraph } from './familyGraph';
 import InvitationStudio from './InvitationStudio';
+import type { Region } from './InvitationStudio';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Mail, MessageCircle, Share2, Link2, Upload, Check,
+  Mail, MessageCircle, Share2, Link2, Upload, Check, Crop,
 } from 'lucide-react';
 
 // ─── Styling per group ──────────────────────────────────────
@@ -231,6 +232,11 @@ export default function TreeExplorer() {
   const [panel, setPanel] = useState<'none' | 'setup' | 'member'>('none');
   const [selected, setSelected] = useState<TNode | null>(null);
   const [showStudio, setShowStudio] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [marquee, setMarquee] = useState<{ sx: number; sy: number; ex: number; ey: number } | null>(null);
+  const marqueeRef = useRef<{ sx: number; sy: number } | null>(null);
+  const [studioRegion, setStudioRegion] = useState<Region | null>(null);
+  const [studioHighlight, setStudioHighlight] = useState<string[]>([]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ ox: number; oy: number; px: number; py: number } | null>(null);
@@ -367,16 +373,69 @@ export default function TreeExplorer() {
     return () => vp.removeEventListener('wheel', onWheel);
   }, []);
 
+  // Convert a screen (client) point to tree coordinates given current pan/zoom.
+  const toTree = (clientX: number, clientY: number) => {
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return {
+      x: ((clientX - rect.left) - rect.width / 2 - pan.x) / zoom,
+      y: ((clientY - rect.top) - rect.height / 2 - pan.y) / zoom,
+    };
+  };
+
+  const finalizeMarquee = () => {
+    const m = marquee;
+    marqueeRef.current = null;
+    setMarquee(null);
+    setSelectMode(false);
+    if (!m) return;
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    // Ignore tiny selections (treat as a click).
+    if (Math.abs(m.ex - m.sx) < 12 || Math.abs(m.ey - m.sy) < 12) return;
+    const a = toTree(rect.left + m.sx, rect.top + m.sy);
+    const b = toTree(rect.left + m.ex, rect.top + m.ey);
+    const region: Region = {
+      minX: Math.min(a.x, b.x), maxX: Math.max(a.x, b.x),
+      minY: Math.min(a.y, b.y), maxY: Math.max(a.y, b.y),
+    };
+    const highlight = nodes
+      .filter((n) => n.role !== 'group' && n.x >= region.minX && n.x <= region.maxX && n.y >= region.minY && n.y <= region.maxY)
+      .map((n) => n.id);
+    setStudioRegion(region);
+    setStudioHighlight(highlight);
+    setShowStudio(true);
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
+    if (selectMode) {
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+      marqueeRef.current = { sx, sy };
+      setMarquee({ sx, sy, ex: sx, ey: sy });
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
+    }
     if ((e.target as HTMLElement).closest('[data-node]')) return;
     drag.current = { ox: pan.x, oy: pan.y, px: e.clientX, py: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent) => {
+    if (selectMode) {
+      if (!marqueeRef.current) return;
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMarquee({ ...marqueeRef.current, ex: e.clientX - rect.left, ey: e.clientY - rect.top });
+      return;
+    }
     if (!drag.current) return;
     setPan({ x: drag.current.ox + (e.clientX - drag.current.px), y: drag.current.oy + (e.clientY - drag.current.py) });
   };
-  const onPointerUp = () => { drag.current = null; };
+  const onPointerUp = () => {
+    if (selectMode) { finalizeMarquee(); return; }
+    drag.current = null;
+  };
 
   const doExpand = () => { setExpanded(true); setZoom(0.42); setPan({ x: 0, y: 0 }); };
   const doCollapse = () => { setExpanded(false); setZoom(1); setPan({ x: 0, y: 0 }); };
@@ -409,11 +468,21 @@ export default function TreeExplorer() {
           <Settings size={15} />Pengaturan
         </button>
         {config.configured && (
-          <button onClick={() => setShowStudio(true)}
+          <button onClick={() => { setStudioRegion(null); setStudioHighlight([]); setShowStudio(true); }}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg
               bg-white text-slate-700 hover:bg-slate-50 border border-slate-200
               dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15">
             <Share2 size={15} />Undang
+          </button>
+        )}
+        {config.configured && (
+          <button onClick={() => setSelectMode((s) => !s)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg border ${
+              selectMode
+                ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-400'
+                : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200 dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15'
+            }`}>
+            <Crop size={15} />{selectMode ? 'Batal Pilih' : 'Pilih Area'}
           </button>
         )}
       </div>
@@ -437,9 +506,26 @@ export default function TreeExplorer() {
         </div>
       )}
 
+      {selectMode && (
+        <div className="absolute inset-x-0 top-16 z-30 flex justify-center pointer-events-none">
+          <p className="px-4 py-2 rounded-full text-sm bg-amber-500 text-white shadow-lg">
+            Seret untuk memilih area & menyorot lingkaran yang perlu dilengkapi
+          </p>
+        </div>
+      )}
+
       {/* Viewport */}
       <div ref={viewportRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-        className="absolute inset-0 cursor-grab active:cursor-grabbing">
+        className={`absolute inset-0 ${selectMode ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}>
+        {selectMode && marquee && (
+          <div className="absolute z-20 border-2 border-amber-400 bg-amber-400/15 rounded pointer-events-none"
+            style={{
+              left: Math.min(marquee.sx, marquee.ex),
+              top: Math.min(marquee.sy, marquee.ey),
+              width: Math.abs(marquee.ex - marquee.sx),
+              height: Math.abs(marquee.ey - marquee.sy),
+            }} />
+        )}
         <div className="absolute left-1/2 top-1/2" style={{ width: 0, height: 0, transformOrigin: '0 0', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transition: drag.current ? 'none' : 'transform 0.3s ease' }}>
           <svg width={OX * 2} height={OY * 2} viewBox={`0 0 ${OX * 2} ${OY * 2}`} style={{ position: 'absolute', left: -OX, top: -OY, overflow: 'visible', pointerEvents: 'none' }}>
             {lines.map((l, i) => (
@@ -534,6 +620,8 @@ export default function TreeExplorer() {
         aliveOf={(id) => members[id]?.alive !== false}
         inviterName={me?.name || 'Saya'}
         treeName={config.mainFamilyName}
+        region={studioRegion}
+        highlightIds={studioHighlight}
       />
     </div>
   );
