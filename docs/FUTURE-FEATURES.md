@@ -26,9 +26,9 @@
 - [ ] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan seiring perkembangan aplikasi (karena saat ini masih proses pembangunan)
 - [ ] Cek kemungkinan membangun self-host email server di console idcloudhost (di virtual server lain) yang memungkinkan dengan domain sendiri (@digsan.id), untuk kedepannya juga mendukung multi domain name, terhubung dengan fitur digsan.id di mana user bisa membuat email @digsan.id dengan gratis, membaca dan mengirim email di dashboard email . 
 
-## Sistem navigasi
-- [ ] Membuat halaman Family | tree/nama-keluarga (misal tree/farisma-fam)
-- [ ] Membuat halaman profil personal | tree/nama-keluarga/nama-publik-anda (misal tree/farisma-fam/arisnwh)
+## Sistem navigasi dan halaman detil
+- [ ] Membuat halaman Family | tree/nama-keluarga (misal tree/farisma-fam) : berisi keluarga kecil ayah, ibu, anak-anak saja dengan konten yang lebih lengkap dan personal (untuk dikembangkan lebih lanjut nanti);
+- [ ] Membuat halaman profil personal | tree/nama-keluarga/nama-publik-anda (misal tree/farisma-fam/arisnwh) : Halaman profil pribadi untuk diri sendiri yang nantinya bisa dikembangkan lebih lanjut
 
 ## Sistem Gamification
 - [ ] Poin pengabdian : Pengabdian dalam menyelesaikan task, pengabdian dalam mengembangkan jaringan / koneksi keluarga
@@ -37,7 +37,7 @@
 
 
 ## Sistem Invitation
-- [ ] Mungkinkah membangun sistem build in screen capture pada tree? terdapat fitur capture berdasarkan mouse move dan select, menyimpannya ke pc, galeri (smartphone), atau langsung ke invitation form (melalui capture button);
+- [ ] Mungkinkah membangun sistem build in screen capture pada tree? terdapat fitur capture berdasarkan mouse move dan select, memiliki opsi menyimpannya ke pc, galeri (smartphone), atau langsung ke invitation form (melalui capture button);
 - [ ] Perlu dibuat format form invitation yang memungkinkan melampirkan gambar (misal screenshot tree) dan kata-kata invitation;
 - [ ] Sistem mengirim invitatian via pretty image yaitu gambar hasil dari gabungan image hasil screenshot tree yang diikuti dengan teks cantik ajakan kalimat lainnya (bisa diedit) yang bisa di preview dan didownload . Terdapat tombol Preview dan Download Image di bawahnya. User tinggal melampirkan gambar di sosmed/chat, atau lainnya;  
 - [ ] Sistem mengirim invitation via Whatsapp, telegram, dan social media. Telusuri dan temukan cara bagaimana mengirim pesan undangan yang diteruskan ke nomor whatsapp dengan aman, terhindar dari anggapan spam, dan bisa langsung memberikan hasil signifikan (terundang mengunjungi profil yang dibuat user pengundang dan bisa register memakai akunnya). Adakah platform pihak ketika yang memiliki fitur menghandle semuanya sekaligus?;

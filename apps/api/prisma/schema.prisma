@@ -23,6 +23,7 @@ model User {
   isWhatsapp    Boolean    @default(false) @map("is_whatsapp")
   passwordHash  String?    @map("password_hash")
   name          String
+  username      String?    @unique
   avatar        String?
   bio           String?
   googleId      String?    @unique @map("google_id")
@@ -201,6 +202,7 @@ model FamilyTree {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
   name        String
+  slug        String?  @unique
   description String?
   isPublic    Boolean  @default(false) @map("is_public")
   coverImage  String?  @map("cover_image")

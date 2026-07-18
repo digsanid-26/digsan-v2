@@ -308,3 +308,23 @@ export class PublicTreeController {
     return this.treeService.getStatistics(treeId);
   }
 }
+
+// ─── PUBLIC FAMILY / PROFILE PAGES (by slug) ──────────────────
+
+@ApiTags('Public Family Pages')
+@Controller('public/family')
+export class PublicFamilyController {
+  constructor(private readonly treeService: TreeService) {}
+
+  @Get(':slug')
+  @ApiOperation({ summary: 'Get a family page by slug' })
+  async getFamily(@Param('slug') slug: string) {
+    return this.treeService.getPublicFamily(slug);
+  }
+
+  @Get(':slug/:username')
+  @ApiOperation({ summary: 'Get a personal profile page by family slug + username' })
+  async getProfile(@Param('slug') slug: string, @Param('username') username: string) {
+    return this.treeService.getPublicProfile(slug, username);
+  }
+}

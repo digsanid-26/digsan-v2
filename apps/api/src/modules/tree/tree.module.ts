@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { TreeController, PublicTreeController } from './tree.controller';
+import { TreeController, PublicTreeController, PublicFamilyController } from './tree.controller';
 import { TreeService } from './tree.service';
 import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [NotificationModule],
-  controllers: [TreeController, PublicTreeController],
+  controllers: [TreeController, PublicTreeController, PublicFamilyController],
   providers: [TreeService],
   exports: [TreeService],
 })

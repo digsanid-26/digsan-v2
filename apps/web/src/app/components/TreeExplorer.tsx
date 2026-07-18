@@ -605,7 +605,7 @@ export default function TreeExplorer() {
             consent={consentFor(selected.id)}
             onRequestConsent={() => requestConsent(selected.id)}
             onRevokeConsent={(id) => revokeConsent(id)}
-            onInviteEmail={(email, message) => treeApi.inviteByEmail({ email, message, nodeId: selected.id })}
+            onInviteEmail={async (email, message) => { await treeApi.inviteByEmail({ email, message, nodeId: selected.id }); }}
             onClose={() => setPanel('none')}
             onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}

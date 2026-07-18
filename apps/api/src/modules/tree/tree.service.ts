@@ -9,6 +9,7 @@ import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/database/prisma.service';
 import { EmailService } from '../notification/email.service';
+import { slugify } from '../../common/utils/slug.util';
 import { CreateTreeDto } from './dto/create-tree.dto';
 import { UpdateTreeDto } from './dto/update-tree.dto';
 import { CreateMemberDto } from './dto/create-member.dto';
@@ -150,11 +151,67 @@ export class TreeService {
     });
   }
 
+  /** Generate a unique tree slug from a base string. */
+  private async uniqueTreeSlug(base: string, excludeId?: string): Promise<string> {
+    const root = slugify(base);
+    let candidate = root;
+    let n = 1;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const found = await this.prisma.familyTree.findUnique({ where: { slug: candidate } });
+      if (!found || found.id === excludeId) return candidate;
+      n += 1;
+      candidate = `${root}-${n}`;
+    }
+  }
+
+  /** Generate a unique username from a base string. */
+  private async uniqueUsername(base: string, excludeId?: string): Promise<string> {
+    const root = slugify(base, 'user');
+    let candidate = root;
+    let n = 1;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const found = await this.prisma.user.findUnique({ where: { username: candidate } });
+      if (!found || found.id === excludeId) return candidate;
+      n += 1;
+      candidate = `${root}-${n}`;
+    }
+  }
+
+  /**
+   * Ensure the tree has a slug (derived from the main family name) and the
+   * owner has a username. Runs lazily whenever the layout is read/saved.
+   */
+  private async ensureIdentity(tree: { id: string; slug: string | null; name: string; userId: string; layoutConfig: any }) {
+    let slug = tree.slug;
+    const familyName = (tree.layoutConfig?.mainFamilyName as string) || tree.name || 'keluarga';
+    const desiredBase = `${familyName}-fam`;
+    if (!slug) {
+      slug = await this.uniqueTreeSlug(desiredBase, tree.id);
+      await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
+    }
+
+    const owner = await this.prisma.user.findUnique({
+      where: { id: tree.userId },
+      select: { id: true, name: true, username: true, avatar: true },
+    });
+    let username = owner?.username || null;
+    if (owner && !username) {
+      username = await this.uniqueUsername(owner.name, owner.id);
+      await this.prisma.user.update({ where: { id: owner.id }, data: { username } });
+    }
+    return { slug, owner: owner ? { name: owner.name, username, avatar: owner.avatar } : null };
+  }
+
   /** Get the saved explorer layout (config + members) for the current user. */
   async getLayout(userId: string) {
     const tree = await this.getOrCreateDefaultTree(userId);
+    const identity = await this.ensureIdentity(tree);
     return {
       treeId: tree.id,
+      slug: identity.slug,
+      owner: identity.owner,
       config: tree.layoutConfig ?? null,
       members: tree.layoutMembers ?? null,
       updatedAt: tree.updatedAt,
@@ -171,11 +228,67 @@ export class TreeService {
         ...(members !== undefined && { layoutMembers: members as any }),
       },
     });
+    const identity = await this.ensureIdentity(updated);
     return {
       treeId: updated.id,
+      slug: identity.slug,
+      owner: identity.owner,
       config: updated.layoutConfig ?? null,
       members: updated.layoutMembers ?? null,
       updatedAt: updated.updatedAt,
+    };
+  }
+
+  // ─── PUBLIC FAMILY / PROFILE PAGES ──────────────────────────
+
+  /** Public family page data resolved by tree slug. */
+  async getPublicFamily(slug: string) {
+    const tree = await this.prisma.familyTree.findUnique({
+      where: { slug },
+      include: { user: { select: { name: true, username: true, avatar: true, bio: true } } },
+    });
+    if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
+    return {
+      slug: tree.slug,
+      name: (tree.layoutConfig as any)?.mainFamilyName || tree.name,
+      description: tree.description,
+      coverImage: tree.coverImage,
+      config: tree.layoutConfig ?? null,
+      members: tree.layoutMembers ?? null,
+      owner: tree.user,
+      updatedAt: tree.updatedAt,
+    };
+  }
+
+  /** Public personal-profile page resolved by tree slug + username. */
+  async getPublicProfile(slug: string, username: string) {
+    const tree = await this.prisma.familyTree.findUnique({
+      where: { slug },
+      select: { id: true, slug: true, name: true, layoutConfig: true, userId: true },
+    });
+    if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
+
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: { id: true, name: true, username: true, avatar: true, bio: true, createdAt: true },
+    });
+    if (!user) throw new NotFoundException('Profil tidak ditemukan');
+
+    // Is this user the owner (self) of the family? Expose their layout member.
+    const isOwner = user.id === tree.userId;
+    const members = (await this.prisma.familyTree.findUnique({ where: { id: tree.id }, select: { layoutMembers: true } }))?.layoutMembers as any;
+    const selfMember = isOwner && members ? members['self'] ?? null : null;
+
+    return {
+      family: { slug: tree.slug, name: (tree.layoutConfig as any)?.mainFamilyName || tree.name },
+      profile: {
+        name: user.name,
+        username: user.username,
+        avatar: user.avatar || selfMember?.photo || null,
+        bio: user.bio,
+        isOwner,
+        joinedAt: user.createdAt,
+      },
     };
   }
 
