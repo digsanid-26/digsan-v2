@@ -622,7 +622,16 @@ export default function TreeExplorer() {
         inviteeName={inviteCtx?.name}
         onSendEmail={async (email, msg) => { await treeApi.inviteByEmail({ email, message: msg, nodeId: inviteCtx?.nodeId }); }}
         treeName={config.mainFamilyName}
-        familyUrl={identity.slug ? `${typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id'}/family/${identity.slug}` : undefined}
+        familyUrl={(() => {
+          if (!identity.slug) return undefined;
+          const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
+          const base = `${origin}/family/${identity.slug}`;
+          // Invited a specific member → deep-link to that person on the public tree.
+          if (inviteCtx?.nodeId && inviteCtx.nodeId !== 'self') return `${base}?m=${encodeURIComponent(inviteCtx.nodeId)}`;
+          // Owner / self share → link to the owner's public profile (nama-keluarga/nama-user).
+          if (identity.username) return `${base}/${identity.username}`;
+          return base;
+        })()}
         region={studioRegion}
         highlightIds={studioHighlight}
       />

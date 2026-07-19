@@ -12,13 +12,15 @@ interface Props {
   resolve: (id: string, fallback: string) => { name: string; photo: string | null; alive: boolean };
   /** Optional click handler (e.g. navigate to a profile). */
   onNodeClick?: (node: TNode) => void;
+  /** Optional node id to highlight (e.g. the invited member from a deep link). */
+  highlightId?: string;
   className?: string;
 }
 
 const PAD = 80; // padding around the tree bounding box (tree coords)
 
 /** Read-only, fit-to-container renderer for a family graph. */
-export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, className }: Props) {
+export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, highlightId, className }: Props) {
   const box = useMemo(() => {
     if (!nodes.length) return { minX: 0, minY: 0, w: 1, h: 1 };
     const rOf = (id: string, g: TNode['group']) => (STYLE[g]?.size ?? 60) / 2;
@@ -65,6 +67,13 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, c
               style={{ cursor: clickable ? 'pointer' : 'default' }}
               onClick={() => clickable && onNodeClick?.(n)}
             >
+              {/* Highlight ring for the deep-linked (invited) member */}
+              {!isGroup && n.id === highlightId && (
+                <circle r={r + 8} fill="none" stroke="#facc15" strokeWidth={3}>
+                  <animate attributeName="r" values={`${r + 6};${r + 13};${r + 6}`} dur="1.6s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.95;0.35;0.95" dur="1.6s" repeatCount="indefinite" />
+                </circle>
+              )}
               {d?.photo ? (
                 <>
                   <clipPath id={`clip-${n.id}`}>

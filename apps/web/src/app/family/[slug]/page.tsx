@@ -20,6 +20,13 @@ export default function PublicFamilyPage() {
   const [data, setData] = useState<PublicFamily<Partial<TreeConfig>, Members> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // Deep link from an invitation: /family/{slug}?m={nodeId} focuses that member.
+  useEffect(() => {
+    const m = new URLSearchParams(window.location.search).get('m');
+    if (m) setHighlightId(m);
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -108,6 +115,15 @@ export default function PublicFamilyPage() {
             )}
           </section>
 
+          {/* Invited-member banner */}
+          {highlightId && (
+            <div className="px-6 -mt-1 mb-2">
+              <div className="max-w-md mx-auto rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-center">
+                <p className="text-amber-200 text-sm">Anda diundang — bagian Anda ditandai <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 align-middle" /> pada silsilah di bawah.</p>
+              </div>
+            </div>
+          )}
+
           {/* Tree */}
           <section className="flex-1 min-h-[420px] px-2 sm:px-6 pb-8">
             {nodes.length ? (
@@ -116,6 +132,7 @@ export default function PublicFamilyPage() {
                 lines={lines}
                 resolve={resolve}
                 onNodeClick={onNodeClick}
+                highlightId={highlightId ?? undefined}
                 className="w-full h-full min-h-[420px]"
               />
             ) : (
