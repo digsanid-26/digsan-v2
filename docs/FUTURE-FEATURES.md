@@ -22,6 +22,11 @@
 - [ ] Ketika klik node/lingkaran profil yang memiliki icon tree (misal istri, ayah, kakek, anak, dst) yang masih terhubung, muncul tombol di bawah nama LIHAT SILSILAH.
 - [ ] Untuk keluarga yang telah meninggal dunia, pada bagian modal sidebar bagian Undang pemilik identitas perlu diubah menjadi Undang kerabat edit bersama yang mengacu pada aturan perijinan yang ada (bisa muncul list user(akun telah aktif) yang sesuai atau direkomendasikan)
 
+## Detail Anggota (Diri sendiri) Improvement
+Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut: 
+- [ ] Area Lengkapi Profil | style bordered, hightlight background | Di dalam area terdapat progress bar kecil dengan persentase kelengkapan, diikuti keterangan teks kecil : Melengkapi profil 100% bisa memberikan poin pengabdian sebesar 20 poin, diikuti tombol Lengkapi Profil
+- [ ] Badge Area | Heading : Badge Anda | Badge diperoleh dengan mengikuti atau mengaktifkan fitur-fitur keanggotaan, modul, dan usaha/program keluarga di Digsan.id
+
 ## Sistem Notifikasi
 - [ ] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan seiring perkembangan aplikasi (karena saat ini masih proses pembangunan)
 - [ ] Cek kemungkinan membangun self-host email server di console idcloudhost (di virtual server lain) yang memungkinkan dengan domain sendiri (@digsan.id), untuk kedepannya juga mendukung multi domain name, terhubung dengan fitur digsan.id di mana user bisa membuat email @digsan.id dengan gratis, membaca dan mengirim email di dashboard email . 
@@ -37,11 +42,13 @@
 
 
 ## Sistem Invitation
-- [ ] Mungkinkah membangun sistem build in screen capture pada tree? terdapat fitur capture berdasarkan mouse move dan select, memiliki opsi menyimpannya ke pc, galeri (smartphone), atau langsung ke invitation form (melalui capture button);
-- [ ] Perlu dibuat format form invitation yang memungkinkan melampirkan gambar (misal screenshot tree) dan kata-kata invitation;
-- [ ] Sistem mengirim invitatian via pretty image yaitu gambar hasil dari gabungan image hasil screenshot tree yang diikuti dengan teks cantik ajakan kalimat lainnya (bisa diedit) yang bisa di preview dan didownload . Terdapat tombol Preview dan Download Image di bawahnya. User tinggal melampirkan gambar di sosmed/chat, atau lainnya;  
-- [ ] Sistem mengirim invitation via Whatsapp, telegram, dan social media. Telusuri dan temukan cara bagaimana mengirim pesan undangan yang diteruskan ke nomor whatsapp dengan aman, terhindar dari anggapan spam, dan bisa langsung memberikan hasil signifikan (terundang mengunjungi profil yang dibuat user pengundang dan bisa register memakai akunnya). Adakah platform pihak ketika yang memiliki fitur menghandle semuanya sekaligus?;
+- [x] Mungkinkah membangun sistem build in screen capture pada tree? terdapat fitur capture berdasarkan mouse move dan select, memiliki opsi menyimpannya ke pc, galeri (smartphone), atau langsung ke invitation form (melalui capture button);
+- [x] Perlu dibuat format form invitation yang memungkinkan melampirkan gambar (misal screenshot tree) dan kata-kata invitation;
+- [x] Gambar tree tidak menangkap kondisi sebenarnya seperti foto profil yg sudah terpasang di lingkaran, demikian juga dengan hasil screen capture;
+- [x] Sistem mengirim invitatian via pretty image yaitu gambar hasil dari gabungan image hasil screenshot tree yang diikuti dengan teks cantik ajakan kalimat lainnya (bisa diedit) yang bisa di preview dan didownload . Terdapat tombol Preview dan Download Image di bawahnya. User tinggal melampirkan gambar di sosmed/chat, atau lainnya;  
+- [x] Sistem mengirim invitation via Whatsapp, telegram, dan social media. Telusuri dan temukan cara bagaimana mengirim pesan undangan yang diteruskan ke nomor whatsapp dengan aman, terhindar dari anggapan spam, dan bisa langsung memberikan hasil signifikan (terundang mengunjungi profil yang dibuat user pengundang dan bisa register memakai akunnya). Adakah platform pihak ketika yang memiliki fitur menghandle semuanya sekaligus?;
 - [ ] Sistem mengirim invitation via email. Misal user aktif mendapatkan email manual dari orangnya langsung, lalu menuliskannya di form Invitation via email di akun non-aktif yang akan diaktifkan (otomatis tersimpan). Lalu dari situ user aktif mengklik tombol Invite. Email invitation dikirim dan bila email diterima dan klik terima/accept, maka akun dapat langsung dikelola oleh user yang diundang tersebut.
+- [x] Invitation via Whatsapp tidak disertai spesifik link ke family terkait di mana link yang disertakan hanya https://app.digsan.id/ saja, serta lampiran gambar tree tidak ikut disertakan. Perbaiki dan jadikan ini sebagai fitur juga untuk model tipe invitation lainnya seperti juga via email, telegram, dan lainnya. 
 
 
 ## Sistem Ai Asisten / Helper
@@ -52,5 +59,6 @@
 - [ ] Arisan Keluarga. Fasilitas yang otomatis aktif ketika sebuah koneksi telah menghubungkan lebih dari 50 orang dengan user aktif mencapai 70% lebih;
 - [ ] Koperasi Keluarga. Fasilitas upgrade keanggotaan yang akan aktif dalam bentuk penawaran kepada user yang telah berusia di atas 20 tahun dan memiliki keanggotaan aktif lebih dari 3 bulan;
 
-
+## Backend Admin
+- [ ] Admin memiliki dashboard relatif sama dengan tampilan app.digsan.id namun memiliki area konten berupa tree yang mencakup perkembangan jaringan semua keluarga dalam satu map besar dengan sistem filter, search, bisa mengklik semua lingkaran yang ada untuk melihat profil atau informasi yang ada.
 *Terakhir diperbarui: Juli 2026*

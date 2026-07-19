@@ -4,6 +4,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 export interface TreeLayout<C = unknown, M = unknown> {
   treeId: string;
+  slug: string | null;
+  owner: { name: string; username: string | null; avatar: string | null } | null;
   config: C | null;
   members: M | null;
   updatedAt: string;
@@ -109,3 +111,49 @@ export interface TreeInvitation {
   expiresAt: string;
   createdAt: string;
 }
+
+// ─── Public (unauthenticated) family & profile pages ──────────
+
+export interface PublicFamily<C = unknown, M = unknown> {
+  slug: string | null;
+  name: string;
+  description: string | null;
+  coverImage: string | null;
+  config: C | null;
+  members: M | null;
+  owner: { name: string; username: string | null; avatar: string | null; bio: string | null } | null;
+  updatedAt: string;
+}
+
+export interface PublicProfile {
+  family: { slug: string | null; name: string };
+  profile: {
+    name: string;
+    username: string | null;
+    avatar: string | null;
+    bio: string | null;
+    isOwner: boolean;
+    joinedAt: string;
+  };
+}
+
+async function publicRequest<T>(endpoint: string): Promise<T> {
+  const res = await fetch(`${API_URL}${endpoint}`, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error((data as { message?: string }).message || `HTTP ${res.status}`) as Error & { status: number };
+    err.status = res.status;
+    throw err;
+  }
+  return data as T;
+}
+
+export const publicTreeApi = {
+  getFamily: <C = unknown, M = unknown>(slug: string) =>
+    publicRequest<PublicFamily<C, M>>(`/public/family/${encodeURIComponent(slug)}`),
+
+  getProfile: (slug: string, username: string) =>
+    publicRequest<PublicProfile>(`/public/family/${encodeURIComponent(slug)}/${encodeURIComponent(username)}`),
+};

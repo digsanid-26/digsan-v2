@@ -8,6 +8,7 @@ import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
 import { DEFAULT_CONFIG } from './treeTypes';
 import { configToGraph, layoutGraph } from './familyGraph';
+import { STYLE, OX, OY } from './treeStyle';
 import InvitationStudio from './InvitationStudio';
 import type { Region } from './InvitationStudio';
 import {
@@ -17,21 +18,7 @@ import {
 
 // ─── Styling per group ──────────────────────────────────────
 
-const STYLE: Record<Group, { bg: string; border: string; size: number }> = {
-  self:        { bg: '#254474', border: 'rgba(96,165,250,0.85)', size: 96 },
-  spouse:      { bg: '#7e22ce', border: 'rgba(216,180,254,0.7)', size: 76 },
-  parent:      { bg: '#1d4ed8', border: 'rgba(96,165,250,0.7)', size: 74 },
-  grandparent: { bg: '#4338ca', border: 'rgba(165,180,252,0.7)', size: 66 },
-  ancestor:    { bg: '#6d28d9', border: 'rgba(196,181,253,0.7)', size: 58 },
-  kakak:       { bg: '#c2410c', border: 'rgba(251,146,60,0.7)', size: 70 },
-  adik:        { bg: '#047857', border: 'rgba(52,211,153,0.7)', size: 70 },
-  child:       { bg: '#b45309', border: 'rgba(251,191,36,0.7)', size: 64 },
-  uncle:       { bg: '#0e7490', border: 'rgba(103,232,249,0.7)', size: 66 },
-};
-
 const ANCESTORS = ['Buyut', 'Canggah', 'Wareng', 'Udheg-udheg', 'Gantung Siwur', 'Gropak Senthe'];
-
-const OX = 1600, OY = 1600; // svg internal offset (large to fit ancestral chain)
 
 // ─── Geometry helpers ───────────────────────────────────────
 
@@ -222,6 +209,7 @@ export default function TreeExplorer() {
   const dark = theme === 'dark';
 
   const [me, setMe] = useState<{ id: string; name: string; avatar: string | null } | null>(null);
+  const [identity, setIdentity] = useState<{ slug: string | null; username: string | null }>({ slug: null, username: null });
   const [config, setConfig] = useState<TreeConfig>(DEFAULT_CONFIG);
   const [members, setMembers] = useState<Members>({});
   const [consents, setConsents] = useState<GuardianConsent[]>([]);
@@ -269,6 +257,8 @@ export default function TreeExplorer() {
       try {
         const remote = await treeApi.getLayout<Partial<TreeConfig>, Members>();
         if (cancelled) return;
+
+        setIdentity({ slug: remote.slug, username: remote.owner?.username ?? null });
 
         if (remote.config) {
           const merged = { ...DEFAULT_CONFIG, ...remote.config };
@@ -619,8 +609,10 @@ export default function TreeExplorer() {
         lines={lines}
         palette={STYLE}
         aliveOf={(id) => members[id]?.alive !== false}
+        photoOf={(id) => disp(id, '').photo}
         inviterName={me?.name || 'Saya'}
         treeName={config.mainFamilyName}
+        familyUrl={identity.slug ? `${typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id'}/family/${identity.slug}` : undefined}
         region={studioRegion}
         highlightIds={studioHighlight}
       />

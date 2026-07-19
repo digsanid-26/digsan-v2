@@ -16,8 +16,10 @@ interface Props {
   lines: Poly[];
   palette: Palette;
   aliveOf?: (id: string) => boolean;
+  photoOf?: (id: string) => string | null;
   inviterName: string;
   treeName?: string;
+  familyUrl?: string;
   region?: Region | null;
   highlightIds?: string[];
 }
@@ -37,6 +39,22 @@ function initials(name: string): string {
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** Preloads photo URLs into decoded <img> elements, skipping any that fail (e.g. CORS-tainted). */
+function loadImages(urls: Map<string, string>): Promise<Map<string, HTMLImageElement>> {
+  const out = new Map<string, HTMLImageElement>();
+  const tasks = [...urls.entries()].map(
+    ([id, src]) =>
+      new Promise<void>((resolve) => {
+        const img = new Image();
+        if (!src.startsWith('data:')) img.crossOrigin = 'anonymous';
+        img.onload = () => { out.set(id, img); resolve(); };
+        img.onerror = () => resolve();
+        img.src = src;
+      }),
+  );
+  return Promise.all(tasks).then(() => out);
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -64,11 +82,12 @@ function drawInvitation(
   opts: {
     nodes: TNode[]; lines: Poly[]; palette: Palette;
     aliveOf?: (id: string) => boolean;
+    images?: Map<string, HTMLImageElement>;
     title: string; message: string;
     region?: Region | null; highlight?: Set<string>;
   },
 ): void {
-  const { nodes, lines, palette, aliveOf, title, message, region, highlight } = opts;
+  const { nodes, lines, palette, aliveOf, images, title, message, region, highlight } = opts;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
@@ -182,13 +201,29 @@ function drawInvitation(
     ctx.strokeStyle = pal.border;
     ctx.stroke();
 
-    // Initials.
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `700 ${Math.max(9, r * 0.6)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
     const isGroup = n.role === 'group';
-    ctx.fillText(isGroup ? `×${n.count ?? ''}` : initials(n.name), cx, cy);
+    const img = !isGroup ? images?.get(n.id) : undefined;
+    if (img) {
+      // Clip the photo into the circle (cover-fit).
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - Math.max(1, scale), 0, Math.PI * 2);
+      ctx.clip();
+      const box = r * 2;
+      const iw = img.naturalWidth || box;
+      const ih = img.naturalHeight || box;
+      const ratio = Math.max(box / iw, box / ih);
+      const dw = iw * ratio, dh = ih * ratio;
+      ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+      ctx.restore();
+    } else {
+      // Initials fallback.
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `700 ${Math.max(9, r * 0.6)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(isGroup ? `×${n.count ?? ''}` : initials(n.name), cx, cy);
+    }
     ctx.restore();
 
     // Highlight ring + "Lengkapi" tag for nodes the invitee should fill/activate.
@@ -265,7 +300,7 @@ function drawInvitation(
 // ─── Component ──────────────────────────────────────────────
 
 export default function InvitationStudio({
-  open, onClose, dark, nodes, lines, palette, aliveOf, inviterName, treeName, region, highlightIds,
+  open, onClose, dark, nodes, lines, palette, aliveOf, photoOf, inviterName, treeName, familyUrl, region, highlightIds,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [title, setTitle] = useState('');
@@ -294,26 +329,37 @@ export default function InvitationStudio({
     }
   }, [open, defaultTitle, defaultMessage]);
 
-  const regenerate = useCallback(() => {
+  const regenerate = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas || !nodes.length) return;
+    // Collect profile photos so they render inside the circles (not just initials).
+    const urls = new Map<string, string>();
+    if (photoOf) {
+      for (const n of nodes) {
+        if (n.role === 'group') continue;
+        const p = photoOf(n.id);
+        if (p) urls.set(n.id, p);
+      }
+    }
+    const images = await loadImages(urls);
     drawInvitation(canvas, {
-      nodes, lines, palette, aliveOf,
+      nodes, lines, palette, aliveOf, images,
       title: title || defaultTitle,
       message: message || defaultMessage,
       region, highlight: highlightSet,
     });
     try { setPreviewUrl(canvas.toDataURL('image/png')); } catch { /* tainted canvas — ignore */ }
-  }, [nodes, lines, palette, aliveOf, title, message, defaultTitle, defaultMessage, region, highlightSet]);
+  }, [nodes, lines, palette, aliveOf, photoOf, title, message, defaultTitle, defaultMessage, region, highlightSet]);
 
   // Redraw when opened or content changes.
   useEffect(() => {
     if (!open) return;
-    const id = setTimeout(regenerate, 120);
+    const id = setTimeout(() => { void regenerate(); }, 120);
     return () => clearTimeout(id);
   }, [open, regenerate]);
 
-  const shareUrl = typeof window !== 'undefined' ? window.location.origin : 'https://digsan.id';
+  // Prefer the specific family link; fall back to the app origin.
+  const shareUrl = familyUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id');
   const shareText = `${message || defaultMessage}\n${shareUrl}`;
 
   const getBlob = (): Promise<Blob | null> =>
@@ -322,6 +368,19 @@ export default function InvitationStudio({
       if (!canvas) return resolve(null);
       canvas.toBlob((b) => resolve(b), 'image/png');
     });
+
+  /** Tries the native share sheet with the image attached. Returns true if it handled the share. */
+  const tryShareImage = async (): Promise<boolean> => {
+    const blob = await getBlob();
+    const nav = navigator as Navigator & { canShare?: (d?: ShareData) => boolean };
+    if (blob && nav.canShare) {
+      const file = new File([blob], 'undangan-digsan.png', { type: 'image/png' });
+      if (nav.canShare({ files: [file] })) {
+        try { await nav.share({ files: [file], text: shareText, title: title || defaultTitle }); return true; } catch { return true; }
+      }
+    }
+    return false;
+  };
 
   const download = async () => {
     const url = previewUrl || canvasRef.current?.toDataURL('image/png');
@@ -335,20 +394,25 @@ export default function InvitationStudio({
   };
 
   const shareNative = async () => {
-    const blob = await getBlob();
-    const nav = navigator as Navigator & { canShare?: (d?: ShareData) => boolean };
-    if (blob && nav.canShare) {
-      const file = new File([blob], 'undangan-digsan.png', { type: 'image/png' });
-      if (nav.canShare({ files: [file] })) {
-        try { await nav.share({ files: [file], text: shareText, title: title || defaultTitle }); return; } catch { /* cancelled */ return; }
-      }
-    }
+    if (await tryShareImage()) return;
     if (navigator.share) { try { await navigator.share({ text: shareText, title: title || defaultTitle, url: shareUrl }); } catch { /* cancelled */ } return; }
     await copyText();
   };
 
-  const shareWhatsApp = () => window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank', 'noopener');
-  const shareTelegram = () => window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(message || defaultMessage)}`, '_blank', 'noopener');
+  // WhatsApp/Telegram web links cannot carry image attachments. On devices that
+  // support the native share sheet we send the image directly; otherwise we
+  // auto-download the image (to attach manually) and open the app with the
+  // family-specific link prefilled.
+  const shareWhatsApp = async () => {
+    if (await tryShareImage()) return;
+    await download();
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank', 'noopener');
+  };
+  const shareTelegram = async () => {
+    if (await tryShareImage()) return;
+    await download();
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(message || defaultMessage)}`, '_blank', 'noopener');
+  };
 
   const copyText = async () => {
     try {
@@ -423,7 +487,10 @@ export default function InvitationStudio({
             </div>
 
             <p className="text-[11px] leading-snug text-slate-400 dark:text-white/40">
-              Tip: <b>Download</b> gambar lalu lampirkan di WhatsApp/Telegram/sosmed. Di ponsel, <b>Bagikan</b> dapat langsung mengirim gambar. Tautan mengarah ke halaman digsan.id.
+              Tip: Di ponsel, <b>WhatsApp/Telegram/Bagikan</b> langsung mengirim gambar undangan. Di desktop, gambar otomatis terunduh untuk dilampirkan, lalu aplikasi terbuka dengan pesan &amp; tautan siap kirim.
+              {familyUrl
+                ? <> Tautan mengarah ke halaman keluarga Anda: <b className="break-all">{familyUrl}</b>.</>
+                : <> Tautan mengarah ke halaman digsan.id.</>}
             </p>
           </div>
         </div>
