@@ -13,7 +13,7 @@ import InvitationStudio from './InvitationStudio';
 import type { Region } from './InvitationStudio';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Mail, MessageCircle, Share2, Link2, Upload, Check, Crop,
+  Share2, Upload, Check, Crop,
 } from 'lucide-react';
 
 // ─── Styling per group ──────────────────────────────────────
@@ -220,6 +220,7 @@ export default function TreeExplorer() {
   const [panel, setPanel] = useState<'none' | 'setup' | 'member'>('none');
   const [selected, setSelected] = useState<TNode | null>(null);
   const [showStudio, setShowStudio] = useState(false);
+  const [inviteCtx, setInviteCtx] = useState<{ nodeId: string; name: string } | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [marquee, setMarquee] = useState<{ sx: number; sy: number; ex: number; ey: number } | null>(null);
   const marqueeRef = useRef<{ sx: number; sy: number } | null>(null);
@@ -595,7 +596,14 @@ export default function TreeExplorer() {
             consent={consentFor(selected.id)}
             onRequestConsent={() => requestConsent(selected.id)}
             onRevokeConsent={(id) => revokeConsent(id)}
-            onInviteEmail={async (email, message) => { await treeApi.inviteByEmail({ email, message, nodeId: selected.id }); }}
+            onOpenInvite={() => {
+              const nm = disp(selected.id, selected.name).name;
+              setInviteCtx({ nodeId: selected.id, name: nm });
+              setStudioRegion(null);
+              setStudioHighlight([selected.id]);
+              setShowStudio(true);
+              setPanel('none');
+            }}
             onClose={() => setPanel('none')}
             onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}
@@ -603,7 +611,7 @@ export default function TreeExplorer() {
 
       <InvitationStudio
         open={showStudio}
-        onClose={() => setShowStudio(false)}
+        onClose={() => { setShowStudio(false); setInviteCtx(null); }}
         dark={dark}
         nodes={nodes.map((n) => (n.role === 'group' ? n : { ...n, name: disp(n.id, n.name).name }))}
         lines={lines}
@@ -611,6 +619,8 @@ export default function TreeExplorer() {
         aliveOf={(id) => members[id]?.alive !== false}
         photoOf={(id) => disp(id, '').photo}
         inviterName={me?.name || 'Saya'}
+        inviteeName={inviteCtx?.name}
+        onSendEmail={async (email, msg) => { await treeApi.inviteByEmail({ email, message: msg, nodeId: inviteCtx?.nodeId }); }}
         treeName={config.mainFamilyName}
         familyUrl={identity.slug ? `${typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id'}/family/${identity.slug}` : undefined}
         region={studioRegion}
@@ -692,11 +702,11 @@ function SetupForm({ initial, onSave, onClose }: { dark: boolean; initial: TreeC
 
 // ─── Member form ────────────────────────────────────────────
 
-function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onInviteEmail, onSave, onClose }: {
+function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onOpenInvite, onSave, onClose }: {
   dark: boolean; node: TNode; isSelf: boolean; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
   consent?: GuardianConsent;
   onRequestConsent: () => void; onRevokeConsent: (consentId: string) => void;
-  onInviteEmail: (email: string, message: string) => Promise<void>;
+  onOpenInvite: () => void;
   onClose: () => void; onSave: (m: Member) => void;
 }) {
   const [form, setForm] = useState<Member>({
@@ -707,24 +717,7 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, c
     verified: member?.verified,
     familyConfig: member?.familyConfig,
   });
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteMsg, setInviteMsg] = useState('');
-  const [inviteState, setInviteState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-  const [inviteError, setInviteError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const sendInvite = async () => {
-    if (!inviteEmail.trim()) return;
-    setInviteState('sending'); setInviteError('');
-    try {
-      await onInviteEmail(inviteEmail.trim(), inviteMsg.trim());
-      setInviteState('sent');
-    } catch (e) {
-      setInviteState('error');
-      setInviteError(e instanceof Error ? e.message : 'Gagal mengirim undangan');
-    }
-  };
 
   const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -877,51 +870,26 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, c
           );
         })()}
 
-        {/* Invite */}
-        {!isSelf && (
-          <div className="rounded-xl border border-slate-200 dark:border-white/10 p-4">
-            <p className="text-sm text-slate-600 dark:text-white/70 mb-1">Undang pemilik identitas</p>
-            <p className="text-xs text-slate-400 dark:text-white/40 mb-3">Agar melengkapi datanya sendiri secara lengkap.</p>
-            <button onClick={() => setShowInvite((s) => !s)} className="w-full py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
-              Undang / Invite
-            </button>
-            {showInvite && (
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-white/50">
-                  <Mail size={14} className="text-rose-500" />Undangan via Email
-                </div>
-                <input type="email" value={inviteEmail} onChange={(e) => { setInviteEmail(e.target.value); setInviteState('idle'); }}
-                  placeholder="email@contoh.com"
-                  className="w-full px-3 py-2 rounded-lg text-sm border bg-white border-slate-200 dark:bg-white/5 dark:border-white/15 dark:text-white" />
-                <textarea value={inviteMsg} onChange={(e) => setInviteMsg(e.target.value)} rows={2}
-                  placeholder="Pesan undangan (opsional)"
-                  className="w-full px-3 py-2 rounded-lg text-sm border resize-none bg-white border-slate-200 dark:bg-white/5 dark:border-white/15 dark:text-white" />
-                <button onClick={sendInvite} disabled={!inviteEmail.trim() || inviteState === 'sending'}
-                  className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    inviteState === 'sent'
-                      ? 'bg-emerald-500 text-white'
-                      : !inviteEmail.trim() || inviteState === 'sending'
-                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed dark:bg-white/10 dark:text-white/40'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  }`}>
-                  {inviteState === 'sending' ? 'Mengirim…' : inviteState === 'sent' ? <><Check size={15} />Undangan Terkirim</> : <><Mail size={15} />Kirim Undangan</>}
-                </button>
-                {inviteState === 'error' && <p className="text-xs text-rose-500">{inviteError}</p>}
-                {inviteState === 'sent' && <p className="text-[11px] text-slate-400 dark:text-white/40">Email undangan telah dikirim. Setelah diterima & diaktifkan, orang tersebut dapat mengelola profilnya.</p>}
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent((inviteMsg || 'Yuk lengkapi silsilah keluarga kita di digsan.id') + '\n' + (typeof window !== 'undefined' ? window.location.origin : 'https://digsan.id'))}`, '_blank', 'noopener')}
-                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-white/5 dark:border-white/15 dark:text-white/80 dark:hover:bg-white/10">
-                    <MessageCircle size={15} className="text-emerald-500" />WhatsApp
-                  </button>
-                  <button onClick={() => { navigator.clipboard?.writeText(typeof window !== 'undefined' ? window.location.origin : 'https://digsan.id'); }}
-                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-white/5 dark:border-white/15 dark:text-white/80 dark:hover:bg-white/10">
-                    <Link2 size={15} className="text-slate-500" />Salin Tautan
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Invite — opens the invitation studio (image + method dropdown) */}
+        {!isSelf && (() => {
+          const deceased = !form.alive;
+          return (
+            <div className="rounded-xl border border-slate-200 dark:border-white/10 p-4">
+              <p className="text-sm text-slate-600 dark:text-white/70 mb-1">
+                {deceased ? 'Undang kerabat edit bersama' : 'Undang pemilik identitas'}
+              </p>
+              <p className="text-xs text-slate-400 dark:text-white/40 mb-3">
+                {deceased
+                  ? 'Anggota ini telah meninggal. Undang kerabat berakun aktif yang berhak (sesuai aturan perizinan) untuk ikut mengelola silsilahnya.'
+                  : 'Agar melengkapi datanya sendiri secara lengkap.'}
+              </p>
+              <button onClick={onOpenInvite}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
+                <Share2 size={15} />{deceased ? 'Undang Kerabat' : 'Buat Undangan'}
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="p-5 border-t border-slate-200 dark:border-white/10">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, Download, Share2, MessageCircle, Send, Copy, Check, Image as ImageIcon } from 'lucide-react';
+import { X, Download, MessageCircle, Send, Check, Mail, Link2, Image as ImageIcon } from 'lucide-react';
 import type { Group, TNode, Poly } from './treeTypes';
 
 // ─── Types ──────────────────────────────────────────────────
@@ -18,6 +18,8 @@ interface Props {
   aliveOf?: (id: string) => boolean;
   photoOf?: (id: string) => string | null;
   inviterName: string;
+  inviteeName?: string;
+  onSendEmail?: (email: string, message: string) => Promise<void>;
   treeName?: string;
   familyUrl?: string;
   region?: Region | null;
@@ -25,6 +27,8 @@ interface Props {
 }
 
 export interface Region { minX: number; maxX: number; minY: number; maxY: number; }
+
+type InviteMethod = 'whatsapp' | 'telegram' | 'email' | 'download' | 'link';
 
 // ─── Canvas drawing helpers ─────────────────────────────────
 
@@ -300,13 +304,17 @@ function drawInvitation(
 // ─── Component ──────────────────────────────────────────────
 
 export default function InvitationStudio({
-  open, onClose, dark, nodes, lines, palette, aliveOf, photoOf, inviterName, treeName, familyUrl, region, highlightIds,
+  open, onClose, dark, nodes, lines, palette, aliveOf, photoOf, inviterName, inviteeName, onSendEmail, treeName, familyUrl, region, highlightIds,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [method, setMethod] = useState<InviteMethod>('whatsapp');
+  const [contact, setContact] = useState('');
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [sendError, setSendError] = useState('');
 
   const defaultTitle = useMemo(
     () => (treeName ? `Silsilah Keluarga ${treeName}` : 'Silsilah Keluarga Kami'),
@@ -314,18 +322,21 @@ export default function InvitationStudio({
   );
   const highlightKey = (highlightIds ?? []).join(',');
   const highlightSet = useMemo(() => new Set(highlightIds ?? []), [highlightKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const defaultMessage = useMemo(
-    () => (highlightSet.size
-      ? `Halo! ${inviterName || 'Saya'} mengajak Anda bergabung di digsan.id. Mohon lengkapi/aktifkan bagian yang ditandai "Lengkapi" pada silsilah keluarga kita.`
-      : `Halo! ${inviterName || 'Saya'} mengajak Anda melihat & melengkapi silsilah keluarga kita di digsan.id. Yuk bergabung!`),
-    [inviterName, highlightSet],
-  );
+  const defaultMessage = useMemo(() => {
+    const greet = inviteeName ? `Halo ${inviteeName}!` : 'Halo!';
+    return highlightSet.size
+      ? `${greet} ${inviterName || 'Saya'} mengajak Anda bergabung di digsan.id. Mohon lengkapi/aktifkan bagian yang ditandai "Lengkapi" pada silsilah keluarga kita.`
+      : `${greet} ${inviterName || 'Saya'} mengajak Anda melihat & melengkapi silsilah keluarga kita di digsan.id. Yuk bergabung!`;
+  }, [inviterName, inviteeName, highlightSet]);
 
   // Seed defaults when opened.
   useEffect(() => {
     if (open) {
       setTitle((t) => t || defaultTitle);
       setMessage((m) => m || defaultMessage);
+      setContact('');
+      setSendState('idle');
+      setSendError('');
     }
   }, [open, defaultTitle, defaultMessage]);
 
@@ -362,26 +373,6 @@ export default function InvitationStudio({
   const shareUrl = familyUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id');
   const shareText = `${message || defaultMessage}\n${shareUrl}`;
 
-  const getBlob = (): Promise<Blob | null> =>
-    new Promise((resolve) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return resolve(null);
-      canvas.toBlob((b) => resolve(b), 'image/png');
-    });
-
-  /** Tries the native share sheet with the image attached. Returns true if it handled the share. */
-  const tryShareImage = async (): Promise<boolean> => {
-    const blob = await getBlob();
-    const nav = navigator as Navigator & { canShare?: (d?: ShareData) => boolean };
-    if (blob && nav.canShare) {
-      const file = new File([blob], 'undangan-digsan.png', { type: 'image/png' });
-      if (nav.canShare({ files: [file] })) {
-        try { await nav.share({ files: [file], text: shareText, title: title || defaultTitle }); return true; } catch { return true; }
-      }
-    }
-    return false;
-  };
-
   const download = async () => {
     const url = previewUrl || canvasRef.current?.toDataURL('image/png');
     if (!url) return;
@@ -393,25 +384,50 @@ export default function InvitationStudio({
     a.remove();
   };
 
-  const shareNative = async () => {
-    if (await tryShareImage()) return;
-    if (navigator.share) { try { await navigator.share({ text: shareText, title: title || defaultTitle, url: shareUrl }); } catch { /* cancelled */ } return; }
-    await copyText();
+  const normalizeWa = (v: string) => {
+    let d = v.replace(/[^\d+]/g, '');
+    if (d.startsWith('+')) d = d.slice(1);
+    else if (d.startsWith('0')) d = `62${d.slice(1)}`;
+    return d;
   };
 
-  // WhatsApp/Telegram web links cannot carry image attachments. On devices that
-  // support the native share sheet we send the image directly; otherwise we
-  // auto-download the image (to attach manually) and open the app with the
-  // family-specific link prefilled.
-  const shareWhatsApp = async () => {
-    if (await tryShareImage()) return;
+  // WhatsApp/Telegram web links cannot carry image attachments, so we auto-download
+  // the invitation image (to attach manually) and open the chat prefilled with the
+  // personalized message + family link, addressed to the entered recipient.
+  const sendWhatsApp = async () => {
     await download();
-    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank', 'noopener');
+    window.open(`https://wa.me/${normalizeWa(contact)}?text=${encodeURIComponent(shareText)}`, '_blank', 'noopener');
   };
-  const shareTelegram = async () => {
-    if (await tryShareImage()) return;
+  const sendTelegram = async () => {
     await download();
-    window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(message || defaultMessage)}`, '_blank', 'noopener');
+    const id = contact.trim().replace(/^@/, '');
+    if (/^[+\d]/.test(id)) {
+      // Phone number / numeric id — no direct chat link; open the share dialog.
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(message || defaultMessage)}`, '_blank', 'noopener');
+    } else {
+      window.open(`https://t.me/${id}`, '_blank', 'noopener');
+    }
+  };
+  const sendEmail = async () => {
+    if (!onSendEmail) { await copyText(); return; }
+    setSendState('sending'); setSendError('');
+    try {
+      await onSendEmail(contact.trim(), message || defaultMessage);
+      setSendState('sent');
+    } catch (e) {
+      setSendState('error');
+      setSendError(e instanceof Error ? e.message : 'Gagal mengirim undangan');
+    }
+  };
+
+  const contactRequired = method === 'whatsapp' || method === 'telegram' || method === 'email';
+  const actionReady = contactRequired ? contact.trim() !== '' : true;
+  const runAction = async () => {
+    if (method === 'whatsapp') return sendWhatsApp();
+    if (method === 'telegram') return sendTelegram();
+    if (method === 'email') return sendEmail();
+    if (method === 'download') return download();
+    return copyText();
   };
 
   const copyText = async () => {
@@ -452,6 +468,19 @@ export default function InvitationStudio({
 
           {/* Form + actions */}
           <div className="space-y-4">
+            {/* Method selector — determines the recipient field + action below */}
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-white/50 mb-1">Metode Undangan</label>
+              <select value={method} onChange={(e) => { setMethod(e.target.value as InviteMethod); setSendState('idle'); }}
+                className="w-full px-3 py-2 rounded-lg text-sm border bg-white border-slate-200 dark:bg-white/5 dark:border-white/15 dark:text-white">
+                <option value="whatsapp">WhatsApp</option>
+                <option value="telegram">Telegram</option>
+                <option value="email">Email</option>
+                <option value="download">Unduh / Cetak Gambar</option>
+                <option value="link">Salin Teks + Tautan</option>
+              </select>
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-slate-500 dark:text-white/50 mb-1">Judul</label>
               <input value={title} onChange={(e) => setTitle(e.target.value)}
@@ -463,33 +492,60 @@ export default function InvitationStudio({
                 className="w-full px-3 py-2 rounded-lg text-sm border resize-none bg-white border-slate-200 dark:bg-white/5 dark:border-white/15 dark:text-white" />
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button onClick={download}
-                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors">
-                <Download size={16} />Download
-              </button>
-              <button onClick={shareNative}
-                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
-                <Share2 size={16} />Bagikan
-              </button>
-              <button onClick={shareWhatsApp}
-                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
-                <MessageCircle size={16} />WhatsApp
-              </button>
-              <button onClick={shareTelegram}
-                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium bg-sky-600 hover:bg-sky-500 text-white transition-colors">
-                <Send size={16} />Telegram
-              </button>
-              <button onClick={copyText}
-                className="col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-white/5 dark:border-white/15 dark:text-white/80 dark:hover:bg-white/10 transition-colors">
-                {copied ? <><Check size={16} className="text-emerald-500" />Tersalin</> : <><Copy size={16} />Salin Teks + Tautan</>}
-              </button>
-            </div>
+            {/* Recipient field — only for direct-send methods */}
+            {contactRequired && (
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-white/50 mb-1">
+                  {method === 'whatsapp' ? 'Nomor WhatsApp' : method === 'telegram' ? 'Nomor / ID Telegram' : 'Alamat Email'}
+                </label>
+                <input
+                  type={method === 'email' ? 'email' : 'text'}
+                  value={contact}
+                  onChange={(e) => { setContact(e.target.value); setSendState('idle'); }}
+                  placeholder={method === 'whatsapp' ? '+62812xxxxxxx' : method === 'telegram' ? '@username / +62812xxxxxxx' : 'email@contoh.com'}
+                  className="w-full px-3 py-2 rounded-lg text-sm border bg-white border-slate-200 dark:bg-white/5 dark:border-white/15 dark:text-white" />
+              </div>
+            )}
+
+            <button onClick={runAction} disabled={!actionReady || sendState === 'sending'}
+              className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                !actionReady || sendState === 'sending'
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed dark:bg-white/10 dark:text-white/40'
+                  : sendState === 'sent' || copied
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-blue-600 hover:bg-blue-500 text-white'
+              }`}>
+              {method === 'email' && <Mail size={16} />}
+              {method === 'whatsapp' && <MessageCircle size={16} />}
+              {method === 'telegram' && <Send size={16} />}
+              {method === 'download' && <Download size={16} />}
+              {method === 'link' && (copied ? <Check size={16} /> : <Link2 size={16} />)}
+              {method === 'download'
+                ? 'Cetak / Unduh Gambar'
+                : method === 'link'
+                  ? (copied ? 'Tersalin' : 'Salin Teks + Tautan')
+                  : sendState === 'sending'
+                    ? 'Mengirim…'
+                    : sendState === 'sent'
+                      ? 'Terkirim'
+                      : 'Kirim'}
+            </button>
+
+            {sendState === 'error' && <p className="text-xs text-rose-500">{sendError}</p>}
+            {method === 'email' && sendState === 'sent' && (
+              <p className="text-[11px] text-slate-400 dark:text-white/40">Email undangan telah dikirim. Setelah diterima &amp; diaktifkan, orang tersebut dapat mengelola profilnya.</p>
+            )}
 
             <p className="text-[11px] leading-snug text-slate-400 dark:text-white/40">
-              Tip: Di ponsel, <b>WhatsApp/Telegram/Bagikan</b> langsung mengirim gambar undangan. Di desktop, gambar otomatis terunduh untuk dilampirkan, lalu aplikasi terbuka dengan pesan &amp; tautan siap kirim.
+              {method === 'email'
+                ? <>Undangan dikirim ke email tujuan berisi pesan &amp; tautan keluarga.</>
+                : method === 'whatsapp' || method === 'telegram'
+                  ? <>Gambar undangan otomatis terunduh untuk dilampirkan, lalu aplikasi terbuka dengan pesan &amp; tautan siap kirim ke penerima.</>
+                  : method === 'download'
+                    ? <>Gambar silsilah diunduh sebagai PNG siap cetak atau dibagikan manual.</>
+                    : <>Teks pesan beserta tautan disalin ke papan klip.</>}
               {familyUrl
-                ? <> Tautan mengarah ke halaman keluarga Anda: <b className="break-all">{familyUrl}</b>.</>
+                ? <> Tautan: <b className="break-all">{familyUrl}</b>.</>
                 : <> Tautan mengarah ke halaman digsan.id.</>}
             </p>
           </div>

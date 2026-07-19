@@ -54,10 +54,28 @@ export class EnvironmentVariables {
   @IsOptional()
   GOOGLE_REFRESH_TOKEN: string;
 
-  // Email (optional — falls back to console logging)
+  // Email — generic SMTP (optional; works with Google via smtp.gmail.com).
+  // Host + Port enable the SMTP transport; falls back to Gmail OAuth2, then console.
+  @IsString()
+  @IsOptional()
+  SMTP_HOST: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  SMTP_PORT: number;
+
+  @IsString()
+  @IsOptional()
+  SMTP_SECURE: string;
+
   @IsString()
   @IsOptional()
   SMTP_USER: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_PASS: string;
 
   @IsString()
   @IsOptional()

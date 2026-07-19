@@ -13,6 +13,31 @@ export class EmailService {
   }
 
   private async initTransporter() {
+    // 1) Generic SMTP — mirrors wp-mail-smtp's "Other SMTP" mailer. Host + Port
+    //    are the only required fields; auth is applied when user + pass are set.
+    //    This is the recommended way to connect to Google via SMTP: set
+    //    SMTP_HOST=smtp.gmail.com, SMTP_PORT=465 (or 587), SMTP_USER=<gmail>,
+    //    SMTP_PASS=<App Password>.
+    const smtpHost = this.configService.get<string>('SMTP_HOST');
+    if (smtpHost) {
+      const port = parseInt(this.configService.get<string>('SMTP_PORT') || '587', 10);
+      const secureEnv = this.configService.get<string>('SMTP_SECURE');
+      const secure = secureEnv != null ? secureEnv === 'true' : port === 465;
+      const user = this.configService.get<string>('SMTP_USER');
+      const pass = this.configService.get<string>('SMTP_PASS');
+
+      this.transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port,
+        secure, // true for 465 (implicit TLS), false for 587 (STARTTLS)
+        auth: user && pass ? { user, pass } : undefined,
+      });
+
+      this.logger.log(`Email transporter initialized (SMTP ${smtpHost}:${port}, secure=${secure})`);
+      return;
+    }
+
+    // 2) Gmail OAuth2 — the API-based Google mailer (client id/secret + refresh token).
     const clientId = this.configService.get('GOOGLE_CLIENT_ID');
     const clientSecret = this.configService.get('GOOGLE_CLIENT_SECRET');
     const refreshToken = this.configService.get('GOOGLE_REFRESH_TOKEN');
