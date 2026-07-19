@@ -300,9 +300,23 @@ export default function TreeExplorer() {
     return () => { cancelled = true; };
   }, []);
 
+  // If the self panel is opened but we still lack a slug (e.g. the initial load
+  // raced with auth or failed), fetch it so the public-link menu can activate.
+  useEffect(() => {
+    if (panel === 'member' && selected?.id === 'self' && !identity.slug && uidRef.current !== 'guest') {
+      treeApi.getLayout<Partial<TreeConfig>, Members>()
+        .then((res) => setIdentity({ slug: res.slug, username: res.owner?.username ?? null }))
+        .catch(() => { /* ignore */ });
+    }
+  }, [panel, selected, identity.slug]);
+
   const pushLayout = (payload: { config?: TreeConfig; members?: Members }) => {
     if (uidRef.current === 'guest') return; // only sync for logged-in users
-    treeApi.saveLayout(payload).catch(() => { /* keep local cache; will retry on next save */ });
+    treeApi.saveLayout(payload)
+      // The server generates/returns the family slug + owner username here, so
+      // refresh identity to activate the public link without needing a reload.
+      .then((res) => setIdentity({ slug: res.slug, username: res.owner?.username ?? null }))
+      .catch(() => { /* keep local cache; will retry on next save */ });
   };
 
   const saveConfig = (c: TreeConfig) => {
