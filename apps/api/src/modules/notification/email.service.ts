@@ -102,7 +102,15 @@ export class EmailService {
       try {
         this.transporter = await this.buildTransporter();
       } catch (err) {
-        this.logger.error(`Failed to init email transporter: ${err}`);
+        const msg = String(err?.message || err);
+        if (msg.includes('invalid_grant')) {
+          this.logger.error(
+            'Email transporter init failed: Gmail refresh token is expired or revoked (invalid_grant). ' +
+            'Admin must reconnect via /admin/settings → Connect with Google, or set SMTP_* env vars.',
+          );
+        } else {
+          this.logger.error(`Failed to init email transporter: ${err}`);
+        }
         this.transporter = null;
       }
       this.loaded = true;
@@ -123,7 +131,18 @@ export class EmailService {
       const info = await transporter.sendMail({ from: this.fromAddress, to, subject, html });
       this.logger.log(`Email sent to ${to}: ${info.messageId}`);
     } catch (err) {
-      this.logger.error(`Failed to send email to ${to}: ${err}`);
+      const msg = String(err?.message || err);
+      // invalid_grant = refresh token expired/revoked. Invalidate so the next
+      // attempt rebuilds the transporter (picks up new credentials from DB/env).
+      if (msg.includes('invalid_grant')) {
+        this.logger.error(
+          'Gmail refresh token expired/revoked (invalid_grant). Invalidating transporter. ' +
+          'Admin must reconnect via /admin/settings.',
+        );
+        this.invalidate();
+      } else {
+        this.logger.error(`Failed to send email to ${to}: ${err}`);
+      }
       throw err;
     }
   }

@@ -7,20 +7,41 @@ export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private client: RedisClientType;
   private connected = false;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private readonly redisUrl: string;
 
   constructor(private configService: ConfigService) {
-    const url = this.configService.get<string>('REDIS_URL', 'redis://localhost:6379');
+    this.redisUrl = this.configService.get<string>('REDIS_URL', 'redis://localhost:6379');
 
-    this.client = createClient({ url }) as RedisClientType;
+    this.client = createClient({ url: this.redisUrl }) as RedisClientType;
 
     this.client.on('error', (err) => {
-      this.logger.error(`Redis error: ${err}`);
+      const msg = String(err?.message || err);
+      // NOAUTH means the Redis server requires a password that wasn't provided.
+      // Log once with actionable guidance instead of spamming on every operation.
+      if (msg.includes('NOAUTH')) {
+        this.logger.error(
+          `Redis requires authentication (NOAUTH). Set REDIS_URL=redis://:password@host:6379 in .env`,
+        );
+      } else {
+        this.logger.error(`Redis error: ${err}`);
+      }
       this.connected = false;
+      this.scheduleReconnect();
     });
 
     this.client.on('connect', () => {
       this.logger.log('Redis connected');
+    });
+
+    this.client.on('ready', () => {
       this.connected = true;
+      this.logger.log('Redis ready');
+    });
+
+    this.client.on('end', () => {
+      this.connected = false;
+      this.scheduleReconnect();
     });
 
     this.client.connect().catch((err) => {
@@ -28,7 +49,22 @@ export class RedisService implements OnModuleDestroy {
     });
   }
 
+  private scheduleReconnect() {
+    if (this.reconnectTimer) return; // already scheduled
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.logger.log('Attempting Redis reconnect…');
+      this.client.connect().catch(() => {
+        // Error handler will log; schedule another reconnect via 'end'/'error' events.
+      });
+    }, 5000);
+  }
+
   async onModuleDestroy() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.connected) {
       await this.client.quit();
     }

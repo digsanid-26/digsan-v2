@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { json, urlencoded } from 'express';
 import * as compression from 'compression';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -18,6 +19,10 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('API_PORT', 4000);
   const isProduction = configService.get('NODE_ENV') === 'production';
+
+  // Body parser — increase limit for tree layout payloads (base64 photos).
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ extended: true, limit: '10mb' }));
 
   // Security
   app.use(helmet());
