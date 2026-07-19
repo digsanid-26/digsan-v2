@@ -165,3 +165,21 @@ export class UpdateAppConfigDto {
   @IsString()
   description?: string;
 }
+
+// ─── EMAIL / GMAIL OAUTH ────────────────────────────────────
+
+export class SaveEmailCredentialsDto {
+  @ApiProperty({ description: 'Google OAuth Client ID' })
+  @IsString()
+  clientId: string;
+
+  @ApiProperty({ description: 'Google OAuth Client Secret' })
+  @IsString()
+  clientSecret: string;
+}
+
+export class SendTestEmailDto {
+  @ApiProperty({ description: 'Recipient email address' })
+  @IsString()
+  to: string;
+}

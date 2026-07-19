@@ -1,23 +1,67 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
-import { google } from 'googleapis';
+import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private transporter: nodemailer.Transporter | null = null;
+  private fromAddress = 'Digsan <noreply@digsan.id>';
+  private loaded = false;
 
-  constructor(private configService: ConfigService) {
-    this.initTransporter();
+  constructor(
+    private configService: ConfigService,
+    private prisma: PrismaService,
+  ) {}
+
+  /**
+   * Clears the cached transporter so the next send rebuilds it from the latest
+   * config. Call this after the admin connects/disconnects a Gmail account.
+   */
+  invalidate() {
+    this.transporter = null;
+    this.loaded = false;
   }
 
-  private async initTransporter() {
-    // 1) Generic SMTP — mirrors wp-mail-smtp's "Other SMTP" mailer. Host + Port
-    //    are the only required fields; auth is applied when user + pass are set.
-    //    This is the recommended way to connect to Google via SMTP: set
-    //    SMTP_HOST=smtp.gmail.com, SMTP_PORT=465 (or 587), SMTP_USER=<gmail>,
-    //    SMTP_PASS=<App Password>.
+  private async getEmailConfig(): Promise<Record<string, string>> {
+    try {
+      const rows = await this.prisma.appConfig.findMany({ where: { category: 'email' } });
+      const map: Record<string, string> = {};
+      for (const r of rows) map[r.key] = r.value;
+      return map;
+    } catch {
+      return {};
+    }
+  }
+
+  private async buildTransporter(): Promise<nodemailer.Transporter | null> {
+    const cfg = await this.getEmailConfig();
+
+    // 1) Gmail OAuth2 connected via the Admin panel (mirrors wp-mail-smtp's
+    //    "Authorization / Connect" flow). Nodemailer refreshes access tokens
+    //    automatically from the stored refresh token.
+    if (
+      cfg['email.provider'] === 'gmail' &&
+      cfg['email.clientId'] && cfg['email.clientSecret'] &&
+      cfg['email.refreshToken'] && cfg['email.connectedEmail']
+    ) {
+      this.fromAddress = cfg['email.from'] || `Digsan <${cfg['email.connectedEmail']}>`;
+      this.logger.log(`Email transporter: Gmail OAuth (${cfg['email.connectedEmail']})`);
+      return nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          type: 'OAuth2',
+          user: cfg['email.connectedEmail'],
+          clientId: cfg['email.clientId'],
+          clientSecret: cfg['email.clientSecret'],
+          refreshToken: cfg['email.refreshToken'],
+        },
+      });
+    }
+
+    // 2) Generic SMTP (env) — "Other SMTP" mailer; works with Google via
+    //    smtp.gmail.com + App Password.
     const smtpHost = this.configService.get<string>('SMTP_HOST');
     if (smtpHost) {
       const port = parseInt(this.configService.get<string>('SMTP_PORT') || '587', 10);
@@ -25,64 +69,58 @@ export class EmailService {
       const secure = secureEnv != null ? secureEnv === 'true' : port === 465;
       const user = this.configService.get<string>('SMTP_USER');
       const pass = this.configService.get<string>('SMTP_PASS');
-
-      this.transporter = nodemailer.createTransport({
+      this.fromAddress = this.configService.get('SMTP_FROM', this.fromAddress);
+      this.logger.log(`Email transporter: SMTP ${smtpHost}:${port} (secure=${secure})`);
+      return nodemailer.createTransport({
         host: smtpHost,
         port,
-        secure, // true for 465 (implicit TLS), false for 587 (STARTTLS)
+        secure,
         auth: user && pass ? { user, pass } : undefined,
       });
-
-      this.logger.log(`Email transporter initialized (SMTP ${smtpHost}:${port}, secure=${secure})`);
-      return;
     }
 
-    // 2) Gmail OAuth2 — the API-based Google mailer (client id/secret + refresh token).
+    // 3) Legacy Gmail OAuth2 from env variables.
     const clientId = this.configService.get('GOOGLE_CLIENT_ID');
     const clientSecret = this.configService.get('GOOGLE_CLIENT_SECRET');
     const refreshToken = this.configService.get('GOOGLE_REFRESH_TOKEN');
     const smtpUser = this.configService.get('SMTP_USER');
-
-    if (!clientId || !clientSecret || !refreshToken || !smtpUser) {
-      this.logger.warn('Email credentials not configured — emails will be logged only');
-      return;
-    }
-
-    try {
-      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, 'https://developers.google.com/oauthplayground');
-      oauth2Client.setCredentials({ refresh_token: refreshToken });
-
-      const { token: accessToken } = await oauth2Client.getAccessToken();
-
-      this.transporter = nodemailer.createTransport({
+    if (clientId && clientSecret && refreshToken && smtpUser) {
+      this.fromAddress = this.configService.get('SMTP_FROM', this.fromAddress);
+      this.logger.log('Email transporter: Gmail OAuth2 (env)');
+      return nodemailer.createTransport({
         service: 'gmail',
-        auth: {
-          type: 'OAuth2',
-          user: smtpUser,
-          clientId,
-          clientSecret,
-          refreshToken,
-          accessToken: accessToken || undefined,
-        },
+        auth: { type: 'OAuth2', user: smtpUser, clientId, clientSecret, refreshToken },
       });
-
-      this.logger.log('Email transporter initialized (Gmail OAuth2)');
-    } catch (err) {
-      this.logger.error(`Failed to init email transporter: ${err}`);
     }
+
+    this.logger.warn('Email credentials not configured — emails will be logged only');
+    return null;
+  }
+
+  private async getTransporter(): Promise<nodemailer.Transporter | null> {
+    if (!this.loaded) {
+      try {
+        this.transporter = await this.buildTransporter();
+      } catch (err) {
+        this.logger.error(`Failed to init email transporter: ${err}`);
+        this.transporter = null;
+      }
+      this.loaded = true;
+    }
+    return this.transporter;
   }
 
   async sendEmail(to: string, subject: string, html: string) {
-    const from = this.configService.get('SMTP_FROM', 'Digsan <noreply@digsan.id>');
+    const transporter = await this.getTransporter();
 
-    if (!this.transporter) {
+    if (!transporter) {
       this.logger.warn(`[DEV] Email to ${to} | Subject: ${subject}`);
       this.logger.debug(html);
       return;
     }
 
     try {
-      const info = await this.transporter.sendMail({ from, to, subject, html });
+      const info = await transporter.sendMail({ from: this.fromAddress, to, subject, html });
       this.logger.log(`Email sent to ${to}: ${info.messageId}`);
     } catch (err) {
       this.logger.error(`Failed to send email to ${to}: ${err}`);

@@ -54,6 +54,12 @@ export class EnvironmentVariables {
   @IsOptional()
   GOOGLE_REFRESH_TOKEN: string;
 
+  // Admin Gmail OAuth "Connect" callback (must match a redirect URI registered
+  // in Google Cloud Console). Defaults to the local API URL.
+  @IsString()
+  @IsOptional()
+  GMAIL_OAUTH_REDIRECT_URL: string;
+
   // Email — generic SMTP (optional; works with Google via smtp.gmail.com).
   // Host + Port enable the SMTP transport; falls back to Gmail OAuth2, then console.
   @IsString()

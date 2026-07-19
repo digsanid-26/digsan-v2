@@ -5,6 +5,7 @@ import { useApi, useAuthApi } from '@/lib/hooks';
 import { useAuth } from '@/components/providers/auth-provider';
 import { Settings, Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import EmailConfigCard from './EmailConfigCard';
 
 export default function AdminSettingsPage() {
   const { user } = useAuth();
@@ -51,6 +52,8 @@ export default function AdminSettingsPage() {
         <h1 className="text-2xl font-bold text-slate-900">Pengaturan Sistem</h1>
         <p className="text-slate-500 mt-1">Konfigurasi platform</p>
       </div>
+
+      <EmailConfigCard />
 
       {loading ? (
         <div className="flex justify-center py-12">
