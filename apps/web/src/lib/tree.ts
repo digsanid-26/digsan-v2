@@ -26,13 +26,14 @@ async function authRequest<T>(endpoint: string, options: RequestInit = {}): Prom
       ...options.headers,
     },
   });
-  const data = await res.json().catch(() => ({}));
+  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error((data as { message?: string }).message || `HTTP ${res.status}`) as Error & { status: number };
+    const err = new Error((body as { message?: string }).message || `HTTP ${res.status}`) as Error & { status: number };
     err.status = res.status;
     throw err;
   }
-  return data as T;
+  // ResponseInterceptor wraps responses as { statusCode, data, timestamp }.
+  return ((body as { data?: unknown }).data ?? body) as T;
 }
 
 export type ConsentStatus = 'PENDING' | 'GRANTED' | 'REJECTED' | 'REVOKED';
@@ -141,13 +142,14 @@ async function publicRequest<T>(endpoint: string): Promise<T> {
   const res = await fetch(`${API_URL}${endpoint}`, {
     headers: { 'Content-Type': 'application/json' },
   });
-  const data = await res.json().catch(() => ({}));
+  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error((data as { message?: string }).message || `HTTP ${res.status}`) as Error & { status: number };
+    const err = new Error((body as { message?: string }).message || `HTTP ${res.status}`) as Error & { status: number };
     err.status = res.status;
     throw err;
   }
-  return data as T;
+  // ResponseInterceptor wraps responses as { statusCode, data, timestamp }.
+  return ((body as { data?: unknown }).data ?? body) as T;
 }
 
 export const publicTreeApi = {
