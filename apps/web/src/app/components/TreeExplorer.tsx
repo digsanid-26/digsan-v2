@@ -13,7 +13,7 @@ import InvitationStudio from './InvitationStudio';
 import type { Region } from './InvitationStudio';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Share2, Upload, Check, Crop,
+  Share2, Upload, Check, Crop, Users, Link2, ExternalLink,
 } from 'lucide-react';
 
 // ─── Styling per group ──────────────────────────────────────
@@ -591,6 +591,7 @@ export default function TreeExplorer() {
         )}
         {panel === 'member' && selected && (
           <MemberForm key={selected.id} dark={dark} node={selected} isSelf={selected.id === 'self'}
+            familySlug={identity.slug} ownerUsername={identity.username}
             member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
             canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest')}
             consent={consentFor(selected.id)}
@@ -711,8 +712,8 @@ function SetupForm({ initial, onSave, onClose }: { dark: boolean; initial: TreeC
 
 // ─── Member form ────────────────────────────────────────────
 
-function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onOpenInvite, onSave, onClose }: {
-  dark: boolean; node: TNode; isSelf: boolean; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
+function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onOpenInvite, onSave, onClose }: {
+  dark: boolean; node: TNode; isSelf: boolean; familySlug?: string | null; ownerUsername?: string | null; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
   consent?: GuardianConsent;
   onRequestConsent: () => void; onRevokeConsent: (consentId: string) => void;
   onOpenInvite: () => void;
@@ -727,6 +728,19 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, c
     familyConfig: member?.familyConfig,
   });
   const fileRef = useRef<HTMLInputElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
+  const publicFamilyUrl = familySlug ? `${origin}/family/${familySlug}` : '';
+  const publicProfileUrl = familySlug && ownerUsername ? `${origin}/family/${familySlug}/${ownerUsername}` : '';
+  const copyPublicLink = async () => {
+    if (!publicFamilyUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicFamilyUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* ignore */ }
+  };
 
   const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -817,6 +831,34 @@ function MemberForm({ node, isSelf, member, defaultName, accountName, canEdit, c
             ))}
           </div>
         </div>
+
+        {/* Menu User — quick access to the public family/profile pages (self only) */}
+        {isSelf && (
+          <div className="rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50/60 dark:bg-blue-500/10 p-4">
+            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">Menu User</p>
+            <p className="text-xs text-slate-500 dark:text-white/50 mb-3 leading-snug">Akses cepat halaman publik keluarga & profil Anda yang bisa dibagikan ke siapa pun.</p>
+            {publicFamilyUrl ? (
+              <div className="space-y-2">
+                <a href={publicFamilyUrl} target="_blank" rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+                  <Users size={15} />Tree Publik Keluargaku<ExternalLink size={13} className="opacity-80" />
+                </a>
+                {publicProfileUrl && (
+                  <a href={publicProfileUrl} target="_blank" rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium border border-blue-300 dark:border-blue-500/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 dark:hover:bg-blue-500/10 transition-colors">
+                    <User size={15} />Profil Publik Saya<ExternalLink size={13} className="opacity-70" />
+                  </a>
+                )}
+                <button type="button" onClick={copyPublicLink}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium bg-white dark:bg-white/5 border border-slate-200 dark:border-white/15 text-slate-600 dark:text-white/70 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors">
+                  {copied ? <Check size={15} className="text-emerald-500" /> : <Link2 size={15} />}{copied ? 'Link Tersalin' : 'Salin Link Publik'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 dark:text-white/40">Simpan silsilah terlebih dahulu untuk mengaktifkan link publik keluarga.</p>
+            )}
+          </div>
+        )}
 
         {/* Family setup — guardian manages a member's own network.
             Deceased direct relative: unlocked. Living member: requires consent. */}
