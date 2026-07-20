@@ -591,23 +591,13 @@ server {
     client_max_body_size 10M;
 
     location / {
-        # CORS & Security headers
+        # Security headers only. CORS is handled entirely by NestJS
+        # (app.enableCors() in main.ts). Do NOT add CORS headers here —
+        # doing so causes duplicate Access-Control-Allow-Origin headers
+        # (one from Nginx, one from Nest), which browsers reject outright
+        # with "contains multiple values" CORS errors.
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header X-Content-Type-Options "nosniff" always;
-        add_header 'Access-Control-Allow-Origin' 'https://app.digsan.id' always;
-        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
-        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
-
-        # Handle preflight (OPTIONS)
-        if ($request_method = 'OPTIONS') {
-            add_header 'Access-Control-Allow-Origin' 'https://app.digsan.id';
-            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS';
-            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
-            add_header 'Access-Control-Max-Age' 1728000;
-            add_header 'Content-Type' 'text/plain; charset=utf-8';
-            add_header 'Content-Length' 0;
-            return 204;
-        }
 
         proxy_pass http://127.0.0.1:4000;
         proxy_http_version 1.1;
@@ -856,7 +846,7 @@ docker logs digsan-postgres
 pm2 status
 
 # Cek logs
-pm2 logs digsan-api --lines 100
+pm2 logs digsan-api --lines 50
 
 # Cek port listening
 netstat -tlnp | grep 4000
