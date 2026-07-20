@@ -182,26 +182,42 @@ export class TreeService {
   /**
    * Ensure the tree has a slug (derived from the main family name) and the
    * owner has a username. Runs lazily whenever the layout is read/saved.
+   * Never throws — returns best-effort identity so layout operations stay stable.
    */
   private async ensureIdentity(tree: { id: string; slug: string | null; name: string; userId: string; layoutConfig: any }) {
     let slug = tree.slug;
     const familyName = (tree.layoutConfig?.mainFamilyName as string) || tree.name || 'keluarga';
     const desiredBase = `${familyName}-fam`;
+
     if (!slug) {
-      slug = await this.uniqueTreeSlug(desiredBase, tree.id);
-      await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
+      try {
+        slug = await this.uniqueTreeSlug(desiredBase, tree.id);
+        await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
+        this.logger.log(`Created slug "${slug}" for tree ${tree.id} (base: "${desiredBase}")`);
+      } catch (err) {
+        this.logger.error(`Failed to create slug for tree ${tree.id}: ${err}`);
+        slug = null;
+      }
     }
 
-    const owner = await this.prisma.user.findUnique({
-      where: { id: tree.userId },
-      select: { id: true, name: true, username: true, avatar: true },
-    });
-    let username = owner?.username || null;
-    if (owner && !username) {
-      username = await this.uniqueUsername(owner.name, owner.id);
-      await this.prisma.user.update({ where: { id: owner.id }, data: { username } });
+    let owner: { name: string; username: string | null; avatar: string | null } | null = null;
+    try {
+      const ownerRow = await this.prisma.user.findUnique({
+        where: { id: tree.userId },
+        select: { id: true, name: true, username: true, avatar: true },
+      });
+      let username = ownerRow?.username || null;
+      if (ownerRow && !username) {
+        username = await this.uniqueUsername(ownerRow.name, ownerRow.id);
+        await this.prisma.user.update({ where: { id: ownerRow.id }, data: { username } });
+        this.logger.log(`Created username "${username}" for user ${ownerRow.id}`);
+      }
+      owner = ownerRow ? { name: ownerRow.name, username, avatar: ownerRow.avatar } : null;
+    } catch (err) {
+      this.logger.error(`Failed to ensure username for tree ${tree.id}: ${err}`);
     }
-    return { slug, owner: owner ? { name: owner.name, username, avatar: owner.avatar } : null };
+
+    return { slug, owner };
   }
 
   /** Get the saved explorer layout (config + members) for the current user. */
