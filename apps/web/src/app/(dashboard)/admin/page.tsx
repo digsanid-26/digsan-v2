@@ -42,7 +42,7 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Quick Links */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link
               href="/admin/users"
               className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-md transition-shadow"
@@ -50,6 +50,14 @@ export default function AdminDashboardPage() {
               <Users size={24} className="text-blue-600 mb-3" />
               <h3 className="font-semibold text-slate-900">Manajemen User</h3>
               <p className="text-sm text-slate-500 mt-1">Kelola akun pengguna</p>
+            </Link>
+            <Link
+              href="/admin/trees"
+              className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-md transition-shadow"
+            >
+              <TreePine size={24} className="text-emerald-600 mb-3" />
+              <h3 className="font-semibold text-slate-900">Family Trees</h3>
+              <p className="text-sm text-slate-500 mt-1">Cek slug & silsilah keluarga</p>
             </Link>
             <Link
               href="/admin/workers"

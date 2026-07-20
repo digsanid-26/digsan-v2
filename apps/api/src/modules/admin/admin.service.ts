@@ -41,6 +41,62 @@ export class AdminService {
     };
   }
 
+  // ─── FAMILY TREE MANAGEMENT ─────────────────────────────────
+
+  async getTrees(query: { page?: number; limit?: number; search?: string; hasSlug?: string }) {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { slug: { contains: query.search, mode: 'insensitive' } },
+        { user: { name: { contains: query.search, mode: 'insensitive' } } },
+        { user: { email: { contains: query.search, mode: 'insensitive' } } },
+      ];
+    }
+    if (query.hasSlug === 'yes') where.slug = { not: null };
+    if (query.hasSlug === 'no') where.slug = null;
+
+    const [trees, total] = await this.prisma.$transaction([
+      this.prisma.familyTree.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: { id: true, name: true, email: true, username: true, avatar: true, status: true },
+          },
+          _count: { select: { members: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.familyTree.count({ where }),
+    ]);
+
+    return {
+      trees: trees.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        owner: t.user,
+        memberCount: t._count?.members ?? 0,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      })),
+      total,
+      page,
+      limit,
+    };
+  }
+
   // ─── USER MANAGEMENT ──────────────────────────────────────
 
   async getUsers(query: { page?: number; limit?: number; search?: string; status?: string; role?: string }) {

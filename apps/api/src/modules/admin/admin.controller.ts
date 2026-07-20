@@ -39,6 +39,19 @@ export class AdminController {
     return this.adminService.getUsers(query);
   }
 
+  // ─── FAMILY TREE MANAGEMENT ────────────────────────────────
+
+  @Get('trees')
+  @ApiOperation({ summary: 'List family trees with slug, owner, and member count' })
+  async getTrees(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string, @Query('hasSlug') hasSlug?: string) {
+    return this.adminService.getTrees({
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+      search,
+      hasSlug,
+    });
+  }
+
   @Get('users/:id')
   @ApiOperation({ summary: 'Get user detail' })
   async getUserDetail(@Param('id') id: string) {
