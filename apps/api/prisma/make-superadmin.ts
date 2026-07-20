@@ -7,11 +7,17 @@
  * Or after build:
  *   node dist/prisma/make-superadmin.js digsanid@gmail.com
  */
-import * as dotenv from 'dotenv';
-import { resolve } from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
-// Load .env from apps/api directory
-dotenv.config({ path: resolve(__dirname, '..', '.env') });
+// Load .env manually (no dotenv dependency)
+const envPath = path.resolve(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*)\s*$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+}
 
 import { PrismaClient } from '@prisma/client';
 
