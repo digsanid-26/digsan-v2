@@ -234,6 +234,31 @@ export class TreeService {
     };
   }
 
+  /** Manually create or update the family slug. */
+  async setSlug(userId: string, desiredSlug?: string) {
+    const tree = await this.getOrCreateDefaultTree(userId);
+    const familyName = (tree.layoutConfig as any)?.mainFamilyName || tree.name || 'keluarga';
+    const base = desiredSlug?.trim() || `${familyName}-fam`;
+    const slug = await this.uniqueTreeSlug(base, tree.id);
+    await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
+    this.logger.log(`Slug manually set to "${slug}" for tree ${tree.id}`);
+
+    const owner = await this.prisma.user.findUnique({
+      where: { id: tree.userId },
+      select: { name: true, username: true, avatar: true },
+    });
+    let username = owner?.username || null;
+    if (owner && !username) {
+      try {
+        username = await this.uniqueUsername(owner.name, owner.id);
+        await this.prisma.user.update({ where: { id: owner.id }, data: { username } });
+      } catch (err) {
+        this.logger.error(`Failed to create username: ${err}`);
+      }
+    }
+    return { slug, owner: owner ? { name: owner.name, username, avatar: owner.avatar } : null };
+  }
+
   /** Persist the explorer layout (config + members) for the current user. */
   async saveLayout(userId: string, config: unknown, members: unknown) {
     const tree = await this.getOrCreateDefaultTree(userId);

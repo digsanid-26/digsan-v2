@@ -54,6 +54,12 @@ export class TreeController {
     return this.treeService.saveLayout(userId, dto.config, dto.members);
   }
 
+  @Put('slug')
+  @ApiOperation({ summary: 'Manually create or update the family slug' })
+  async setSlug(@CurrentUser('id') userId: string, @Body('slug') slug?: string) {
+    return this.treeService.setSlug(userId, slug);
+  }
+
   // ─── GUARDIANSHIP CONSENT ───────────────────────────────────
   // NOTE: declared before ':id' routes so 'consents' is not captured as a
   // tree id parameter.

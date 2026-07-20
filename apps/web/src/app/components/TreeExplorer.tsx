@@ -626,6 +626,12 @@ export default function TreeExplorer() {
             consent={consentFor(selected.id)}
             onRequestConsent={() => requestConsent(selected.id)}
             onRevokeConsent={(id) => revokeConsent(id)}
+            onSetSlug={async (slug) => {
+              try {
+                const res = await treeApi.setSlug(slug);
+                setIdentity({ slug: res.slug, username: res.owner?.username ?? null });
+              } catch (err) { console.error('setSlug failed:', err); }
+            }}
             onOpenInvite={() => {
               const nm = disp(selected.id, selected.name).name;
               setInviteCtx({ nodeId: selected.id, name: nm });
@@ -741,10 +747,11 @@ function SetupForm({ initial, onSave, onClose }: { dark: boolean; initial: TreeC
 
 // ─── Member form ────────────────────────────────────────────
 
-function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onOpenInvite, onSave, onClose }: {
+function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onSetSlug, onOpenInvite, onSave, onClose }: {
   dark: boolean; node: TNode; isSelf: boolean; familySlug?: string | null; ownerUsername?: string | null; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
   consent?: GuardianConsent;
   onRequestConsent: () => void; onRevokeConsent: (consentId: string) => void;
+  onSetSlug: (slug?: string) => Promise<void>;
   onOpenInvite: () => void;
   onClose: () => void; onSave: (m: Member) => void;
 }) {
@@ -758,6 +765,9 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
   });
   const fileRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
+  const [slugEditing, setSlugEditing] = useState(false);
+  const [slugInput, setSlugInput] = useState('');
+  const [slugLoading, setSlugLoading] = useState(false);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
   const publicFamilyUrl = familySlug ? `${origin}/family/${familySlug}` : '';
@@ -825,26 +835,71 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
             disabled={!canEdit} className={`${inputCls} ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} />
           {/* Slug / public link info */}
           {isSelf && (
-            <div className="mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs space-y-1">
-              <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
-                <Link2 size={12} className="shrink-0" />
-                <span>Family slug:</span>
-                <span className={`font-mono ${familySlug ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
-                  {familySlug || '(belum dibuat)'}
-                </span>
+            <div className="mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2.5 text-xs space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50 min-w-0">
+                  <Link2 size={12} className="shrink-0" />
+                  <span className="shrink-0">Family Slug:</span>
+                  {slugEditing ? (
+                    <input
+                      value={slugInput}
+                      onChange={(e) => setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                      placeholder="nama-keluarga-fam"
+                      className="flex-1 min-w-0 px-2 py-0.5 rounded text-xs font-mono border bg-white dark:bg-white/10 border-slate-300 dark:border-white/20 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                      autoFocus
+                    />
+                  ) : (
+                    <span className={`font-mono truncate ${familySlug ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                      {familySlug || '(belum dibuat)'}
+                    </span>
+                  )}
+                </div>
+                {/* Buat / Edit / Save / Cancel buttons */}
+                {!slugEditing ? (
+                  <button
+                    type="button"
+                    onClick={() => { setSlugInput(familySlug || ''); setSlugEditing(true); }}
+                    className={`shrink-0 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      familySlug
+                        ? 'text-slate-600 dark:text-white/70 hover:bg-slate-200 dark:hover:bg-white/10'
+                        : 'bg-blue-600 text-white hover:bg-blue-500'
+                    }`}>
+                    {familySlug ? 'Edit' : 'Buat'}
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      disabled={slugLoading}
+                      onClick={async () => {
+                        setSlugLoading(true);
+                        try { await onSetSlug(slugInput || undefined); setSlugEditing(false); } catch { /* ignore */ }
+                        setSlugLoading(false);
+                      }}
+                      className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50">
+                      {slugLoading ? '…' : 'Simpan'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSlugEditing(false)}
+                      className="px-2 py-1 rounded-md text-xs font-medium text-slate-500 dark:text-white/50 hover:bg-slate-200 dark:hover:bg-white/10">
+                      Batal
+                    </button>
+                  </div>
+                )}
               </div>
-              {familySlug && (
+              {familySlug && !slugEditing && (
                 <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
-                  <span>Public URL:</span>
+                  <span className="shrink-0">Public URL:</span>
                   <a href={publicFamilyUrl} target="_blank" rel="noopener noreferrer"
                     className="font-mono text-blue-600 dark:text-blue-400 hover:underline truncate">
                     {publicFamilyUrl}
                   </a>
                 </div>
               )}
-              {ownerUsername && (
+              {ownerUsername && !slugEditing && (
                 <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
-                  <span>Username:</span>
+                  <span className="shrink-0">Username:</span>
                   <span className="font-mono text-emerald-600 dark:text-emerald-400">{ownerUsername}</span>
                 </div>
               )}
