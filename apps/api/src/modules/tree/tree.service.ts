@@ -245,7 +245,7 @@ export class TreeService {
 
     const owner = await this.prisma.user.findUnique({
       where: { id: tree.userId },
-      select: { name: true, username: true, avatar: true },
+      select: { id: true, name: true, username: true, avatar: true },
     });
     let username = owner?.username || null;
     if (owner && !username) {
