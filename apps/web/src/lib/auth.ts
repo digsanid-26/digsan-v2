@@ -21,13 +21,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   });
-  const data = await res.json();
+  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.message || `HTTP ${res.status}`) as Error & { status: number };
+    const err = new Error((body as { message?: string }).message || `HTTP ${res.status}`) as Error & { status: number };
     err.status = res.status;
     throw err;
   }
-  return data;
+  // ResponseInterceptor wraps responses as { statusCode, data, timestamp }.
+  return ((body as { data?: unknown }).data ?? body) as T;
 }
 
 export const auth = {
