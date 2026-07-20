@@ -7,6 +7,12 @@
  * Or after build:
  *   node dist/prisma/make-superadmin.js digsanid@gmail.com
  */
+import * as dotenv from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env from apps/api directory
+dotenv.config({ path: resolve(__dirname, '..', '.env') });
+
 import { PrismaClient } from '@prisma/client';
 
 async function main() {
