@@ -11,7 +11,19 @@ export class RedisService implements OnModuleDestroy {
   private readonly redisUrl: string;
 
   constructor(private configService: ConfigService) {
-    this.redisUrl = this.configService.get<string>('REDIS_URL', 'redis://localhost:6379');
+    const explicitUrl = this.configService.get<string>('REDIS_URL');
+    if (explicitUrl) {
+      this.redisUrl = explicitUrl;
+    } else {
+      // Build the connection string from separate parts (REDIS_HOST/REDIS_PORT/
+      // REDIS_PASSWORD), which is the format documented for production .env files.
+      const host = this.configService.get<string>('REDIS_HOST', 'localhost');
+      const port = this.configService.get<string>('REDIS_PORT', '6379');
+      const password = this.configService.get<string>('REDIS_PASSWORD', '');
+      this.redisUrl = password
+        ? `redis://:${encodeURIComponent(password)}@${host}:${port}`
+        : `redis://${host}:${port}`;
+    }
 
     this.client = createClient({ url: this.redisUrl }) as RedisClientType;
 
