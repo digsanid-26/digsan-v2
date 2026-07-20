@@ -13,6 +13,7 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 import { UpdateCardStyleDto } from './dto/card-style.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { SaveLayoutDto } from './dto/save-layout.dto';
+import { SetSlugDto } from './dto/set-slug.dto';
 import { RequestConsentDto, RespondConsentDto } from './dto/consent.dto';
 
 // ─── AUTHENTICATED TREE ENDPOINTS ─────────────────────────────
@@ -56,8 +57,8 @@ export class TreeController {
 
   @Put('slug')
   @ApiOperation({ summary: 'Manually create or update the family slug' })
-  async setSlug(@CurrentUser('id') userId: string, @Body('slug') slug?: string) {
-    return this.treeService.setSlug(userId, slug);
+  async setSlug(@CurrentUser('id') userId: string, @Body() dto: SetSlugDto) {
+    return this.treeService.setSlug(userId, dto.slug);
   }
 
   // ─── GUARDIANSHIP CONSENT ───────────────────────────────────

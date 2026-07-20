@@ -768,6 +768,7 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
   const [slugEditing, setSlugEditing] = useState(false);
   const [slugInput, setSlugInput] = useState('');
   const [slugLoading, setSlugLoading] = useState(false);
+  const [slugError, setSlugError] = useState('');
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
   const publicFamilyUrl = familySlug ? `${origin}/family/${familySlug}` : '';
@@ -873,7 +874,13 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
                       disabled={slugLoading}
                       onClick={async () => {
                         setSlugLoading(true);
-                        try { await onSetSlug(slugInput || undefined); setSlugEditing(false); } catch { /* ignore */ }
+                        setSlugError('');
+                        try {
+                          await onSetSlug(slugInput || undefined);
+                          setSlugEditing(false);
+                        } catch (err: any) {
+                          setSlugError(err?.message || 'Gagal membuat slug');
+                        }
                         setSlugLoading(false);
                       }}
                       className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50">
@@ -888,6 +895,9 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
                   </div>
                 )}
               </div>
+              {slugError && slugEditing && (
+                <div className="text-xs text-rose-500 dark:text-rose-400">{slugError}</div>
+              )}
               {familySlug && !slugEditing && (
                 <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
                   <span className="shrink-0">Public URL:</span>
