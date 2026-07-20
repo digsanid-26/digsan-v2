@@ -9,7 +9,7 @@ interface Props {
   nodes: TNode[];
   lines: Poly[];
   /** Resolve display info for a node id. */
-  resolve: (id: string, fallback: string) => { name: string; photo: string | null; alive: boolean };
+  resolve: (id: string, fallback: string) => { name: string; photo: string | null; alive: boolean; gender?: string };
   /** Optional click handler (e.g. navigate to a profile). */
   onNodeClick?: (node: TNode) => void;
   /** Optional node id to highlight (e.g. the invited member from a deep link). */
@@ -116,6 +116,18 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, h
                   fontWeight={500}
                 >
                   {d.name.length > 18 ? `${d.name.slice(0, 17)}…` : d.name}
+                </text>
+              )}
+              {/* Spouse role label */}
+              {!isGroup && n.group === 'spouse' && d?.gender && (
+                <text
+                  y={r + 34}
+                  textAnchor="middle"
+                  fill="rgba(255,255,255,0.5)"
+                  fontSize={11}
+                  fontWeight={400}
+                >
+                  {d.gender === 'P' ? 'Istri' : 'Suami'}
                 </text>
               )}
             </g>

@@ -579,7 +579,7 @@ export default function TreeExplorer() {
                   )}
                 </button>
 
-                {/* Name label — shown on hover/selected for nodes whose photo hides the name */}
+                {/* Name + role label — shown on hover/selected for nodes whose photo hides the name */}
                 {!isGroup && d?.photo && (
                   <span
                     className={`pointer-events-none absolute left-1/2 top-full -translate-x-1/2 -mt-1 z-30 inline-block max-w-[180px] truncate whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium shadow-lg backdrop-blur-md border transition-opacity duration-200
@@ -587,6 +587,21 @@ export default function TreeExplorer() {
                       dark:bg-black/55 dark:text-white dark:border-white/20
                       ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                     {d.name}
+                    {n.group === 'spouse' && d.gender && (
+                      <span className="block text-[10px] opacity-70 mt-0.5">
+                        {d.gender === 'P' ? 'Istri' : 'Suami'}
+                      </span>
+                    )}
+                  </span>
+                )}
+                {/* Spouse role label for nodes without photo (name is inside circle) */}
+                {!isGroup && n.group === 'spouse' && !d?.photo && d?.gender && (
+                  <span
+                    className={`pointer-events-none absolute left-1/2 top-full -translate-x-1/2 mt-1 z-30 inline-block px-2 py-0.5 rounded-full text-[10px] font-medium shadow-sm border transition-opacity duration-200
+                      bg-white/80 text-slate-600 border-slate-200
+                      dark:bg-black/55 dark:text-white/70 dark:border-white/15
+                      ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    {d.gender === 'P' ? 'Istri' : 'Suami'}
                   </span>
                 )}
               </div>
@@ -808,6 +823,33 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
           <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nama Lengkap</label>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={defaultName}
             disabled={!canEdit} className={`${inputCls} ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} />
+          {/* Slug / public link info */}
+          {isSelf && (
+            <div className="mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
+                <Link2 size={12} className="shrink-0" />
+                <span>Family slug:</span>
+                <span className={`font-mono ${familySlug ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                  {familySlug || '(belum dibuat)'}
+                </span>
+              </div>
+              {familySlug && (
+                <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
+                  <span>Public URL:</span>
+                  <a href={publicFamilyUrl} target="_blank" rel="noopener noreferrer"
+                    className="font-mono text-blue-600 dark:text-blue-400 hover:underline truncate">
+                    {publicFamilyUrl}
+                  </a>
+                </div>
+              )}
+              {ownerUsername && (
+                <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
+                  <span>Username:</span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400">{ownerUsername}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Gender */}

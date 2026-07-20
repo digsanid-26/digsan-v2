@@ -57,7 +57,7 @@ export default function PublicFamilyPage() {
     const m = members[id];
     const name = id === 'self' ? (m?.name || data?.owner?.name || 'Anda') : (m?.name || fallback);
     const photo = id === 'self' ? (m?.photo || data?.owner?.avatar || null) : (m?.photo || null);
-    return { name, photo, alive: m?.alive !== false };
+    return { name, photo, alive: m?.alive !== false, gender: m?.gender || '' };
   };
 
   const onNodeClick = (node: TNode) => {
