@@ -25,6 +25,12 @@ export class RedisService implements OnModuleDestroy {
         : `redis://${host}:${port}`;
     }
 
+    // TEMP DIAGNOSTIC: confirm whether a password is actually present in the
+    // resolved connection string, without leaking the password itself.
+    this.logger.log(
+      `Redis URL resolved (password ${this.redisUrl.includes('@') ? 'PRESENT' : 'ABSENT'}): ${this.redisUrl.replace(/:[^:@]*@/, ':***@')}`,
+    );
+
     this.client = createClient({ url: this.redisUrl }) as RedisClientType;
 
     this.client.on('error', (err) => {
