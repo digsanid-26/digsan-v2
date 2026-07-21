@@ -104,6 +104,13 @@ export const treeApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  // ─── Public-tree node claim ("Apakah ini Anda?") ────────────
+  claimNode: (slug: string, nodeId: string) =>
+    authRequest<{ slug: string; nodeId: string; member: unknown }>('/trees/claim', {
+      method: 'POST',
+      body: JSON.stringify({ slug, nodeId }),
+    }),
 };
 
 export interface TreeInvitation {
@@ -165,3 +172,28 @@ export const publicTreeApi = {
   getProfile: (slug: string, username: string) =>
     publicRequest<PublicProfile>(`/public/family/${encodeURIComponent(slug)}/${encodeURIComponent(username)}`),
 };
+
+// ─── Pending node claim (across register/login redirect) ─────
+// When an unauthenticated visitor confirms "Apakah ini Anda?" on a public
+// family tree, we remember which node they want to claim, send them to
+// register/login, then finish the claim once they have a session.
+
+const PENDING_CLAIM_KEY = 'digsan_pending_claim';
+
+export interface PendingClaim { slug: string; nodeId: string; }
+
+export function savePendingClaim(claim: PendingClaim) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(PENDING_CLAIM_KEY, JSON.stringify(claim));
+}
+
+export function getPendingClaim(): PendingClaim | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(PENDING_CLAIM_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function clearPendingClaim() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(PENDING_CLAIM_KEY);
+}

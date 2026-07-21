@@ -15,6 +15,7 @@ import { InviteMemberDto } from './dto/invite-member.dto';
 import { SaveLayoutDto } from './dto/save-layout.dto';
 import { SetSlugDto } from './dto/set-slug.dto';
 import { RequestConsentDto, RespondConsentDto } from './dto/consent.dto';
+import { ClaimNodeDto } from './dto/claim-node.dto';
 
 // ─── AUTHENTICATED TREE ENDPOINTS ─────────────────────────────
 
@@ -103,6 +104,12 @@ export class TreeController {
   @ApiOperation({ summary: 'Send an email invitation for a node in the default tree' })
   async inviteByEmail(@CurrentUser('id') userId: string, @Body() dto: InviteMemberDto) {
     return this.treeService.inviteByEmail(userId, dto);
+  }
+
+  @Post('claim')
+  @ApiOperation({ summary: 'Claim an unclaimed node on a public family tree ("Apakah ini Anda?")' })
+  async claimNode(@CurrentUser('id') userId: string, @Body() dto: ClaimNodeDto) {
+    return this.treeService.claimNode(userId, dto.slug, dto.nodeId);
   }
 
   @Get(':id')

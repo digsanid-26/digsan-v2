@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
@@ -299,6 +300,36 @@ export class TreeService {
       owner: tree.user,
       updatedAt: tree.updatedAt,
     };
+  }
+
+  /**
+   * A logged-in user claims an unclaimed node on someone else's public
+   * family tree (via the "Apakah ini Anda?" flow). Marks the layout member
+   * slot as verified and links it to the claiming user's account.
+   */
+  async claimNode(userId: string, slug: string, nodeId: string) {
+    if (nodeId === 'self') {
+      throw new BadRequestException('Bagian ini adalah pemilik silsilah, tidak bisa diklaim');
+    }
+
+    const tree = await this.prisma.familyTree.findUnique({ where: { slug } });
+    if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
+
+    const members = { ...((tree.layoutMembers as any) ?? {}) } as Record<string, any>;
+    const existing = members[nodeId] ?? {};
+
+    if (existing.verified && existing.claimedByUserId && existing.claimedByUserId !== userId) {
+      throw new ConflictException('Bagian silsilah ini sudah diklaim oleh orang lain');
+    }
+
+    members[nodeId] = { ...existing, verified: true, claimedByUserId: userId };
+
+    await this.prisma.familyTree.update({
+      where: { id: tree.id },
+      data: { layoutMembers: members as any },
+    });
+
+    return { slug: tree.slug, nodeId, member: members[nodeId] };
   }
 
   /** Public personal-profile page resolved by tree slug + username. */

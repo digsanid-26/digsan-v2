@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Users, ArrowRight, Loader2 } from 'lucide-react';
-import { publicTreeApi } from '@/lib/tree';
+import { Users, ArrowRight, Loader2, X } from 'lucide-react';
+import { publicTreeApi, treeApi, savePendingClaim } from '@/lib/tree';
 import type { PublicFamily } from '@/lib/tree';
+import { getTokens } from '@/lib/auth';
 import type { TreeConfig, Members, TNode } from '@/app/components/treeTypes';
 import { DEFAULT_CONFIG } from '@/app/components/treeTypes';
 import { configToGraph, layoutGraph } from '@/app/components/familyGraph';
@@ -21,6 +22,9 @@ export default function PublicFamilyPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [claimNode, setClaimNode] = useState<TNode | null>(null);
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   // Deep link from an invitation: /family/{slug}?m={nodeId} focuses that member.
   useEffect(() => {
@@ -53,31 +57,40 @@ export default function PublicFamilyPage() {
     return layoutGraph(graph);
   }, [data?.config, config, members]);
 
-  // Center the viewport on the active user (or the deep-linked invited member)
-  // once the tree renders, instead of leaving the page scrolled to the top
-  // (which shows the eldest ancestors first).
-  useEffect(() => {
-    if (!nodes.length) return;
-    const targetId = highlightId || 'self';
-    const frame = requestAnimationFrame(() => {
-      document
-        .getElementById(`tree-node-${targetId}`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [nodes, highlightId]);
-
   const resolve = (id: string, fallback: string) => {
     const m = members[id];
     const name = id === 'self' ? (m?.name || data?.owner?.name || 'Anda') : (m?.name || fallback);
     const photo = id === 'self' ? (m?.photo || data?.owner?.avatar || null) : (m?.photo || null);
-    return { name, photo, alive: m?.alive !== false, gender: m?.gender || '' };
+    return { name, photo, alive: m?.alive !== false, gender: m?.gender || '', verified: id === 'self' ? true : m?.verified };
   };
 
   const onNodeClick = (node: TNode) => {
     // Only the owner (self) currently has a public profile username.
     if (node.id === 'self' && data?.owner?.username) {
       router.push(`/family/${slug}/${data.owner.username}`);
+    }
+  };
+
+  const closeClaimModal = () => { setClaimNode(null); setClaimError(null); };
+
+  const confirmClaim = async () => {
+    if (!claimNode) return;
+    if (!getTokens()?.accessToken) {
+      savePendingClaim({ slug, nodeId: claimNode.id });
+      router.push(`/register?tree=${encodeURIComponent(slug)}&node=${encodeURIComponent(claimNode.id)}`);
+      return;
+    }
+    setClaiming(true);
+    setClaimError(null);
+    try {
+      await treeApi.claimNode(slug, claimNode.id);
+      const refreshed = await publicTreeApi.getFamily<Partial<TreeConfig>, Members>(slug);
+      setData(refreshed);
+      closeClaimModal();
+    } catch (e: any) {
+      setClaimError(e.message || 'Gagal mengklaim bagian ini');
+    } finally {
+      setClaiming(false);
     }
   };
 
@@ -139,21 +152,28 @@ export default function PublicFamilyPage() {
           )}
 
           {/* Tree */}
-          <section className="flex-1 min-h-[420px] px-2 sm:px-6 pb-8">
+          <section className="px-2 sm:px-6 pb-8">
             {nodes.length ? (
               <PublicTreeCanvas
                 nodes={nodes}
                 lines={lines}
                 resolve={resolve}
                 onNodeClick={onNodeClick}
+                onUnclaimedClick={setClaimNode}
                 highlightId={highlightId ?? undefined}
-                className="w-full h-full min-h-[420px]"
+                focusId="self"
+                className="w-full h-[70vh] min-h-[420px] max-h-[720px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
               />
             ) : (
-              <div className="h-full flex items-center justify-center text-white/40 text-sm">
+              <div className="h-[420px] flex items-center justify-center text-white/40 text-sm">
                 Silsilah belum disiapkan.
               </div>
             )}
+            {nodes.length ? (
+              <p className="text-center text-white/25 text-xs mt-2">
+                Geser untuk menjelajah, gulir/pinch untuk memperbesar. Lingkaran bergaris putus-putus belum diklaim.
+              </p>
+            ) : null}
           </section>
 
           {/* CTA */}
@@ -175,6 +195,52 @@ export default function PublicFamilyPage() {
       <footer className="text-center pb-5 text-white/25 text-xs">
         © {new Date().getFullYear()} Digsan — Platform Keluarga Indonesia
       </footer>
+
+      {/* "Apakah ini Anda?" claim modal for an unclaimed node */}
+      {claimNode && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={closeClaimModal}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0a0a16] p-6 text-center relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeClaimModal}
+              aria-label="Tutup"
+              className="absolute top-3 right-3 text-white/40 hover:text-white/80 transition-colors"
+            >
+              <X size={18} />
+            </button>
+            <Users size={32} className="mx-auto text-blue-400 mb-3" />
+            <h3 className="text-white font-semibold text-lg mb-1">
+              Apakah ini <span className="text-blue-400">{claimNode.name}</span>?
+            </h3>
+            <p className="text-white/50 text-sm mb-5">
+              Jika ini Anda, hubungkan akun untuk melengkapi profil dan mengedit bagian silsilah ini.
+            </p>
+            {claimError && (
+              <p className="text-red-400 text-sm mb-3">{claimError}</p>
+            )}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={confirmClaim}
+                disabled={claiming}
+                className="w-full py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white transition-colors"
+              >
+                {claiming ? 'Memproses…' : 'Ya, ini saya'}
+              </button>
+              <button
+                onClick={closeClaimModal}
+                className="w-full py-2.5 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/10 text-white/70 transition-colors"
+              >
+                Bukan saya
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

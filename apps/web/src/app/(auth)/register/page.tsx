@@ -1,11 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
+import { savePendingClaim } from '@/lib/tree';
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+        <div className="text-5xl animate-pulse">⏳</div>
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({
     email: '',
     name: '',
@@ -17,6 +32,14 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Arrived here from a public family tree's "Apakah ini Anda?" prompt —
+  // remember which node to claim once the account is verified and logged in.
+  useEffect(() => {
+    const slug = searchParams?.get('tree');
+    const nodeId = searchParams?.get('node');
+    if (slug && nodeId) savePendingClaim({ slug, nodeId });
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

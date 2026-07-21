@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { auth, saveTokens, saveUser } from '@/lib/auth';
+import { treeApi, getPendingClaim, clearPendingClaim } from '@/lib/tree';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,6 +22,22 @@ export default function LoginPage() {
       const res = await auth.login(form);
       saveTokens({ accessToken: res.accessToken, refreshToken: res.refreshToken });
       saveUser(res.user);
+
+      // If the user arrived here from a public family tree's "Apakah ini
+      // Anda?" prompt, finish claiming that node now that they're logged in.
+      const pending = getPendingClaim();
+      if (pending) {
+        try {
+          await treeApi.claimNode(pending.slug, pending.nodeId);
+        } catch {
+          // Non-fatal — the tree page will still load; claim can be retried.
+        } finally {
+          clearPendingClaim();
+        }
+        router.push(`/family/${pending.slug}`);
+        return;
+      }
+
       router.push('/');
     } catch (err: any) {
       setError(err.message || 'Login gagal');
