@@ -33,9 +33,15 @@ export class EnvironmentVariables {
   @IsOptional()
   LANDING_URL: string = 'http://localhost:3001';
 
+  // No default here on purpose: RedisService falls back to building the URL
+  // from REDIS_HOST/REDIS_PORT/REDIS_PASSWORD when REDIS_URL is unset. If we
+  // gave this a default, ConfigService.get('REDIS_URL') would always return
+  // it (since class-transformer applies class field initializers), making
+  // RedisService think REDIS_URL was explicitly set and skip the
+  // host/port/password fallback entirely — this caused NOAUTH errors.
   @IsString()
   @IsOptional()
-  REDIS_URL: string = 'redis://localhost:6379';
+  REDIS_URL?: string;
 
   // Google OAuth (optional — Google login disabled if not set)
   @IsString()
