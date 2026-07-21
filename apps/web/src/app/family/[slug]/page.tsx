@@ -53,6 +53,20 @@ export default function PublicFamilyPage() {
     return layoutGraph(graph);
   }, [data?.config, config, members]);
 
+  // Center the viewport on the active user (or the deep-linked invited member)
+  // once the tree renders, instead of leaving the page scrolled to the top
+  // (which shows the eldest ancestors first).
+  useEffect(() => {
+    if (!nodes.length) return;
+    const targetId = highlightId || 'self';
+    const frame = requestAnimationFrame(() => {
+      document
+        .getElementById(`tree-node-${targetId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [nodes, highlightId]);
+
   const resolve = (id: string, fallback: string) => {
     const m = members[id];
     const name = id === 'self' ? (m?.name || data?.owner?.name || 'Anda') : (m?.name || fallback);

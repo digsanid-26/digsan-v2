@@ -62,6 +62,7 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, h
           return (
             <g
               key={n.id}
+              id={`tree-node-${n.id}`}
               transform={`translate(${n.x}, ${n.y})`}
               opacity={alive ? 1 : 0.55}
               style={{ cursor: clickable ? 'pointer' : 'default' }}
