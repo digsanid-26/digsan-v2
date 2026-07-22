@@ -11,6 +11,7 @@ import { configToGraph, layoutGraph } from './familyGraph';
 import { STYLE, OX, OY } from './treeStyle';
 import InvitationStudio from './InvitationStudio';
 import type { Region } from './InvitationStudio';
+import OnboardingModal from './OnboardingModal';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
   Share2, Upload, Check, Crop, Users, Link2, ExternalLink,
@@ -219,6 +220,7 @@ export default function TreeExplorer() {
 
   const [panel, setPanel] = useState<'none' | 'setup' | 'member'>('none');
   const [selected, setSelected] = useState<TNode | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [showStudio, setShowStudio] = useState(false);
   const [inviteCtx, setInviteCtx] = useState<{ nodeId: string; name: string } | null>(null);
   const [selectMode, setSelectMode] = useState(false);
@@ -255,6 +257,9 @@ export default function TreeExplorer() {
       return;
     }
 
+    // Authenticated user with no config → show onboarding modal
+    if (!hadLocalConfig) setShowOnboarding(true);
+
     let cancelled = false;
     (async () => {
       try {
@@ -280,7 +285,10 @@ export default function TreeExplorer() {
         } catch { /* ignore */ }
 
         // No config anywhere → prompt setup.
-        if (!remote.config && !hadLocalConfig) setPanel('setup');
+        if (!remote.config && !hadLocalConfig) {
+          setShowOnboarding(true);
+          setPanel('setup');
+        }
 
         // Local data existed but server had none → push local up so it syncs.
         if (!remote.config && hadLocalConfig) {
@@ -295,7 +303,10 @@ export default function TreeExplorer() {
         }
       } catch {
         // Offline or API error → fall back to local cache.
-        if (!cancelled && !hadLocalConfig) setPanel('setup');
+        if (!cancelled && !hadLocalConfig) {
+          setShowOnboarding(true);
+          setPanel('setup');
+        }
       }
     })();
 
@@ -684,6 +695,18 @@ export default function TreeExplorer() {
         region={studioRegion}
         highlightIds={studioHighlight}
       />
+
+      {showOnboarding && (
+        <OnboardingModal
+          dark={dark}
+          onComplete={(c) => {
+            saveConfig(c);
+            setShowOnboarding(false);
+            setPanel('none');
+            setExpanded(false);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -117,6 +117,23 @@ export const treeApi = {
     authRequest<{ message: string; member: unknown; treeId: string; slug: string }>(`/trees/invitations/${token}/accept`, {
       method: 'POST',
     }),
+
+  // ─── Onboarding: search users & families ────────────────────
+  search: (q: string) =>
+    authRequest<{
+      users: { id: string; name: string; username: string | null; avatar: string | null; email: string; type: 'user' }[];
+      families: { id: string; name: string; slug: string | null; userId: string; user: { id: string; name: string; avatar: string | null }; type: 'family' }[];
+    }>(`/trees/search?q=${encodeURIComponent(q)}`),
+
+  // ─── Onboarding: pending invitations ────────────────────────
+  pendingInvitations: () =>
+    authRequest<{
+      id: string;
+      token: string;
+      message: string | null;
+      createdAt: string;
+      tree: { id: string; name: string; slug: string | null; user: { id: string; name: string; avatar: string | null } };
+    }[]>(`/trees/invitations/pending`),
 };
 
 export interface TreeInvitation {

@@ -112,6 +112,19 @@ export class TreeController {
     return this.treeService.claimNode(userId, dto.slug, dto.nodeId);
   }
 
+  @Get('search')
+  @ApiOperation({ summary: 'Search users and families by name (min 3 chars)' })
+  @ApiQuery({ name: 'q', required: true, type: String })
+  async search(@CurrentUser('id') userId: string, @Query('q') q: string) {
+    return this.treeService.searchUsersAndFamilies(q, userId);
+  }
+
+  @Get('invitations/pending')
+  @ApiOperation({ summary: 'Get pending invitations for the current user' })
+  async getPendingInvitations(@CurrentUser('id') userId: string) {
+    return this.treeService.getPendingInvitations(userId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a family tree by ID (with members)' })
   async findOne(@Param('id') id: string, @CurrentUser('id') userId: string) {

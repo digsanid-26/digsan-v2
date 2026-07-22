@@ -1055,4 +1055,86 @@ export class TreeService {
     }
     return tree;
   }
+
+  // ─── ONBOARDING SEARCH & PENDING INVITATIONS ──────────────────
+
+  async searchUsersAndFamilies(query: string, currentUserId: string) {
+    const q = query.trim();
+    if (q.length < 3) return { users: [], families: [] };
+
+    const [users, families] = await Promise.all([
+      this.prisma.user.findMany({
+        where: {
+          id: { not: currentUserId },
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { username: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          avatar: true,
+          email: true,
+        },
+        take: 10,
+      }),
+      this.prisma.familyTree.findMany({
+        where: {
+          userId: { not: currentUserId },
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { slug: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          userId: true,
+          user: { select: { id: true, name: true, avatar: true } },
+        },
+        take: 10,
+      }),
+    ]);
+
+    return {
+      users: users.map((u) => ({ ...u, type: 'user' as const })),
+      families: families.map((f) => ({ ...f, type: 'family' as const })),
+    };
+  }
+
+  async getPendingInvitations(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User tidak ditemukan');
+
+    const invitations = await this.prisma.treeInvitation.findMany({
+      where: {
+        status: 'PENDING',
+        email: { equals: user.email, mode: 'insensitive' },
+        expiresAt: { gt: new Date() },
+      },
+      include: {
+        tree: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            user: { select: { id: true, name: true, avatar: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return invitations.map((inv) => ({
+      id: inv.id,
+      token: inv.token,
+      message: inv.message,
+      createdAt: inv.createdAt,
+      tree: inv.tree,
+    }));
+  }
 }
