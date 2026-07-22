@@ -28,7 +28,7 @@ export interface NodeFamilyConfig {
   childCount?: number;
 }
 
-export interface Member { name: string; gender: 'L' | 'P' | ''; alive: boolean; photo: string | null; verified?: boolean; familyConfig?: NodeFamilyConfig; }
+export interface Member { name: string; gender: 'L' | 'P' | ''; alive: boolean; photo: string | null; verified?: boolean; familyConfig?: NodeFamilyConfig; email?: string; phone?: string; linkedUserId?: string | null; }
 export type Members = Record<string, Member>;
 
 export const DEFAULT_CONFIG: TreeConfig = {

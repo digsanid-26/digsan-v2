@@ -96,10 +96,18 @@ export default function OnboardingModal({
     setAccepting(true);
     setError('');
     try {
-      await treeApi.acceptInvitation(token);
-      // After accepting, the tree layout will be fetched by TreeExplorer on reload
-      // Mark as configured so the modal closes
-      onComplete({ ...config, configured: true });
+      const result = await treeApi.acceptInvitation(token);
+      // Sync family name with inviter's tree name
+      const inviterTreeName = selectedItem?.type === 'invitation'
+        ? (selectedItem.data as PendingInvitation).tree.name
+        : '';
+      setConfig((p) => ({
+        ...p,
+        mainFamilyName: inviterTreeName || p.mainFamilyName,
+        configured: true,
+      }));
+      // Proceed to extended family form (user already has main family from invitation)
+      setStep('create-ext');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Gagal menerima undangan';
       setError(msg);
@@ -252,23 +260,23 @@ export default function OnboardingModal({
                 )}
                 <div className="space-y-2">
                   {searchResults.users.map((u) => (
-                    <div key={u.id} onClick={() => selectItem('user', u)} className={cardCls}>
+                    <div key={u.id} onClick={() => selectItem('user', u)} className={`${cardCls} group`}>
                       <Avatar src={u.avatar} name={u.name} />
                       <div className="flex-1 min-w-0">
                         <p className={`font-semibold text-sm ${textMain}`}>{u.name}</p>
                         <p className={`text-xs ${textMuted}`}>{u.username ? `@${u.username}` : u.email}</p>
                       </div>
-                      <div className={`text-xs ${textMuted} italic`}>Anggota keluarga Anda?</div>
+                      <div className={`text-xs ${textMuted} italic opacity-0 group-hover:opacity-100 transition-opacity`}>Anggota keluarga Anda?</div>
                     </div>
                   ))}
                   {searchResults.families.map((f) => (
-                    <div key={f.id} onClick={() => selectItem('family', f)} className={cardCls}>
+                    <div key={f.id} onClick={() => selectItem('family', f)} className={`${cardCls} group`}>
                       <Avatar src={f.user.avatar} name={f.user.name} />
                       <div className="flex-1 min-w-0">
                         <p className={`font-semibold text-sm ${textMain}`}>{f.name}</p>
                         <p className={`text-xs ${textMuted}`}>Pemilik: {f.user.name}</p>
                       </div>
-                      <div className={`text-xs ${textMuted} italic`}>Keluarga Anda?</div>
+                      <div className={`text-xs ${textMuted} italic opacity-0 group-hover:opacity-100 transition-opacity`}>Keluarga Anda?</div>
                     </div>
                   ))}
                 </div>
@@ -405,10 +413,10 @@ export default function OnboardingModal({
       <div className={overlay} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
         <div className={panelCls}>
           <div className="p-6">
-            <ProgressBar current={2} total={3} dark={dark} />
+            <ProgressBar current={config.configured ? 1 : 2} total={3} dark={dark} />
 
             <div className="flex items-center gap-3 mb-4 mt-4">
-              <button onClick={() => setStep('create-main')} className={`w-8 h-8 flex items-center justify-center rounded-full ${dark ? 'hover:bg-white/10 text-white/60' : 'hover:bg-slate-100 text-slate-400'}`}>
+              <button onClick={() => setStep(config.configured ? 'search' : 'create-main')} className={`w-8 h-8 flex items-center justify-center rounded-full ${dark ? 'hover:bg-white/10 text-white/60' : 'hover:bg-slate-100 text-slate-400'}`}>
                 <ArrowLeft size={18} />
               </button>
               <h2 className={`text-lg font-bold ${textMain}`}>Buatlah Keluarga Besarmu</h2>

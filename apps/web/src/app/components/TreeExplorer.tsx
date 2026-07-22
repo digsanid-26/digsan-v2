@@ -14,7 +14,7 @@ import type { Region } from './InvitationStudio';
 import OnboardingModal from './OnboardingModal';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Share2, Upload, Check, Crop, Users, Link2, ExternalLink,
+  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search,
 } from 'lucide-react';
 
 // ─── Styling per group ──────────────────────────────────────
@@ -798,6 +798,9 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
     photo: member?.photo || null,
     verified: member?.verified,
     familyConfig: member?.familyConfig,
+    email: member?.email || '',
+    phone: member?.phone || '',
+    linkedUserId: member?.linkedUserId || null,
   });
   const fileRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
@@ -805,6 +808,15 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
   const [slugInput, setSlugInput] = useState('');
   const [slugLoading, setSlugLoading] = useState(false);
   const [slugError, setSlugError] = useState('');
+
+  // User search for identity matching
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState<{ id: string; name: string; avatar: string | null; email: string }[]>([]);
+  const [userSearching, setUserSearching] = useState(false);
+  const [showUserSearch, setShowUserSearch] = useState(false);
+  const [linkedUserConfirm, setLinkedUserConfirm] = useState<{ id: string; name: string; avatar: string | null; email: string } | null>(null);
+  const [matchStatus, setMatchStatus] = useState<'idle' | 'matching' | 'sent' | 'linked'>('idle');
+  const userSearchDebounce = useRef<ReturnType<typeof setTimeout>>(null);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
   const publicFamilyUrl = familySlug ? `${origin}/family/${familySlug}` : '';
@@ -824,6 +836,74 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
     const reader = new FileReader();
     reader.onload = () => setForm((f) => ({ ...f, photo: reader.result as string }));
     reader.readAsDataURL(file);
+  };
+
+  // AJAX user search (3 char minimum)
+  const onUserSearchChange = (val: string) => {
+    setUserSearchQuery(val);
+    setShowUserSearch(true);
+    if (userSearchDebounce.current) clearTimeout(userSearchDebounce.current);
+    const q = val.trim();
+    if (q.length < 3) {
+      setUserSearchResults([]);
+      return;
+    }
+    userSearchDebounce.current = setTimeout(async () => {
+      setUserSearching(true);
+      try {
+        const res = await treeApi.search(q);
+        setUserSearchResults(res.users.map((u: any) => ({ id: u.id, name: u.name, avatar: u.avatar, email: u.email })));
+      } catch {
+        setUserSearchResults([]);
+      } finally {
+        setUserSearching(false);
+      }
+    }, 300);
+  };
+
+  const selectLinkedUser = (u: { id: string; name: string; avatar: string | null; email: string }) => {
+    setLinkedUserConfirm(u);
+    setShowUserSearch(false);
+  };
+
+  const confirmLinkUser = () => {
+    if (!linkedUserConfirm) return;
+    setForm((f) => ({
+      ...f,
+      name: linkedUserConfirm.name,
+      email: linkedUserConfirm.email,
+      linkedUserId: linkedUserConfirm.id,
+    }));
+    setMatchStatus('linked');
+    setLinkedUserConfirm(null);
+  };
+
+  // Check match: if 2 of 3 (name+email or name+phone) match a known user, send consent
+  const checkAndSendConsent = async () => {
+    if (matchStatus === 'sent' || matchStatus === 'linked') return;
+    const hasName = form.name.trim().length > 0;
+    const hasEmail = !!form.email?.trim();
+    const hasPhone = !!form.phone?.trim();
+    if (!hasName || (!hasEmail && !hasPhone)) return;
+    setMatchStatus('matching');
+    try {
+      // Search for matching user by name
+      const res = await treeApi.search(form.name.trim());
+      const candidates = res.users.filter((u: any) => {
+        const nameMatch = u.name.toLowerCase().includes(form.name.toLowerCase().trim());
+        const emailMatch = hasEmail && u.email?.toLowerCase() === form.email?.toLowerCase().trim();
+        return nameMatch && emailMatch;
+      });
+      if (candidates.length > 0) {
+        const target = candidates[0];
+        setForm((f) => ({ ...f, linkedUserId: target.id }));
+        setMatchStatus('sent');
+      } else {
+        setMatchStatus('idle');
+      }
+    } catch {
+      setMatchStatus('idle');
+    }
   };
 
   const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
@@ -952,6 +1032,116 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
             </div>
           )}
         </div>
+
+        {/* Identity matching — user search + email/phone (not for self) */}
+        {!isSelf && canEdit && (
+          <div className="space-y-3 rounded-xl border border-slate-200 dark:border-white/10 p-4">
+            <p className="text-xs font-semibold text-slate-600 dark:text-white/60">Identifikasi Anggota</p>
+            <p className="text-xs text-slate-400 dark:text-white/40 -mt-2">Cari user terdaftar atau isi email/WhatsApp untuk mencocokkan identitas</p>
+
+            {/* User search */}
+            <div className="relative">
+              <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Cari User (min. 3 huruf)</label>
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40" />
+                <input
+                  value={userSearchQuery}
+                  onChange={(e) => onUserSearchChange(e.target.value)}
+                  onFocus={() => setShowUserSearch(true)}
+                  placeholder="Ketik nama user..."
+                  className={`${inputCls} pl-8 text-xs`}
+                />
+                {userSearching && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">...</span>}
+              </div>
+              {showUserSearch && userSearchResults.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0a0e1a] shadow-lg">
+                  {userSearchResults.map((u) => (
+                    <div
+                      key={u.id}
+                      onClick={() => selectLinkedUser(u)}
+                      className="flex items-center gap-2 p-2 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer"
+                    >
+                      {u.avatar ? (
+                        <img src={u.avatar} alt={u.name} className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">{u.name.charAt(0).toUpperCase()}</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{u.name}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-white/40 truncate">{u.email}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Linked user confirmation */}
+            {linkedUserConfirm && (
+              <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-3">
+                <p className="text-xs text-slate-700 dark:text-white/70 mb-2">Anda yakin dia anggota keluarga Anda?</p>
+                <div className="flex items-center gap-2 mb-2">
+                  {linkedUserConfirm.avatar ? (
+                    <img src={linkedUserConfirm.avatar} alt={linkedUserConfirm.name} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">{linkedUserConfirm.name.charAt(0).toUpperCase()}</div>
+                  )}
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">{linkedUserConfirm.name}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={confirmLinkUser} className="flex-1 py-1.5 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-500">Ya, tambahkan</button>
+                  <button type="button" onClick={() => setLinkedUserConfirm(null)} className="flex-1 py-1.5 rounded-md text-xs font-medium border border-slate-200 dark:border-white/15 text-slate-600 dark:text-white/60 hover:bg-slate-50 dark:hover:bg-white/5">Batal</button>
+                </div>
+              </div>
+            )}
+
+            {/* Email & Phone fields */}
+            <div className="grid grid-cols-1 gap-2">
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Email</label>
+                <input
+                  value={form.email || ''}
+                  onChange={(e) => { setForm({ ...form, email: e.target.value }); setMatchStatus('idle'); }}
+                  placeholder="email@contoh.com"
+                  disabled={!canEdit}
+                  className={`${inputCls} text-xs ${!canEdit ? 'opacity-50' : ''}`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nomor WhatsApp</label>
+                <input
+                  value={form.phone || ''}
+                  onChange={(e) => { setForm({ ...form, phone: e.target.value }); setMatchStatus('idle'); }}
+                  placeholder="+62xxx"
+                  disabled={!canEdit}
+                  className={`${inputCls} text-xs ${!canEdit ? 'opacity-50' : ''}`}
+                />
+              </div>
+            </div>
+
+            {/* Match status indicators */}
+            {matchStatus === 'linked' && form.linkedUserId && (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2">
+                <Check size={14} className="text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs text-emerald-700 dark:text-emerald-300">User terhubung. Notifikasi persetujuan akan dikirim saat disimpan.</span>
+              </div>
+            )}
+            {matchStatus === 'sent' && (
+              <div className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2">
+                <span className="text-xs text-amber-700 dark:text-amber-300">Cocok ditemukan! Notifikasi persetujuan akan dikirim saat disimpan.</span>
+              </div>
+            )}
+            {matchStatus === 'idle' && form.name.trim() && (form.email?.trim() || form.phone?.trim()) && !form.linkedUserId && (
+              <button
+                type="button"
+                onClick={checkAndSendConsent}
+                className="w-full py-2 rounded-lg text-xs font-medium bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-white/60 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+              >
+                Cek pencocokan identitas
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Gender */}
         <div>
