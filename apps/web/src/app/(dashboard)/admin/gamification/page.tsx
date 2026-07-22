@@ -368,7 +368,7 @@ function StatsTab() {
               <span className="font-bold text-amber-600">{u.totalPoints.toLocaleString()}</span>
             </div>
           ))}
-          {topUsers.length === 0 && <p className="text-sm text-slate-400 dark:text-white/30 text-center py-4">Belum ada data</p>}}
+          {topUsers.length === 0 && <p className="text-sm text-slate-400 dark:text-white/30 text-center py-4">Belum ada data</p>}
         </div>
       </div>
 
