@@ -12,6 +12,7 @@ function InviteInner({ token }: { token: string }) {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'login'>('loading');
   const [message, setMessage] = useState('');
+  const [slug, setSlug] = useState('');
 
   useEffect(() => {
     const tokens = getTokens();
@@ -29,6 +30,7 @@ function InviteInner({ token }: { token: string }) {
         if (cancelled) return;
         setStatus('success');
         setMessage(res.message || 'Undangan diterima');
+        setSlug(res.slug || '');
       } catch (err: any) {
         if (cancelled) return;
         setStatus('error');
@@ -95,10 +97,18 @@ function InviteInner({ token }: { token: string }) {
               <p className="text-slate-300 text-sm mb-6">{message}</p>
               <Link
                 href="/tree"
-                className="inline-block w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition"
+                className="inline-block w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition mb-3"
               >
                 Lihat Silsilah Keluarga
               </Link>
+              {slug && (
+                <Link
+                  href={`/family/${slug}`}
+                  className="inline-block w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition"
+                >
+                  Lihat Halaman Publik Keluarga
+                </Link>
+              )}
             </>
           )}
           {status === 'error' && (

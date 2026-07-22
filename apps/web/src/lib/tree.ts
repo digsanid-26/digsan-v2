@@ -114,7 +114,7 @@ export const treeApi = {
 
   // ─── Accept tree invitation ─────────────────────────────────
   acceptInvitation: (token: string) =>
-    authRequest<{ message: string; member: unknown }>(`/trees/invitations/${token}/accept`, {
+    authRequest<{ message: string; member: unknown; treeId: string; slug: string }>(`/trees/invitations/${token}/accept`, {
       method: 'POST',
     }),
 };

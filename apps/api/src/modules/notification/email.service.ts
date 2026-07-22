@@ -226,19 +226,41 @@ export class EmailService {
     return this.sendEmail(to, 'Reset Password Digsan', html);
   }
 
-  async sendTreeInvitationEmail(to: string, inviterName: string, treeName: string, acceptUrl: string, message?: string) {
+  async sendTreeInvitationEmail(
+    to: string,
+    inviterName: string,
+    treeName: string,
+    acceptUrl: string,
+    message?: string,
+    inviterAvatar?: string | null,
+    webUrl?: string,
+  ) {
     const safeMsg = (message || '').trim();
+    const logoUrl = `${webUrl || ''}/logo-white.svg`;
+    const avatarHtml = inviterAvatar
+      ? `<img src="${inviterAvatar}" alt="${inviterName}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.15)" referrerpolicy="no-referrer" />`
+      : `<div style="width:56px;height:56px;border-radius:50%;background:#3B82F6;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.15)">${(inviterName || '?')[0].toUpperCase()}</div>`;
+
     const html = this.wrapTemplate(`
-      <h2 style="color:#1e293b;margin:0 0 16px">Undangan Silsilah Keluarga</h2>
-      <p style="color:#475569;font-size:16px"><strong>${inviterName}</strong> mengundang Anda untuk bergabung & melengkapi silsilah keluarga <strong>${treeName}</strong> di Digsan.</p>
-      ${safeMsg ? `<blockquote style="margin:16px 0;padding:12px 16px;background:#f1f5f9;border-left:4px solid #3B82F6;color:#334155;font-size:15px">${safeMsg.replace(/</g, '&lt;')}</blockquote>` : ''}
+      <div style="text-align:center;margin-bottom:24px">
+        <img src="${logoUrl}" alt="Digsan" style="height:36px;width:auto" />
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:24px;padding:16px;background:#f8fafc;border-radius:12px">
+        <div style="flex-shrink:0">${avatarHtml}</div>
+        <div style="flex:1;min-width:0">
+          <p style="margin:0 0 4px;color:#1e293b;font-size:16px;font-weight:600">${inviterName}</p>
+          <p style="margin:0;color:#64748b;font-size:14px">Mengundang Anda ke silsilah keluarga</p>
+          <p style="margin:4px 0 0;color:#3B82F6;font-size:15px;font-weight:600">${treeName}</p>
+        </div>
+      </div>
+      ${safeMsg ? `<blockquote style="margin:0 0 24px;padding:12px 16px;background:#f1f5f9;border-left:4px solid #3B82F6;color:#334155;font-size:15px;border-radius:0 8px 8px 0">${safeMsg.replace(/</g, '&lt;')}</blockquote>` : ''}
       <div style="text-align:center;margin:32px 0">
         <a href="${acceptUrl}" style="display:inline-block;padding:14px 32px;background:#10B981;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px">
           Terima Undangan
         </a>
       </div>
-      <p style="color:#94a3b8;font-size:14px">Dengan menerima, Anda dapat mengelola profil Anda sendiri dalam silsilah tersebut. Link ini berlaku selama 7 hari.</p>
-    `);
+      <p style="color:#94a3b8;font-size:14px">Dengan menerima, Anda dapat melihat dan melengkapi profil Anda dalam silsilah tersebut. Link ini berlaku selama 7 hari.</p>
+    `, true);
     return this.sendEmail(to, `Undangan Silsilah Keluarga ${treeName}`, html);
   }
 
@@ -315,13 +337,16 @@ export class EmailService {
     return this.sendEmail(to, `Pesanan Baru #${orderNumber}`, html);
   }
 
-  wrapTemplate(content: string): string {
-    return `
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
-        <div style="background:linear-gradient(135deg,#1e3a5f,#3B82F6);padding:32px;text-align:center">
+  wrapTemplate(content: string, skipHeader = false): string {
+    const header = skipHeader
+      ? ''
+      : `<div style="background:linear-gradient(135deg,#1e3a5f,#3B82F6);padding:32px;text-align:center">
           <h1 style="color:#fff;margin:0;font-size:28px">Digsan</h1>
           <p style="color:#93c5fd;margin:4px 0 0;font-size:14px">Platform Keluarga Indonesia</p>
-        </div>
+        </div>`;
+    return `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+        ${header}
         <div style="padding:32px">${content}</div>
         <div style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0">
           <p style="color:#94a3b8;font-size:12px;margin:0">&copy; ${new Date().getFullYear()} Digsan. All rights reserved.</p>

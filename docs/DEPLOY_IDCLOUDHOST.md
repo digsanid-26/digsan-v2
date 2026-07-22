@@ -951,6 +951,9 @@ pm2 restart all
 # Lihat logs real-time
 pm2 logs
 
+# Cek logs
+pm2 logs digsan-api --lines 50
+
 # Restart database
 docker compose -f ~/digsan-v2/docker-compose.db.yml restart
 

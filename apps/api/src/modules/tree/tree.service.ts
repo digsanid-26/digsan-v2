@@ -141,12 +141,22 @@ export class TreeService {
 
   /** Returns the user's default tree (creating one if none exists). */
   private async getOrCreateDefaultTree(userId: string) {
-    const existing = await this.prisma.familyTree.findFirst({
+    // 1. Trees owned by the user
+    const owned = await this.prisma.familyTree.findFirst({
       where: { userId },
       orderBy: { createdAt: 'asc' },
     });
-    if (existing) return existing;
+    if (owned) return owned;
 
+    // 2. Trees the user is a member of (invited but not owner)
+    const memberOf = await this.prisma.familyMember.findFirst({
+      where: { userId },
+      include: { tree: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (memberOf?.tree) return memberOf.tree;
+
+    // 3. Create a new tree
     return this.prisma.familyTree.create({
       data: { name: 'Pohon Keluarga Saya', userId },
     });
@@ -263,6 +273,12 @@ export class TreeService {
   /** Persist the explorer layout (config + members) for the current user. */
   async saveLayout(userId: string, config: unknown, members: unknown) {
     const tree = await this.getOrCreateDefaultTree(userId);
+
+    // Only the tree owner can save layout changes.
+    if (tree.userId !== userId) {
+      throw new ForbiddenException('Hanya pemilik pohon yang dapat menyimpan perubahan bagan');
+    }
+
     const updated = await this.prisma.familyTree.update({
       where: { id: tree.id },
       data: {
@@ -725,7 +741,7 @@ export class TreeService {
       try {
         const [tree, inviter] = await Promise.all([
           this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { name: true } }),
-          this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+          this.prisma.user.findUnique({ where: { id: userId }, select: { name: true, avatar: true } }),
         ]);
         const webUrl = this.config.get('WEB_URL', 'http://localhost:3000');
         const acceptUrl = `${webUrl}/invite/${token}`;
@@ -735,6 +751,8 @@ export class TreeService {
           tree?.name || 'Keluarga',
           acceptUrl,
           dto.message,
+          inviter?.avatar || null,
+          webUrl,
         );
       } catch (err) {
         this.logger.error(`Failed to send invitation email: ${err}`);
@@ -789,7 +807,11 @@ export class TreeService {
       }),
     ]);
 
-    return { message: 'Undangan diterima', member };
+    // Return tree info so frontend can redirect to the correct tree
+    const tree = invitation.tree;
+    const identity = await this.ensureIdentity(tree);
+
+    return { message: 'Undangan diterima', member, treeId: tree.id, slug: identity.slug };
   }
 
   async cancelInvitation(treeId: string, invitationId: string, userId: string) {
