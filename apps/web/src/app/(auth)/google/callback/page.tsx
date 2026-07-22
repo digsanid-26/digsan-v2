@@ -16,14 +16,20 @@ function GoogleCallbackInner() {
     if (accessToken && refreshToken) {
       saveTokens({ accessToken, refreshToken });
 
+      let roles: string[] = [];
       if (userParam) {
         try {
           const user = JSON.parse(userParam);
           saveUser(user);
+          roles = user?.roles || [];
         } catch {}
       }
 
-      router.replace('/');
+      if (roles.includes('super_admin') || roles.includes('admin')) {
+        router.replace('/admin');
+      } else {
+        router.replace('/');
+      }
     } else {
       router.replace('/login?error=google_login_failed');
     }

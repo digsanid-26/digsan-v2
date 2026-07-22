@@ -151,12 +151,18 @@ export class AuthService {
 
     await this.logLogin(user.id, dto.email, 'SUCCESS', null, meta);
 
+    const userRoles = await this.prisma.userRole.findMany({
+      where: { userId: user.id },
+      include: { role: { select: { name: true } } },
+    });
+
     return {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         avatar: user.avatar,
+        roles: userRoles.map((ur) => ur.role.name),
       },
       ...tokens,
     };
@@ -435,12 +441,18 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
+    const userRoles = await this.prisma.userRole.findMany({
+      where: { userId: user.id },
+      include: { role: { select: { name: true } } },
+    });
+
     return {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         avatar: user.avatar,
+        roles: userRoles.map((ur) => ur.role.name),
       },
       ...tokens,
     };

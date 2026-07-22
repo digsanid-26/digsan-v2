@@ -38,7 +38,12 @@ export default function LoginPage() {
         return;
       }
 
-      router.push('/');
+      const roles = res.user?.roles || [];
+      if (roles.includes('super_admin') || roles.includes('admin')) {
+        router.push('/admin');
+      } else {
+        router.push('/');
+      }
     } catch (err: any) {
       setError(err.message || 'Login gagal');
     } finally {
