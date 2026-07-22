@@ -10,6 +10,7 @@ interface AuthUser {
   email: string;
   name: string;
   avatar: string | null;
+  roles?: string[];
 }
 
 interface LoginResponse extends AuthTokens {

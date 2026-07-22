@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { auth, saveTokens, saveUser } from '@/lib/auth';
 import { treeApi, getPendingClaim, clearPendingClaim } from '@/lib/tree';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,9 @@ export default function LoginPage() {
       }
 
       const roles = res.user?.roles || [];
-      if (roles.includes('super_admin') || roles.includes('admin')) {
+      if (redirect) {
+        router.push(redirect);
+      } else if (roles.includes('super_admin') || roles.includes('admin')) {
         router.push('/admin');
       } else {
         router.push('/');
@@ -142,5 +146,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

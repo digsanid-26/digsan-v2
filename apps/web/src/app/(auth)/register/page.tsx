@@ -41,6 +41,8 @@ function RegisterForm() {
     if (slug && nodeId) savePendingClaim({ slug, nodeId });
   }, [searchParams]);
 
+  const redirectParam = searchParams?.get('redirect');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -77,7 +79,7 @@ function RegisterForm() {
             <h2 className="text-2xl font-bold text-white mb-2">Cek Email Anda</h2>
             <p className="text-slate-300 mb-6">{success}</p>
             <Link
-              href="/login"
+              href={redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login'}
               className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
             >
               Ke Halaman Login
