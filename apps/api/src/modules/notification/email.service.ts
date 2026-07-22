@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { google } from 'googleapis';
-import { OAuth2Client } from 'google-auth-library';
+type OAuth2Client = InstanceType<typeof google.auth.OAuth2>;
 import { PrismaService } from '../../common/database/prisma.service';
 
 interface MailInfo {
