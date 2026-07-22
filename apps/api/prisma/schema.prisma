@@ -50,6 +50,7 @@ model User {
   points        Point[]
   badges        UserBadge[]
   notifications Notification[]
+  redeemRequests RedeemRequest[]
 
   // Job/Medja relations
   jobWorkerProfile JobWorkerProfile?
@@ -412,6 +413,59 @@ model UserBadge {
 
   @@unique([userId, badgeId])
   @@map("user_badges")
+}
+
+model PointType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  label       String
+  description String?
+  icon        String?
+  color       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("point_types")
+}
+
+model Reward {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  icon        String?
+  pointCost   Int      @map("point_cost")
+  stock       Int?     @map("stock")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  redeemRequests RedeemRequest[]
+
+  @@map("rewards")
+}
+
+enum RedeemStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FULFILLED
+  CANCELLED
+}
+
+model RedeemRequest {
+  id        String       @id @default(cuid())
+  userId    String       @map("user_id")
+  rewardId  String       @map("reward_id")
+  status    RedeemStatus @default(PENDING)
+  note      String?
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward Reward  @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@map("redeem_requests")
 }
 
 // ================================================================

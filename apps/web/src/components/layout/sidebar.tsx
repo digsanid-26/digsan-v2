@@ -14,6 +14,7 @@ import {
   User,
   Menu,
   X,
+  Award,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -28,6 +29,7 @@ const navItems = [
 
 const adminItems = [
   { href: '/admin', label: 'Admin Panel', icon: Shield },
+  { href: '/admin/gamification', label: 'Gamification', icon: Award },
 ];
 
 export function Sidebar() {

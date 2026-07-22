@@ -2,7 +2,7 @@
 
 import { useApi } from '@/lib/hooks';
 import { useAuth } from '@/components/providers/auth-provider';
-import { Shield, Users, TreePine, Briefcase, DollarSign, Settings } from 'lucide-react';
+import { Shield, Users, TreePine, Briefcase, DollarSign, Settings, Trophy } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -42,7 +42,7 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Quick Links */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Link
               href="/admin/users"
               className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-md transition-shadow"
@@ -66,6 +66,14 @@ export default function AdminDashboardPage() {
               <Briefcase size={24} className="text-emerald-600 mb-3" />
               <h3 className="font-semibold text-slate-900">Manajemen Worker</h3>
               <p className="text-sm text-slate-500 mt-1">Verifikasi dan kelola worker</p>
+            </Link>
+            <Link
+              href="/admin/gamification"
+              className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-md transition-shadow"
+            >
+              <Trophy size={24} className="text-amber-500 mb-3" />
+              <h3 className="font-semibold text-slate-900">Gamification</h3>
+              <p className="text-sm text-slate-500 mt-1">Kelola poin, reward & redeem</p>
             </Link>
             <Link
               href="/admin/settings"
