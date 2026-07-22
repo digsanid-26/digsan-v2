@@ -29,6 +29,7 @@ const navItems = [
 
 const adminItems = [
   { href: '/admin', label: 'Admin Panel', icon: Shield },
+  { href: '/admin/notifications', label: 'Notifikasi', icon: Bell },
   { href: '/admin/gamification', label: 'Gamification', icon: Award },
 ];
 

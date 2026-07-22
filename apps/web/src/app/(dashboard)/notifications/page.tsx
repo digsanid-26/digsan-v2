@@ -1,7 +1,7 @@
 'use client';
 
 import { useApi, useAuthApi } from '@/lib/hooks';
-import { Bell, CheckCheck, Trash2 } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, Settings } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
@@ -11,14 +11,14 @@ export default function NotificationsPage() {
 
   const handleMarkRead = async (id: string) => {
     try {
-      await request(`/notifications/${id}/read`, { method: 'PATCH' });
+      await request(`/notifications/${id}/read`, { method: 'PUT' });
       refetch();
     } catch {}
   };
 
   const handleMarkAllRead = async () => {
     try {
-      await request('/notifications/read-all', { method: 'PATCH' });
+      await request('/notifications/read-all', { method: 'PUT' });
       refetch();
     } catch {}
   };
@@ -41,15 +41,24 @@ export default function NotificationsPage() {
             {data?.total ?? 0} notifikasi total
           </p>
         </div>
-        {notifications.length > 0 && (
-          <button
-            onClick={handleMarkAllRead}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+        <div className="flex items-center gap-3">
+          <a
+            href="/notifications/settings"
+            className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium"
           >
-            <CheckCheck size={16} />
-            Tandai Semua Dibaca
-          </button>
-        )}
+            <Settings size={16} />
+            Pengaturan
+          </a>
+          {notifications.length > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+            >
+              <CheckCheck size={16} />
+              Tandai Semua Dibaca
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (

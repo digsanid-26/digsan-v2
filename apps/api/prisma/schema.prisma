@@ -50,6 +50,7 @@ model User {
   points        Point[]
   badges        UserBadge[]
   notifications Notification[]
+  notificationPreferences NotificationPreference[]
   redeemRequests RedeemRequest[]
 
   // Job/Medja relations
@@ -503,6 +504,41 @@ enum NotificationType {
   PAYMENT_SUCCESS
   PAYMENT_FAILED
   REVIEW_RECEIVED
+}
+
+// Per-user notification preferences (opt-in/out per type per channel)
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  type      String
+  channel   NotificationChannel
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, channel])
+  @@map("notification_preferences")
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  EMAIL
+  WHATSAPP
+}
+
+// Global admin-configurable notification settings
+model NotificationSetting {
+  id        String   @id @default(cuid())
+  type      String   @unique
+  channel   NotificationChannel
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_settings")
 }
 
 model DeviceToken {

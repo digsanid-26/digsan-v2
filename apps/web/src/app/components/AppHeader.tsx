@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import HeaderNav from './HeaderNav';
 import ThemeToggle from './ThemeToggle';
+import NotificationBell from './NotificationBell';
+import { useTheme } from './ThemeProvider';
 
 const NAV = [
   { label: 'Home', href: '/dashboard' },
@@ -15,6 +17,8 @@ const NAV = [
 
 export default function AppHeader() {
   const pathname = usePathname();
+  const { theme } = useTheme();
+  const dark = theme === 'dark';
 
   return (
     <header className="flex items-center justify-between gap-4 px-6 py-4 border-b transition-colors
@@ -64,6 +68,7 @@ export default function AppHeader() {
       </div>
 
       <div className="flex items-center gap-3">
+        <NotificationBell dark={dark} />
         <ThemeToggle />
         <HeaderNav />
       </div>

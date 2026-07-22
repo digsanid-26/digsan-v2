@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class GamificationService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationService,
+  ) {}
 
   // ─── POINTS ─────────────────────────────────────────────────
 
@@ -46,6 +50,15 @@ export class GamificationService {
         metadata,
       },
     });
+
+    // Notify user of points received
+    this.notifications.create({
+      userId,
+      type: 'POINT_RECEIVED' as any,
+      title: 'Poin Diterima',
+      message: `Anda mendapat +${amount} poin ${type}${reason ? ` — ${reason}` : ''}.`,
+      data: { pointId: point.id, amount, type, reason },
+    }).catch(() => {});
 
     // Check badge eligibility after awarding points
     await this.checkAndAwardBadges(userId);
@@ -123,6 +136,16 @@ export class GamificationService {
           data: { userId, badgeId: badge.id },
         });
         awarded.push(badge.name);
+
+        // Notify user of badge earned
+        this.notifications.create({
+          userId,
+          type: 'BADGE_EARNED' as any,
+          title: 'Badge Baru Diperoleh!',
+          message: `Selamat! Anda mendapat badge "${badge.name}".`,
+          data: { badgeId: badge.id, badgeName: badge.name },
+        }).catch(() => {});
+        this.notifications.sendPushSafe(userId, 'Badge Baru!', `Anda mendapat badge "${badge.name}"`).catch(() => {});
       }
     }
 

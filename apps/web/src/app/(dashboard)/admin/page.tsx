@@ -2,7 +2,7 @@
 
 import { useApi } from '@/lib/hooks';
 import { useAuth } from '@/components/providers/auth-provider';
-import { Shield, Users, TreePine, Briefcase, DollarSign, Settings, Trophy } from 'lucide-react';
+import { Shield, Users, TreePine, Briefcase, DollarSign, Settings, Trophy, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -75,6 +75,14 @@ export default function AdminDashboardPage() {
               <Trophy size={24} className="text-amber-500 dark:text-amber-400 mb-3" />
               <h3 className="font-semibold text-slate-900 dark:text-white">Gamification</h3>
               <p className="text-sm text-slate-500 dark:text-white/40 mt-1">Kelola poin, reward & redeem</p>
+            </Link>
+            <Link
+              href="/admin/notifications"
+              className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-6 hover:shadow-md transition-shadow"
+            >
+              <Bell size={24} className="text-blue-500 dark:text-blue-400 mb-3" />
+              <h3 className="font-semibold text-slate-900 dark:text-white">Notifikasi</h3>
+              <p className="text-sm text-slate-500 dark:text-white/40 mt-1">Konfigurasi notifikasi & kanal</p>
             </Link>
             <Link
               href="/admin/settings"

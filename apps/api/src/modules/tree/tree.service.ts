@@ -10,6 +10,7 @@ import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/database/prisma.service';
 import { EmailService } from '../notification/email.service';
+import { NotificationService } from '../notification/notification.service';
 import { slugify } from '../../common/utils/slug.util';
 import { CreateTreeDto } from './dto/create-tree.dto';
 import { UpdateTreeDto } from './dto/update-tree.dto';
@@ -26,6 +27,7 @@ export class TreeService {
     private prisma: PrismaService,
     private email: EmailService,
     private config: ConfigService,
+    private notifications: NotificationService,
   ) {}
 
   // ─── TREE CRUD ──────────────────────────────────────────────
@@ -418,15 +420,14 @@ export class TreeService {
 
     if (consent.targetUserId) {
       const requester = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-      await this.prisma.notification.create({
-        data: {
-          userId: consent.targetUserId,
-          type: 'SYSTEM',
-          title: 'Permintaan izin wali',
-          message: `${requester?.name || 'Seseorang'} meminta izin untuk mengelola profil dan silsilah Anda.`,
-          data: { kind: 'GUARDIAN_CONSENT', consentId: consent.id },
-        },
-      });
+      this.notifications.create({
+        userId: consent.targetUserId,
+        type: 'SYSTEM' as any,
+        title: 'Permintaan izin wali',
+        message: `${requester?.name || 'Seseorang'} meminta izin untuk mengelola profil dan silsilah Anda.`,
+        data: { kind: 'GUARDIAN_CONSENT', consentId: consent.id },
+      }).catch(() => {});
+      this.notifications.sendPushSafe(consent.targetUserId, 'Permintaan Izin Wali', `${requester?.name || 'Seseorang'} meminta izin mengelola silsilah Anda`).catch(() => {});
     }
 
     return consent;
@@ -465,15 +466,14 @@ export class TreeService {
     });
 
     const responder = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-    await this.prisma.notification.create({
-      data: {
-        userId: consent.requesterId,
-        type: 'SYSTEM',
-        title: grant ? 'Izin wali disetujui' : 'Izin wali ditolak',
-        message: `${responder?.name || 'Pengguna'} ${grant ? 'menyetujui' : 'menolak'} permintaan pengelolaan silsilah.`,
-        data: { kind: 'GUARDIAN_CONSENT', consentId: consent.id, granted: grant },
-      },
-    });
+    this.notifications.create({
+      userId: consent.requesterId,
+      type: 'SYSTEM' as any,
+      title: grant ? 'Izin wali disetujui' : 'Izin wali ditolak',
+      message: `${responder?.name || 'Pengguna'} ${grant ? 'menyetujui' : 'menolak'} permintaan pengelolaan silsilah.`,
+      data: { kind: 'GUARDIAN_CONSENT', consentId: consent.id, granted: grant },
+    }).catch(() => {});
+    this.notifications.sendPushSafe(consent.requesterId, grant ? 'Izin Disetujui' : 'Izin Ditolak', `${responder?.name || 'Pengguna'} ${grant ? 'menyetujui' : 'menolak'} permintaan Anda`).catch(() => {});
 
     return updated;
   }
@@ -759,6 +759,23 @@ export class TreeService {
       }
     }
 
+    // Create in-app notification if the invitee has an account
+    if (dto.email) {
+      const invitee = await this.prisma.user.findFirst({ where: { email: { equals: dto.email, mode: 'insensitive' } } });
+      if (invitee) {
+        const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { name: true } });
+        const inviter = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+        this.notifications.create({
+          userId: invitee.id,
+          type: 'TREE_INVITATION' as any,
+          title: 'Undangan Silsilah Keluarga',
+          message: `${inviter?.name || 'Seseorang'} mengundang Anda ke silsilah "${tree?.name || 'Keluarga'}".`,
+          data: { invitationId: invitation.id, token, treeId },
+        }).catch(() => {});
+        this.notifications.sendPushSafe(invitee.id, 'Undangan Silsilah', `${inviter?.name || 'Seseorang'} mengundang Anda ke silsilah keluarga`).catch(() => {});
+      }
+    }
+
     return invitation;
   }
 
@@ -810,6 +827,16 @@ export class TreeService {
     // Return tree info so frontend can redirect to the correct tree
     const tree = invitation.tree;
     const identity = await this.ensureIdentity(tree);
+
+    // Notify tree owner that invitation was accepted
+    this.notifications.create({
+      userId: tree.userId,
+      type: 'MEMBER_ADDED' as any,
+      title: 'Anggota Baru Bergabung',
+      message: `${user.name} telah menerima undangan dan bergabung ke silsilah "${tree.name}".`,
+      data: { treeId: tree.id, memberId: member.id, userId },
+    }).catch(() => {});
+    this.notifications.sendPushSafe(tree.userId, 'Anggota Baru', `${user.name} bergabung ke silsilah Anda`).catch(() => {});
 
     return { message: 'Undangan diterima', member, treeId: tree.id, slug: identity.slug };
   }

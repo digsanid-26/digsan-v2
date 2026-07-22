@@ -90,10 +90,60 @@ export class NotificationService {
     return { message: 'Notifikasi dihapus' };
   }
 
-  // ─── CREATE (internal) ────────────────────────────────────
+  // ─── CREATE (internal, preference-aware) ────────────────
 
   async create(data: { userId: string; type: NotificationType; title: string; message: string; data?: any }) {
+    // Check user preference for IN_APP channel
+    const pref = await this.prisma.notificationPreference.findUnique({
+      where: { userId_type_channel: { userId: data.userId, type: data.type as string, channel: 'IN_APP' } },
+    }).catch(() => null);
+    if (pref && !pref.enabled) return null; // user opted out
+
+    // Check global admin setting
+    const setting = await this.prisma.notificationSetting.findUnique({
+      where: { type: data.type as string },
+    }).catch(() => null);
+    if (setting && !setting.enabled) return null; // admin disabled
+
     return this.prisma.notification.create({ data });
+  }
+
+  // ─── PREFERENCES ──────────────────────────────────────────
+
+  async getPreferences(userId: string) {
+    const prefs = await this.prisma.notificationPreference.findMany({ where: { userId } });
+    return prefs;
+  }
+
+  async setPreference(userId: string, type: string, channel: string, enabled: boolean) {
+    return this.prisma.notificationPreference.upsert({
+      where: { userId_type_channel: { userId, type, channel: channel as any } },
+      create: { userId, type, channel: channel as any, enabled },
+      update: { enabled },
+    });
+  }
+
+  // ─── ADMIN SETTINGS ──────────────────────────────────────
+
+  async getAllSettings() {
+    return this.prisma.notificationSetting.findMany({ orderBy: { type: 'asc' } });
+  }
+
+  async upsertSetting(type: string, channel: string, enabled: boolean) {
+    return this.prisma.notificationSetting.upsert({
+      where: { type },
+      create: { type, channel: channel as any, enabled },
+      update: { channel: channel as any, enabled },
+    });
+  }
+
+  async getNotificationStats() {
+    const [total, unread, byType] = await Promise.all([
+      this.prisma.notification.count(),
+      this.prisma.notification.count({ where: { isRead: false } }),
+      this.prisma.notification.groupBy({ by: ['type'], _count: { type: true }, orderBy: { _count: { type: 'desc' } } }),
+    ]);
+    return { total, unread, byType: byType.map((t: any) => ({ type: t.type, count: t._count.type })) };
   }
 
   // ─── ORDER NOTIFICATIONS ──────────────────────────────────
@@ -209,7 +259,7 @@ export class NotificationService {
 
   // ─── HELPERS ──────────────────────────────────────────────
 
-  private sendPushSafe(userId: string, title: string, body: string) {
+  async sendPushSafe(userId: string, title: string, body: string) {
     this.pushService.sendToUser(userId, title, body).catch((err) => {
       this.logger.warn(`Push failed for ${userId}: ${err.message}`);
     });
