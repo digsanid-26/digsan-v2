@@ -51,15 +51,15 @@ export default function AdminGamificationPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Trophy size={28} className="text-amber-500" />
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <Trophy size={28} className="text-amber-500 dark:text-amber-400" />
           Gamification Admin
         </h1>
-        <p className="text-slate-500 mt-1">Kelola tipe poin, statistik, reward, dan redeem</p>
+        <p className="text-slate-500 dark:text-white/40 mt-1">Kelola tipe poin, statistik, reward, dan redeem</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 border-b border-slate-200 dark:border-white/[0.06]">
         <TabButton active={tab === 'config'} onClick={() => setTab('config')} icon={Settings} label="Konfigurasi" />
         <TabButton active={tab === 'stats'} onClick={() => setTab('stats')} icon={BarChart3} label="Stat & Logs" />
         <TabButton active={tab === 'rewards'} onClick={() => setTab('rewards')} icon={Gift} label="Reward & Redeem" />
@@ -78,8 +78,8 @@ function TabButton({ active, onClick, icon: Icon, label }: any) {
       onClick={onClick}
       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
         active
-          ? 'border-blue-600 text-blue-600'
-          : 'border-transparent text-slate-500 hover:text-slate-700'
+          ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+          : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-white/50 dark:hover:text-white'
       }`}
     >
       <Icon size={16} />
@@ -166,10 +166,10 @@ function ConfigTab() {
 
   return (
     <div className="space-y-4">
-      {error && <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3">{error}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm rounded-lg p-3">{error}</div>}
 
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-slate-900">Tipe Poin</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Tipe Poin</h2>
         <button
           onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ name: '', label: '', description: '', icon: '', color: '#3b82f6' }); }}
           className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition"
@@ -179,50 +179,50 @@ function ConfigTab() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Nama (slug)</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Nama (slug)</label>
               <input
                 type="text" required disabled={!!editing}
                 value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-50"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white disabled:bg-slate-50 dark:disabled:bg-white/[0.02]"
                 placeholder="pengabdian"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Label</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Label</label>
               <input
                 type="text" required
                 value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white"
                 placeholder="Poin Pengabdian"
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Deskripsi</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Deskripsi</label>
               <input
                 type="text"
                 value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white"
                 placeholder="Deskripsi singkat"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Icon (nama lucide)</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Icon (nama lucide)</label>
               <input
                 type="text"
                 value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white"
                 placeholder="heart"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Warna</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Warna</label>
               <input
                 type="color"
                 value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })}
-                className="w-full h-10 border border-slate-300 rounded-lg cursor-pointer"
+                className="w-full h-10 border border-slate-300 dark:border-white/10 rounded-lg cursor-pointer bg-white dark:bg-white/5"
               />
             </div>
           </div>
@@ -238,30 +238,30 @@ function ConfigTab() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+        <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400" /></div>
       ) : pointTypes.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-8 text-center text-slate-500 dark:text-white/40">
           Belum ada tipe poin. Klik "Tambah Tipe" untuk membuat.
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {pointTypes.map((pt) => (
-            <div key={pt.id} className="bg-white rounded-xl border border-slate-200 p-5">
+            <div key={pt.id} className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-5">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: (pt.color || '#3b82f6') + '20' }}>
                     <div className="w-4 h-4 rounded-full" style={{ backgroundColor: pt.color || '#3b82f6' }} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900">{pt.label}</h3>
-                    <p className="text-xs text-slate-400">{pt.name}</p>
+                    <h3 className="font-semibold text-slate-900 dark:text-white">{pt.label}</h3>
+                    <p className="text-xs text-slate-400 dark:text-white/30">{pt.name}</p>
                   </div>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full ${pt.isActive ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
+                <span className={`text-xs px-2 py-1 rounded-full ${pt.isActive ? 'bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400' : 'bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-white/30'}`}>
                   {pt.isActive ? 'Aktif' : 'Nonaktif'}
                 </span>
               </div>
-              {pt.description && <p className="text-sm text-slate-500 mt-3">{pt.description}</p>}
+              {pt.description && <p className="text-sm text-slate-500 dark:text-white/40 mt-3">{pt.description}</p>}
               <div className="flex gap-2 mt-4">
                 <button onClick={() => handleEdit(pt)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg">
                   <Edit size={14} /> Edit
@@ -329,14 +329,14 @@ function StatsTab() {
 
       {/* Point Type Stats */}
       {stats?.pointTypeStats?.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="font-semibold text-slate-900 mb-4">Statistik per Tipe Poin</h3>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-5">
+          <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Statistik per Tipe Poin</h3>
           <div className="space-y-3">
             {stats.pointTypeStats.map((s: any) => (
-              <div key={s.type} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+              <div key={s.type} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-white/[0.06] last:border-0">
                 <div>
-                  <span className="font-medium text-slate-700">{s.type}</span>
-                  <span className="text-xs text-slate-400 ml-2">{s.transactionCount} transaksi</span>
+                  <span className="font-medium text-slate-700 dark:text-white/80">{s.type}</span>
+                  <span className="text-xs text-slate-400 dark:text-white/30 ml-2">{s.transactionCount} transaksi</span>
                 </div>
                 <span className="font-bold text-amber-600">{s.totalAmount.toLocaleString()}</span>
               </div>
@@ -346,40 +346,40 @@ function StatsTab() {
       )}
 
       {/* Top 10 Users */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <h3 className="font-semibold text-slate-900 mb-4">Top 10 Member</h3>
+      <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-5">
+        <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Top 10 Member</h3>
         <div className="space-y-2">
           {topUsers.map((u) => (
             <div key={u.userId} className="flex items-center gap-3 py-2">
-              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600">
+              <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-sm font-bold text-slate-600 dark:text-white/60">
                 {u.rank}
               </div>
               {u.avatar ? (
                 <img src={u.avatar} alt="" className="w-8 h-8 rounded-full" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-medium text-blue-600">
+                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-sm font-medium text-blue-600 dark:text-blue-400">
                   {u.name?.[0] || '?'}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-slate-900 truncate">{u.name}</div>
-                <div className="text-xs text-slate-400 truncate">{u.email}</div>
+                <div className="text-sm font-medium text-slate-900 dark:text-white truncate">{u.name}</div>
+                <div className="text-xs text-slate-400 dark:text-white/30 truncate">{u.email}</div>
               </div>
               <span className="font-bold text-amber-600">{u.totalPoints.toLocaleString()}</span>
             </div>
           ))}
-          {topUsers.length === 0 && <p className="text-sm text-slate-400 text-center py-4">Belum ada data</p>}
+          {topUsers.length === 0 && <p className="text-sm text-slate-400 dark:text-white/30 text-center py-4">Belum ada data</p>}}
         </div>
       </div>
 
       {/* Point Logs */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-900">History Poin</h3>
+          <h3 className="font-semibold text-slate-900 dark:text-white">History Poin</h3>
           <select
             value={filterType}
             onChange={(e) => { setFilterType(e.target.value); setLogPage(1); }}
-            className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+            className="px-3 py-1.5 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white"
           >
             <option value="">Semua tipe</option>
             {stats?.pointTypeStats?.map((s: any) => <option key={s.type} value={s.type}>{s.type}</option>)}
@@ -389,7 +389,7 @@ function StatsTab() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-400 border-b border-slate-100">
+              <tr className="text-left text-slate-400 dark:text-white/30 border-b border-slate-100 dark:border-white/[0.06]">
                 <th className="pb-2 pr-4">User</th>
                 <th className="pb-2 pr-4">Tipe</th>
                 <th className="pb-2 pr-4">Jumlah</th>
@@ -399,17 +399,17 @@ function StatsTab() {
             </thead>
             <tbody>
               {logs.map((log) => (
-                <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedLog(log)}>
+                <tr key={log.id} className="border-b border-slate-50 dark:border-white/[0.03] hover:bg-slate-50 dark:hover:bg-white/[0.02] cursor-pointer" onClick={() => setSelectedLog(log)}>
                   <td className="py-2 pr-4">
-                    <div className="font-medium text-slate-700">{log.user?.name || 'Unknown'}</div>
-                    <div className="text-xs text-slate-400">{log.user?.email}</div>
+                    <div className="font-medium text-slate-700 dark:text-white/80">{log.user?.name || 'Unknown'}</div>
+                    <div className="text-xs text-slate-400 dark:text-white/30">{log.user?.email}</div>
                   </td>
-                  <td className="py-2 pr-4"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs">{log.type}</span></td>
+                  <td className="py-2 pr-4"><span className="px-2 py-0.5 bg-slate-100 dark:bg-white/10 rounded text-xs dark:text-white/60">{log.type}</span></td>
                   <td className={`py-2 pr-4 font-bold ${log.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {log.amount >= 0 ? '+' : ''}{log.amount}
                   </td>
-                  <td className="py-2 pr-4 text-slate-500 max-w-xs truncate">{log.reason || '-'}</td>
-                  <td className="py-2 text-xs text-slate-400">{new Date(log.createdAt).toLocaleString('id-ID')}</td>
+                  <td className="py-2 pr-4 text-slate-500 dark:text-white/40 max-w-xs truncate">{log.reason || '-'}</td>
+                  <td className="py-2 text-xs text-slate-400 dark:text-white/30">{new Date(log.createdAt).toLocaleString('id-ID')}</td>
                 </tr>
               ))}
             </tbody>
@@ -418,19 +418,19 @@ function StatsTab() {
 
         {logTotal > 20 && (
           <div className="flex items-center justify-between mt-4">
-            <span className="text-sm text-slate-500">{logTotal} total, halaman {logPage}</span>
+            <span className="text-sm text-slate-500 dark:text-white/40">{logTotal} total, halaman {logPage}</span>
             <div className="flex gap-2">
               <button
                 disabled={logPage <= 1}
                 onClick={() => setLogPage(logPage - 1)}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50"
+                className="px-3 py-1.5 text-sm border border-slate-300 dark:border-white/10 rounded-lg disabled:opacity-50 dark:text-white/60"
               >
                 Sebelumnya
               </button>
               <button
                 disabled={logPage * 20 >= logTotal}
                 onClick={() => setLogPage(logPage + 1)}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50"
+                className="px-3 py-1.5 text-sm border border-slate-300 dark:border-white/10 rounded-lg disabled:opacity-50 dark:text-white/60"
               >
                 Berikutnya
               </button>
@@ -450,8 +450,8 @@ function StatsTab() {
             <DetailRow label="Waktu" value={new Date(selectedLog.createdAt).toLocaleString('id-ID')} />
             {selectedLog.metadata && (
               <div>
-                <div className="text-xs text-slate-400 mb-1">Metadata</div>
-                <pre className="bg-slate-50 rounded-lg p-3 text-xs overflow-x-auto">{JSON.stringify(selectedLog.metadata, null, 2)}</pre>
+                <div className="text-xs text-slate-400 dark:text-white/30 mb-1">Metadata</div>
+                <pre className="bg-slate-50 dark:bg-white/5 rounded-lg p-3 text-xs overflow-x-auto text-slate-700 dark:text-white/60">{JSON.stringify(selectedLog.metadata, null, 2)}</pre>
               </div>
             )}
           </div>
@@ -540,17 +540,17 @@ function RewardsTab() {
   };
 
   if (loading && rewards.length === 0) {
-    return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400" /></div>;
   }
 
   return (
     <div className="space-y-6">
-      {error && <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3">{error}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm rounded-lg p-3">{error}</div>}
 
       {/* Rewards Section */}
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2"><Gift size={20} /> Daftar Reward</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2"><Gift size={20} /> Daftar Reward</h2>
           <button
             onClick={() => { setShowRewardForm(!showRewardForm); setEditingReward(null); setRewardForm({ name: '', description: '', icon: '', pointCost: 100, stock: undefined }); }}
             className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg"
@@ -560,32 +560,32 @@ function RewardsTab() {
         </div>
 
         {showRewardForm && (
-          <form onSubmit={handleRewardSubmit} className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 mb-4">
+          <form onSubmit={handleRewardSubmit} className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-5 space-y-4 mb-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nama Reward</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Nama Reward</label>
                 <input type="text" required value={rewardForm.name} onChange={(e) => setRewardForm({ ...rewardForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Voucher 50rb" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white" placeholder="Voucher 50rb" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Biaya Poin</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Biaya Poin</label>
                 <input type="number" required min={1} value={rewardForm.pointCost} onChange={(e) => setRewardForm({ ...rewardForm, pointCost: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white" />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Deskripsi</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Deskripsi</label>
                 <input type="text" value={rewardForm.description} onChange={(e) => setRewardForm({ ...rewardForm, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Deskripsi reward" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white" placeholder="Deskripsi reward" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Stok (opsional)</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Stok (opsional)</label>
                 <input type="number" min={0} value={rewardForm.stock ?? ''} onChange={(e) => setRewardForm({ ...rewardForm, stock: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="100" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white" placeholder="100" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Icon (nama lucide)</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1">Icon (nama lucide)</label>
                 <input type="text" value={rewardForm.icon} onChange={(e) => setRewardForm({ ...rewardForm, icon: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="gift" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white" placeholder="gift" />
               </div>
             </div>
             <div className="flex gap-2">
@@ -601,23 +601,23 @@ function RewardsTab() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {rewards.map((r) => (
-            <div key={r.id} className="bg-white rounded-xl border border-slate-200 p-5">
+            <div key={r.id} className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-5">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                    <Gift size={20} className="text-purple-600" />
+                  <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center">
+                    <Gift size={20} className="text-purple-600 dark:text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900">{r.name}</h3>
-                    <p className="text-xs text-slate-400">{r.pointCost} poin</p>
+                    <h3 className="font-semibold text-slate-900 dark:text-white">{r.name}</h3>
+                    <p className="text-xs text-slate-400 dark:text-white/30">{r.pointCost} poin</p>
                   </div>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full ${r.isActive ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
+                <span className={`text-xs px-2 py-1 rounded-full ${r.isActive ? 'bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400' : 'bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-white/30'}`}>
                   {r.isActive ? 'Aktif' : 'Nonaktif'}
                 </span>
               </div>
-              {r.description && <p className="text-sm text-slate-500 mt-3">{r.description}</p>}
-              <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
+              {r.description && <p className="text-sm text-slate-500 dark:text-white/40 mt-3">{r.description}</p>}
+              <div className="flex items-center gap-3 mt-3 text-xs text-slate-400 dark:text-white/30">
                 {r.stock !== null && <span className="flex items-center gap-1"><Package size={12} /> Stok: {r.stock ?? '∞'}</span>}
                 <span>{r._count?.redeemRequests || 0} redeem</span>
               </div>
@@ -632,7 +632,7 @@ function RewardsTab() {
             </div>
           ))}
           {rewards.length === 0 && !showRewardForm && (
-            <div className="col-span-full bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
+            <div className="col-span-full bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-8 text-center text-slate-500 dark:text-white/40">
               Belum ada reward. Klik "Tambah Reward" untuk membuat.
             </div>
           )}
@@ -642,11 +642,11 @@ function RewardsTab() {
       {/* Redeem Requests Section */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2"><Clock size={20} /> Permintaan Redeem</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2"><Clock size={20} /> Permintaan Redeem</h2>
           <select
             value={redeemFilter}
             onChange={(e) => { setRedeemFilter(e.target.value); setRedeemPage(1); }}
-            className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+            className="px-3 py-1.5 border border-slate-300 dark:border-white/10 rounded-lg text-sm bg-white dark:bg-white/5 text-slate-900 dark:text-white"
           >
             <option value="">Semua status</option>
             <option value="PENDING">Pending</option>
@@ -657,10 +657,10 @@ function RewardsTab() {
           </select>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-400 border-b border-slate-100">
+              <tr className="text-left text-slate-400 dark:text-white/30 border-b border-slate-100 dark:border-white/[0.06]">
                 <th className="p-3">User</th>
                 <th className="p-3">Reward</th>
                 <th className="p-3">Status</th>
@@ -670,17 +670,17 @@ function RewardsTab() {
             </thead>
             <tbody>
               {redeemRequests.map((req) => (
-                <tr key={req.id} className="border-b border-slate-50">
+                <tr key={req.id} className="border-b border-slate-50 dark:border-white/[0.03]">
                   <td className="p-3">
-                    <div className="font-medium text-slate-700">{req.user?.name}</div>
-                    <div className="text-xs text-slate-400">{req.user?.email}</div>
+                    <div className="font-medium text-slate-700 dark:text-white/80">{req.user?.name}</div>
+                    <div className="text-xs text-slate-400 dark:text-white/30">{req.user?.email}</div>
                   </td>
                   <td className="p-3">
-                    <div className="font-medium text-slate-700">{req.reward?.name}</div>
-                    <div className="text-xs text-slate-400">{req.reward?.pointCost} poin</div>
+                    <div className="font-medium text-slate-700 dark:text-white/80">{req.reward?.name}</div>
+                    <div className="text-xs text-slate-400 dark:text-white/30">{req.reward?.pointCost} poin</div>
                   </td>
                   <td className="p-3"><StatusBadge status={req.status} /></td>
-                  <td className="p-3 text-xs text-slate-400">{new Date(req.createdAt).toLocaleString('id-ID')}</td>
+                  <td className="p-3 text-xs text-slate-400 dark:text-white/30">{new Date(req.createdAt).toLocaleString('id-ID')}</td>
                   <td className="p-3">
                     <div className="flex gap-1">
                       {req.status === 'PENDING' && (
@@ -703,7 +703,7 @@ function RewardsTab() {
                 </tr>
               ))}
               {redeemRequests.length === 0 && (
-                <tr><td colSpan={5} className="p-8 text-center text-slate-400">Belum ada permintaan redeem</td></tr>
+                <tr><td colSpan={5} className="p-8 text-center text-slate-400 dark:text-white/30">Belum ada permintaan redeem</td></tr>
               )}
             </tbody>
           </table>
@@ -711,12 +711,12 @@ function RewardsTab() {
 
         {redeemTotal > 20 && (
           <div className="flex items-center justify-between mt-4">
-            <span className="text-sm text-slate-500">{redeemTotal} total, halaman {redeemPage}</span>
+            <span className="text-sm text-slate-500 dark:text-white/40">{redeemTotal} total, halaman {redeemPage}</span>
             <div className="flex gap-2">
               <button disabled={redeemPage <= 1} onClick={() => setRedeemPage(redeemPage - 1)}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50">Sebelumnya</button>
+                className="px-3 py-1.5 text-sm border border-slate-300 dark:border-white/10 rounded-lg disabled:opacity-50 dark:text-white/60">Sebelumnya</button>
               <button disabled={redeemPage * 20 >= redeemTotal} onClick={() => setRedeemPage(redeemPage + 1)}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50">Berikutnya</button>
+                className="px-3 py-1.5 text-sm border border-slate-300 dark:border-white/10 rounded-lg disabled:opacity-50 dark:text-white/60">Berikutnya</button>
             </div>
           </div>
         )}
@@ -729,11 +729,11 @@ function RewardsTab() {
 
 function StatBox({ label, value, color, icon: Icon }: any) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
+    <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/[0.06] p-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-slate-500">{label}</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{value.toLocaleString()}</p>
+          <p className="text-sm text-slate-500 dark:text-white/40">{label}</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value.toLocaleString()}</p>
         </div>
         <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
           <Icon size={22} className="text-white" />
@@ -757,10 +757,10 @@ function StatusBadge({ status }: { status: string }) {
 function Modal({ onClose, title, children }: any) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-900">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+          <h3 className="font-semibold text-slate-900 dark:text-white">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 dark:text-white/40 hover:text-slate-600 dark:hover:text-white/70"><X size={20} /></button>
         </div>
         {children}
       </div>
@@ -771,8 +771,8 @@ function Modal({ onClose, title, children }: any) {
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4">
-      <span className="text-sm text-slate-400">{label}</span>
-      <span className="text-sm font-medium text-slate-700 text-right">{value}</span>
+      <span className="text-sm text-slate-400 dark:text-white/30">{label}</span>
+      <span className="text-sm font-medium text-slate-700 dark:text-white/80 text-right">{value}</span>
     </div>
   );
 }
