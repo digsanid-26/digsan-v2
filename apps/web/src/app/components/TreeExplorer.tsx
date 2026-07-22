@@ -229,6 +229,8 @@ export default function TreeExplorer() {
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ ox: number; oy: number; px: number; py: number } | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const panRef = useRef({ x: 0, y: 0 });
   const uidRef = useRef('guest');
 
   // Load persisted data — localStorage first (fast/offline cache), then
@@ -435,16 +437,26 @@ export default function TreeExplorer() {
       return;
     }
     if (!drag.current) return;
-    setPan({ x: drag.current.ox + (e.clientX - drag.current.px), y: drag.current.oy + (e.clientY - drag.current.py) });
+    const nx = drag.current.ox + (e.clientX - drag.current.px);
+    const ny = drag.current.oy + (e.clientY - drag.current.py);
+    panRef.current = { x: nx, y: ny };
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        setPan(panRef.current);
+      });
+    }
   };
   const onPointerUp = () => {
     if (selectMode) { finalizeMarquee(); return; }
+    if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    if (drag.current) setPan(panRef.current);
     drag.current = null;
   };
 
-  const doExpand = () => { setExpanded(true); setZoom(0.42); setPan({ x: 0, y: 0 }); };
-  const doCollapse = () => { setExpanded(false); setZoom(1); setPan({ x: 0, y: 0 }); };
-  const reset = () => { setZoom(expanded ? 0.42 : 1); setPan({ x: 0, y: 0 }); };
+  const doExpand = () => { setExpanded(true); setZoom(0.42); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); };
+  const doCollapse = () => { setExpanded(false); setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); };
+  const reset = () => { setZoom(expanded ? 0.42 : 1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); };
 
   const clickNode = (n: TNode) => {
     if (n.role === 'group') { doExpand(); return; }
@@ -459,22 +471,22 @@ export default function TreeExplorer() {
   return (
     <div className="relative w-full h-full overflow-hidden select-none bg-slate-100 dark:bg-[#05050f]">
       {/* Toolbar */}
-      <div className="absolute top-4 left-4 z-30 flex gap-2">
+      <div className="absolute top-3 left-3 right-3 z-30 flex flex-wrap gap-2 sm:flex-nowrap sm:right-auto">
         {config.configured && (
           <button onClick={expanded ? doCollapse : doExpand}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors shadow-lg">
-            <Network size={15} />{expanded ? 'Tutup Semua' : 'Expand All'}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors shadow-lg whitespace-nowrap">
+            <Network size={15} />{expanded ? 'Tutup' : 'Expand'}
           </button>
         )}
         <button onClick={() => { setPanel('setup'); setSelected(null); }}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg whitespace-nowrap
             bg-white text-slate-700 hover:bg-slate-50 border border-slate-200
             dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15">
           <Settings size={15} />Pengaturan
         </button>
         {config.configured && (
           <button onClick={() => { setStudioRegion(null); setStudioHighlight([]); setShowStudio(true); }}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg whitespace-nowrap
               bg-white text-slate-700 hover:bg-slate-50 border border-slate-200
               dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15">
             <Share2 size={15} />Undang
@@ -482,12 +494,12 @@ export default function TreeExplorer() {
         )}
         {config.configured && (
           <button onClick={() => setSelectMode((s) => !s)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg border ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg border whitespace-nowrap ${
               selectMode
                 ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-400'
                 : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200 dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15'
             }`}>
-            <Crop size={15} />{selectMode ? 'Batal Pilih' : 'Pilih Area'}
+            <Crop size={15} />{selectMode ? 'Batal' : 'Pilih'}
           </button>
         )}
       </div>
@@ -501,7 +513,7 @@ export default function TreeExplorer() {
         <button onClick={() => setZoom((z) => CLAMP(z * 0.87, 0.2, 2))} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10" title="Perkecil"><Minus size={16} /></button>
       </div>
 
-      <div className="absolute top-4 right-4 z-20 text-[11px] text-slate-400 dark:text-white/35">Zoom {Math.round(zoom * 100)}% • seret untuk geser</div>
+      <div className="absolute top-3 right-3 z-20 text-[11px] text-slate-400 dark:text-white/35 hidden sm:block">Zoom {Math.round(zoom * 100)}% • seret untuk geser</div>
 
       {!config.configured && (
         <div className="absolute inset-x-0 top-24 z-20 flex justify-center pointer-events-none">
@@ -520,8 +532,9 @@ export default function TreeExplorer() {
       )}
 
       {/* Viewport */}
-      <div ref={viewportRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-        className={`absolute inset-0 ${selectMode ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}>
+      <div ref={viewportRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+        className={`absolute inset-0 ${selectMode ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
+        style={{ touchAction: 'none' }}>
         {selectMode && marquee && (
           <div className="absolute z-20 border-2 border-amber-400 bg-amber-400/15 rounded pointer-events-none"
             style={{
