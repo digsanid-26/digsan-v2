@@ -1,12 +1,66 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import { google } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../../common/database/prisma.service';
+
+interface MailInfo {
+  messageId: string;
+}
+
+interface MailTransport {
+  sendMail(opts: { from: string; to: string; subject: string; html: string }): Promise<MailInfo>;
+}
+
+/**
+ * Gmail REST API transport — sends email via HTTPS (port 443) instead of SMTP,
+ * bypassing firewall blocks on SMTP ports (465/587).
+ */
+class GmailApiTransport implements MailTransport {
+  private oauth2: OAuth2Client;
+  private userEmail: string;
+
+  constructor(clientId: string, clientSecret: string, refreshToken: string, userEmail: string) {
+    this.oauth2 = new google.auth.OAuth2(clientId, clientSecret);
+    this.oauth2.setCredentials({ refresh_token: refreshToken });
+    this.userEmail = userEmail;
+  }
+
+  async sendMail(opts: { from: string; to: string; subject: string; html: string }): Promise<MailInfo> {
+    // Build RFC 2822 raw email
+    const boundary = '----=_Part_' + Math.random().toString(36).slice(2);
+    const fromHeader = opts.from || this.userEmail;
+    const lines = [
+      `From: ${fromHeader}`,
+      `To: ${opts.to}`,
+      `Subject: ${opts.subject}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      Buffer.from(opts.html).toString('base64'),
+      `--${boundary}--`,
+      '',
+    ];
+    const raw = Buffer.from(lines.join('\r\n')).toString('base64url');
+
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2 });
+    const res = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: { raw },
+    });
+    return { messageId: res.data.id || '' };
+  }
+}
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: nodemailer.Transporter | null = null;
+  private transporter: MailTransport | null = null;
   private fromAddress = 'Digsan <noreply@digsan.id>';
   private loaded = false;
 
@@ -35,29 +89,24 @@ export class EmailService {
     }
   }
 
-  private async buildTransporter(): Promise<nodemailer.Transporter | null> {
+  private async buildTransporter(): Promise<MailTransport | null> {
     const cfg = await this.getEmailConfig();
 
-    // 1) Gmail OAuth2 connected via the Admin panel (mirrors wp-mail-smtp's
-    //    "Authorization / Connect" flow). Nodemailer refreshes access tokens
-    //    automatically from the stored refresh token.
+    // 1) Gmail OAuth2 connected via the Admin panel — uses Gmail REST API
+    //    (HTTPS port 443) instead of SMTP, bypassing firewall blocks.
     if (
       cfg['email.provider'] === 'gmail' &&
       cfg['email.clientId'] && cfg['email.clientSecret'] &&
       cfg['email.refreshToken'] && cfg['email.connectedEmail']
     ) {
       this.fromAddress = cfg['email.from'] || `Digsan <${cfg['email.connectedEmail']}>`;
-      this.logger.log(`Email transporter: Gmail OAuth (${cfg['email.connectedEmail']})`);
-      return nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          type: 'OAuth2',
-          user: cfg['email.connectedEmail'],
-          clientId: cfg['email.clientId'],
-          clientSecret: cfg['email.clientSecret'],
-          refreshToken: cfg['email.refreshToken'],
-        },
-      });
+      this.logger.log(`Email transporter: Gmail REST API (${cfg['email.connectedEmail']})`);
+      return new GmailApiTransport(
+        cfg['email.clientId'],
+        cfg['email.clientSecret'],
+        cfg['email.refreshToken'],
+        cfg['email.connectedEmail'],
+      );
     }
 
     // 2) Generic SMTP (env) — "Other SMTP" mailer; works with Google via
@@ -79,25 +128,22 @@ export class EmailService {
       });
     }
 
-    // 3) Legacy Gmail OAuth2 from env variables.
+    // 3) Legacy Gmail OAuth2 from env variables — also use REST API.
     const clientId = this.configService.get('GOOGLE_CLIENT_ID');
     const clientSecret = this.configService.get('GOOGLE_CLIENT_SECRET');
     const refreshToken = this.configService.get('GOOGLE_REFRESH_TOKEN');
     const smtpUser = this.configService.get('SMTP_USER');
     if (clientId && clientSecret && refreshToken && smtpUser) {
       this.fromAddress = this.configService.get('SMTP_FROM', this.fromAddress);
-      this.logger.log('Email transporter: Gmail OAuth2 (env)');
-      return nodemailer.createTransport({
-        service: 'gmail',
-        auth: { type: 'OAuth2', user: smtpUser, clientId, clientSecret, refreshToken },
-      });
+      this.logger.log(`Email transporter: Gmail REST API (env) (${smtpUser})`);
+      return new GmailApiTransport(clientId, clientSecret, refreshToken, smtpUser);
     }
 
     this.logger.warn('Email credentials not configured — emails will be logged only');
     return null;
   }
 
-  private async getTransporter(): Promise<nodemailer.Transporter | null> {
+  private async getTransporter(): Promise<MailTransport | null> {
     if (!this.loaded) {
       try {
         this.transporter = await this.buildTransporter();
