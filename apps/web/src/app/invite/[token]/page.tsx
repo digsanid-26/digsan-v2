@@ -124,7 +124,7 @@ function InviteInner({ token }: { token: string }) {
   );
 }
 
-export default function InvitePage({ params }: { params: { token: string } }) {
+export default function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   return (
     <Suspense
       fallback={
@@ -133,7 +133,12 @@ export default function InvitePage({ params }: { params: { token: string } }) {
         </div>
       }
     >
-      <InviteInner token={params.token} />
+      <InvitePageInner params={params} />
     </Suspense>
   );
+}
+
+async function InvitePageInner({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  return <InviteInner token={token} />;
 }
