@@ -8,6 +8,7 @@ import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
 import { DEFAULT_CONFIG } from './treeTypes';
 import { configToGraph, layoutGraph } from './familyGraph';
+import { AdSpotBanner } from './AdSpotBanner';
 import { STYLE, OX, OY } from './treeStyle';
 import InvitationStudio from './InvitationStudio';
 import type { Region } from './InvitationStudio';
@@ -517,6 +518,13 @@ export default function TreeExplorer() {
             <Crop size={15} />{selectMode ? 'Batal' : 'Pilih'}
           </button>
         )}
+      </div>
+
+      {/* Left-Tree Ad Banners */}
+      <div className="absolute top-16 left-3 z-20 w-44 space-y-2">
+        <AdSpotBanner spotKey="tree-l-r1/1-01" />
+        <AdSpotBanner spotKey="tree-l-r1/1-02" />
+        <AdSpotBanner spotKey="tree-l-r1/1-03" />
       </div>
 
       {/* Zoom controls */}

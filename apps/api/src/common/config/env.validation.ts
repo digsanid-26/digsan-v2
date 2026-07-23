@@ -97,6 +97,11 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   FONNTE_API_KEY: string;
+
+  // OpenRouter AI (optional — for Ads Builder image generation)
+  @IsString()
+  @IsOptional()
+  OPENROUTER_API_KEY: string;
 }
 
 export function validate(config: Record<string, unknown>) {

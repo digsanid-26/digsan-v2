@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   ArrowLeft,
+  Megaphone,
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/auth-provider';
 
@@ -23,6 +24,7 @@ const adminNav = [
   { href: '/admin/trees', label: 'Family Trees', icon: TreePine },
   { href: '/admin/workers', label: 'Worker', icon: Briefcase },
   { href: '/admin/gamification', label: 'Gamification', icon: Trophy },
+  { href: '/admin/advertising', label: 'Advertising', icon: Megaphone },
   { href: '/admin/settings', label: 'Pengaturan', icon: Settings },
 ];
 

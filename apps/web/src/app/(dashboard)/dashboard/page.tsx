@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import Link from 'next/link';
+import { AdSpotBanner } from '@/app/components/AdSpotBanner';
 
 // ─── Dummy data ─────────────────────────────────────────────
 
@@ -150,6 +151,9 @@ export default function DashboardPage() {
             ))}
           </ul>
         </Card>
+
+        {/* Ad Banner — 3:1 below Informasi */}
+        <AdSpotBanner spotKey="dash-in" className="mt-2" />
 
         {/* Column 4 — Gamification */}
         <Card
