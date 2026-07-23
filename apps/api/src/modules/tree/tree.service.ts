@@ -237,6 +237,29 @@ export class TreeService {
   async getLayout(userId: string) {
     const tree = await this.getOrCreateDefaultTree(userId);
     const identity = await this.ensureIdentity(tree);
+
+    // Check if this user is a connected member (not the tree owner)
+    let connectedFamily: { familyName: string; slug: string; ownerId: string; ownerName: string } | null = null;
+    if (tree.userId !== userId) {
+      // User is a member of someone else's tree — return inviter's family info
+      const inviterConfig = (tree.layoutConfig as any) ?? {};
+      connectedFamily = {
+        familyName: inviterConfig.mainFamilyName || tree.name || 'Keluarga',
+        slug: identity.slug || '',
+        ownerId: tree.userId,
+        ownerName: identity.owner?.name || '',
+      };
+    } else {
+      // Check if any member node in the user's tree has a linkedUserId
+      // (user is the head, but we want to know if they have connected members)
+      const membersData = (tree.layoutMembers as Record<string, any>) ?? {};
+      const selfMember = membersData['self'];
+      // If self node has linkedUserId, this user is connected to someone else's tree
+      if (selfMember?.linkedUserId) {
+        // This shouldn't normally happen for the tree owner, but handle it
+      }
+    }
+
     return {
       treeId: tree.id,
       slug: identity.slug,
@@ -244,6 +267,8 @@ export class TreeService {
       config: tree.layoutConfig ?? null,
       members: tree.layoutMembers ?? null,
       updatedAt: tree.updatedAt,
+      isTreeOwner: tree.userId === userId,
+      connectedFamily,
     };
   }
 

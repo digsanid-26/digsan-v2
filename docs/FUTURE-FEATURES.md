@@ -94,7 +94,7 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 
 ### Spot Advertising
 - [ ] Banner id dash-in disediakan untuk dapat menampung banner dengan ratio 3:1 pada app.digsan.id/dashboard box Informasi, diletakkan di bawah tulisan Informasi
-- [ ] Banner Modal Left-Tree pada halaman app.digsan.id/tree dengan posisi top-left di bawah navigasi tree yang dapat diisi 3 Banner id ratio 1:1 tree-l-r1/1-01, tree-l-r1/1-02, tree-l-r1/1-03, atau dua banner id aspek rasio 1:2 tree-l-r1/2 dan aspek rasio 1:1 tree-l-1/1-01, atau banner aspek rasio 1:3 tree-l-r1/3;  
+- [ ] Banner Modal Left-Tree pada halaman app.digsan.id/tree dengan posisi top-left di bawah navigasi tree yang dapat diisi 3 Banner id ratio 1:1 tree-l-r1/1-01, tree-l-r1/1-02, tree-l-r1/1-03, atau dua banner id aspek rasio 1:2 tree-l-r1/2 dan aspek rasio 1:1 tree-l-1/1-01, atau 1 banner aspek rasio 1:3 tree-l-r1/3;  
 
 
 ## Sistem Ai Asisten / Helper

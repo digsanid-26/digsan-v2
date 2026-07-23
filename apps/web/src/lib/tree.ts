@@ -2,6 +2,13 @@ import { getTokens } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
+export interface ConnectedFamily {
+  familyName: string;
+  slug: string;
+  ownerId: string;
+  ownerName: string;
+}
+
 export interface TreeLayout<C = unknown, M = unknown> {
   treeId: string;
   slug: string | null;
@@ -9,6 +16,8 @@ export interface TreeLayout<C = unknown, M = unknown> {
   config: C | null;
   members: M | null;
   updatedAt: string;
+  isTreeOwner?: boolean;
+  connectedFamily?: ConnectedFamily | null;
 }
 
 async function authRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

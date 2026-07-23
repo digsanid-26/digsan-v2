@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getUser } from '@/lib/auth';
 import { treeApi } from '@/lib/tree';
-import type { GuardianConsent } from '@/lib/tree';
+import type { GuardianConsent, ConnectedFamily } from '@/lib/tree';
 import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
 import { DEFAULT_CONFIG } from './treeTypes';
@@ -211,6 +211,8 @@ export default function TreeExplorer() {
 
   const [me, setMe] = useState<{ id: string; name: string; avatar: string | null } | null>(null);
   const [identity, setIdentity] = useState<{ slug: string | null; username: string | null }>({ slug: null, username: null });
+  const [isTreeOwner, setIsTreeOwner] = useState(true);
+  const [connectedFamily, setConnectedFamily] = useState<ConnectedFamily | null>(null);
   const [config, setConfig] = useState<TreeConfig>(DEFAULT_CONFIG);
   const [members, setMembers] = useState<Members>({});
   const [consents, setConsents] = useState<GuardianConsent[]>([]);
@@ -267,6 +269,8 @@ export default function TreeExplorer() {
         if (cancelled) return;
 
         setIdentity({ slug: remote.slug, username: remote.owner?.username ?? null });
+        setIsTreeOwner(remote.isTreeOwner !== false);
+        setConnectedFamily(remote.connectedFamily ?? null);
 
         if (remote.config) {
           const merged = { ...DEFAULT_CONFIG, ...remote.config };
@@ -639,7 +643,9 @@ export default function TreeExplorer() {
         border-l bg-white/97 border-slate-200 dark:bg-[#0a0e1a]/97 dark:border-white/10
         ${panel !== 'none' ? 'translate-x-0' : 'translate-x-full'}`}>
         {panel === 'setup' && (
-          <SetupForm dark={dark} initial={config} onClose={() => setPanel('none')}
+          <SetupForm dark={dark} initial={config} isTreeOwner={isTreeOwner} connectedFamily={connectedFamily}
+            familySlug={identity.slug}
+            onClose={() => setPanel('none')}
             onSave={(c) => { saveConfig({ ...c, configured: true }); setPanel('none'); setExpanded(false); }} />
         )}
         {panel === 'member' && selected && (
@@ -647,6 +653,7 @@ export default function TreeExplorer() {
             familySlug={identity.slug} ownerUsername={identity.username}
             member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
             canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest')}
+            connectedFamily={connectedFamily}
             consent={consentFor(selected.id)}
             onRequestConsent={() => requestConsent(selected.id)}
             onRevokeConsent={(id) => revokeConsent(id)}
@@ -727,10 +734,11 @@ function NumField({ label, value, onChange }: { label: string; value: number; on
   );
 }
 
-function SetupForm({ initial, onSave, onClose }: { dark: boolean; initial: TreeConfig; onSave: (c: TreeConfig) => void; onClose: () => void }) {
+function SetupForm({ initial, isTreeOwner, connectedFamily, familySlug, onSave, onClose }: { dark: boolean; initial: TreeConfig; isTreeOwner: boolean; connectedFamily: ConnectedFamily | null; familySlug: string | null; onSave: (c: TreeConfig) => void; onClose: () => void }) {
   const [c, setC] = useState<TreeConfig>(initial);
   const set = (patch: Partial<TreeConfig>) => setC((p) => ({ ...p, ...patch }));
   const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
+  const inputReadOnlyCls = 'w-full px-3 py-2 rounded-lg text-sm border bg-slate-50 border-slate-200 text-slate-500 dark:bg-white/5 dark:border-white/10 dark:text-white/50 cursor-not-allowed';
 
   return (
     <div className="h-full flex flex-col text-slate-900 dark:text-white">
@@ -743,7 +751,19 @@ function SetupForm({ initial, onSave, onClose }: { dark: boolean; initial: TreeC
         <section>
           <h4 className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-2">Keluarga Utama</h4>
           <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nama Family</label>
-          <input value={c.mainFamilyName} onChange={(e) => set({ mainFamilyName: e.target.value })} placeholder="mis. Keluarga Budi" className={inputCls} />
+          {isTreeOwner ? (
+            <input value={c.mainFamilyName} onChange={(e) => set({ mainFamilyName: e.target.value })} placeholder="mis. Keluarga Budi" className={inputCls} />
+          ) : (
+            <div className="space-y-2">
+              <input value={connectedFamily?.familyName || c.mainFamilyName} readOnly placeholder="—" className={inputReadOnlyCls} />
+              {connectedFamily?.slug && (
+                <a href={`/family/${connectedFamily.slug}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                  <ExternalLink size={12} />/family/{connectedFamily.slug}
+                </a>
+              )}
+            </div>
+          )}
           <div className="mt-2">
             <NumField label="Jumlah pasangan (suami/istri)" value={c.spouseCount} onChange={(v) => set({ spouseCount: v })} />
             <NumField label="Jumlah anak" value={c.childCount} onChange={(v) => set({ childCount: v })} />
@@ -783,8 +803,9 @@ function SetupForm({ initial, onSave, onClose }: { dark: boolean; initial: TreeC
 
 // ─── Member form ────────────────────────────────────────────
 
-function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultName, accountName, canEdit, consent, onRequestConsent, onRevokeConsent, onSetSlug, onOpenInvite, onSave, onClose }: {
+function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultName, accountName, canEdit, connectedFamily, consent, onRequestConsent, onRevokeConsent, onSetSlug, onOpenInvite, onSave, onClose }: {
   dark: boolean; node: TNode; isSelf: boolean; familySlug?: string | null; ownerUsername?: string | null; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
+  connectedFamily?: ConnectedFamily | null;
   consent?: GuardianConsent;
   onRequestConsent: () => void; onRevokeConsent: (consentId: string) => void;
   onSetSlug: (slug?: string) => Promise<void>;
@@ -1058,7 +1079,34 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
         </div>
 
         {/* Identity matching — user search + email/phone (not for self) */}
-        {!isSelf && canEdit && (
+        {!isSelf && canEdit && form.linkedUserId && (
+          <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Link2 size={16} className="text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Telah terhubung</span>
+            </div>
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">
+              Telah terhubung dengan Family: <span className="font-semibold">{connectedFamily?.familyName || 'Keluarga'}</span>
+            </p>
+            {connectedFamily?.slug && (
+              <a href={`/family/${connectedFamily.slug}`} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                <ExternalLink size={12} />/family/{connectedFamily.slug}
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={handleSyncLinkedUser}
+              disabled={syncing || !canEdit}
+              className="w-full py-1.5 rounded-lg text-xs font-medium bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Menyinkronkan...' : 'Update Koneksi'}
+            </button>
+          </div>
+        )}
+
+        {!isSelf && canEdit && !form.linkedUserId && (
           <div className="space-y-3 rounded-xl border border-slate-200 dark:border-white/10 p-4">
             <p className="text-xs font-semibold text-slate-600 dark:text-white/60">Identifikasi Anggota</p>
             <p className="text-xs text-slate-400 dark:text-white/40 -mt-2">Cari user terdaftar atau isi email/WhatsApp untuk mencocokkan identitas</p>
@@ -1143,23 +1191,6 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
             </div>
 
             {/* Match status indicators */}
-            {matchStatus === 'linked' && form.linkedUserId && (
-              <div className="rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Check size={14} className="text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-xs text-emerald-700 dark:text-emerald-300">User terhubung. Notifikasi persetujuan akan dikirim saat disimpan.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSyncLinkedUser}
-                  disabled={syncing || !canEdit}
-                  className="w-full py-1.5 rounded-lg text-xs font-medium bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
-                  {syncing ? 'Menyinkronkan...' : 'Update Koneksi'}
-                </button>
-              </div>
-            )}
             {matchStatus === 'sent' && (
               <div className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2">
                 <span className="text-xs text-amber-700 dark:text-amber-300">Cocok ditemukan! Notifikasi persetujuan akan dikirim saat disimpan.</span>
