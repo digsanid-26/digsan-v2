@@ -339,7 +339,8 @@ export class TreeService {
 
   // ─── SYNC LINKED USER INFO ──────────────────────────────────
 
-  /** Sync avatar and info from a linked user's account into the member node. */
+  /** Sync avatar and info from a linked user's account into the member node.
+   *  Also syncs the linked user's family tree to follow the inviter's slug and family name. */
   async syncLinkedUser(userId: string, nodeId: string) {
     const tree = await this.getOrCreateDefaultTree(userId);
     if (tree.userId !== userId) {
@@ -353,7 +354,7 @@ export class TreeService {
 
     const linkedUser = await this.prisma.user.findUnique({
       where: { id: member.linkedUserId },
-      select: { id: true, name: true, avatar: true, email: true, phone: true },
+      select: { id: true, name: true, avatar: true, email: true, phone: true, username: true },
     });
     if (!linkedUser) throw new NotFoundException('User terhubung tidak ditemukan');
 
@@ -373,12 +374,58 @@ export class TreeService {
     });
 
     const identity = await this.ensureIdentity(updated);
+
+    // ─── Sync linked user's family tree to follow inviter's slug ───
+    const inviterConfig = (tree.layoutConfig as any) ?? {};
+    const inviterFamilyName = inviterConfig.mainFamilyName || tree.name || 'keluarga';
+    const inviterSlug = identity.slug;
+
+    let linkedTreeSlug: string | null = null;
+    try {
+      // Find or create the linked user's own tree
+      const linkedTree = await this.getOrCreateDefaultTree(linkedUser.id);
+
+      // Update linked user's tree config to match inviter's family name
+      const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
+      const updatedLinkedConfig = {
+        ...linkedConfig,
+        mainFamilyName: inviterFamilyName,
+      };
+
+      // Generate slug following the inviter's slug
+      // If inviter slug is "keluarga-besar-fam", linked user gets same base but unique
+      let newSlug = linkedTree.slug;
+      if (inviterSlug) {
+        // Try to use the inviter's slug base; make it unique for the linked user's tree
+        newSlug = await this.uniqueTreeSlug(inviterSlug, linkedTree.id);
+      }
+
+      await this.prisma.familyTree.update({
+        where: { id: linkedTree.id },
+        data: {
+          layoutConfig: updatedLinkedConfig as any,
+          ...(newSlug && newSlug !== linkedTree.slug && { slug: newSlug }),
+        },
+      });
+
+      linkedTreeSlug = newSlug || linkedTree.slug;
+      this.logger.log(`Synced linked user ${linkedUser.id} tree: familyName="${inviterFamilyName}", slug="${linkedTreeSlug}"`);
+    } catch (err) {
+      this.logger.error(`Failed to sync linked user's tree: ${err}`);
+    }
+
     return {
       treeId: updated.id,
       slug: identity.slug,
       nodeId,
       member: members[nodeId],
-      synced: { name: linkedUser.name, avatar: linkedUser.avatar, email: linkedUser.email, phone: linkedUser.phone },
+      synced: {
+        name: linkedUser.name,
+        avatar: linkedUser.avatar,
+        email: linkedUser.email,
+        phone: linkedUser.phone,
+        linkedTreeSlug,
+      },
     };
   }
 
