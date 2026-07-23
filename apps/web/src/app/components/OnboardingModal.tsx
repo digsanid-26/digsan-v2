@@ -264,7 +264,7 @@ export default function OnboardingModal({
                       <Avatar src={u.avatar} name={u.name} />
                       <div className="flex-1 min-w-0">
                         <p className={`font-semibold text-sm ${textMain}`}>{u.name}</p>
-                        <p className={`text-xs ${textMuted}`}>{u.username ? `@${u.username}` : u.email}</p>
+                        {u.username && <p className={`text-xs ${textMuted}`}>@{u.username}</p>}
                       </div>
                       <div className={`text-xs ${textMuted} italic opacity-0 group-hover:opacity-100 transition-opacity`}>Anggota keluarga Anda?</div>
                     </div>

@@ -14,7 +14,7 @@ import type { Region } from './InvitationStudio';
 import OnboardingModal from './OnboardingModal';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search,
+  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw,
 } from 'lucide-react';
 
 // ─── Styling per group ──────────────────────────────────────
@@ -815,8 +815,9 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
   const [userSearching, setUserSearching] = useState(false);
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [linkedUserConfirm, setLinkedUserConfirm] = useState<{ id: string; name: string; avatar: string | null; email: string } | null>(null);
-  const [matchStatus, setMatchStatus] = useState<'idle' | 'matching' | 'sent' | 'linked'>('idle');
+  const [matchStatus, setMatchStatus] = useState<'idle' | 'matching' | 'sent' | 'linked'>(member?.linkedUserId ? 'linked' : 'idle');
   const userSearchDebounce = useRef<ReturnType<typeof setTimeout>>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
   const publicFamilyUrl = familySlug ? `${origin}/family/${familySlug}` : '';
@@ -876,6 +877,29 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
     }));
     setMatchStatus('linked');
     setLinkedUserConfirm(null);
+  };
+
+  // Sync avatar and info from linked user account
+  const handleSyncLinkedUser = async () => {
+    if (!form.linkedUserId || !node?.id) return;
+    setSyncing(true);
+    try {
+      const res = await treeApi.syncLinkedUser(node.id);
+      if (res?.member) {
+        setForm((f) => ({
+          ...f,
+          name: res.member.name || f.name,
+          photo: res.member.photo || f.photo || null,
+          email: res.member.email || f.email || '',
+          phone: res.member.phone || f.phone || '',
+          verified: true,
+        }));
+      }
+    } catch (err) {
+      console.error('Sync failed:', err);
+    } finally {
+      setSyncing(false);
+    }
   };
 
   // Check match: if 2 of 3 (name+email or name+phone) match a known user, send consent
@@ -1068,7 +1092,6 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{u.name}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-white/40 truncate">{u.email}</p>
                       </div>
                     </div>
                   ))}
@@ -1121,9 +1144,20 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
 
             {/* Match status indicators */}
             {matchStatus === 'linked' && form.linkedUserId && (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2">
-                <Check size={14} className="text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs text-emerald-700 dark:text-emerald-300">User terhubung. Notifikasi persetujuan akan dikirim saat disimpan.</span>
+              <div className="rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Check size={14} className="text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-xs text-emerald-700 dark:text-emerald-300">User terhubung. Notifikasi persetujuan akan dikirim saat disimpan.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSyncLinkedUser}
+                  disabled={syncing || !canEdit}
+                  className="w-full py-1.5 rounded-lg text-xs font-medium bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+                  {syncing ? 'Menyinkronkan...' : 'Update Koneksi'}
+                </button>
               </div>
             )}
             {matchStatus === 'sent' && (

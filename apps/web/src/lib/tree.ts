@@ -63,6 +63,11 @@ export const treeApi = {
       body: JSON.stringify(payload),
     }),
 
+  syncLinkedUser: (nodeId: string) =>
+    authRequest<{ treeId: string; slug: string; nodeId: string; member: any; synced: any }>(`/trees/sync-linked-user/${nodeId}`, {
+      method: 'POST',
+    }),
+
   setSlug: (slug?: string) =>
     authRequest<{ slug: string; owner: { name: string; username: string | null; avatar: string | null } | null }>('/trees/slug', {
       method: 'PUT',

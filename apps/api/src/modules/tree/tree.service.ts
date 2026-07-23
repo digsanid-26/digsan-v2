@@ -337,6 +337,51 @@ export class TreeService {
     };
   }
 
+  // ─── SYNC LINKED USER INFO ──────────────────────────────────
+
+  /** Sync avatar and info from a linked user's account into the member node. */
+  async syncLinkedUser(userId: string, nodeId: string) {
+    const tree = await this.getOrCreateDefaultTree(userId);
+    if (tree.userId !== userId) {
+      throw new ForbiddenException('Hanya pemilik pohon yang dapat menyinkronkan');
+    }
+
+    const members = (tree.layoutMembers as Record<string, any>) ?? {};
+    const member = members[nodeId];
+    if (!member) throw new NotFoundException('Anggota tidak ditemukan');
+    if (!member.linkedUserId) throw new BadRequestException('Anggota ini belum terhubung dengan user manapun');
+
+    const linkedUser = await this.prisma.user.findUnique({
+      where: { id: member.linkedUserId },
+      select: { id: true, name: true, avatar: true, email: true, phone: true },
+    });
+    if (!linkedUser) throw new NotFoundException('User terhubung tidak ditemukan');
+
+    // Update member node with linked user's info
+    members[nodeId] = {
+      ...member,
+      name: linkedUser.name || member.name,
+      photo: linkedUser.avatar || member.photo || null,
+      email: linkedUser.email || member.email || '',
+      phone: linkedUser.phone || member.phone || '',
+      verified: true,
+    };
+
+    const updated = await this.prisma.familyTree.update({
+      where: { id: tree.id },
+      data: { layoutMembers: members as any },
+    });
+
+    const identity = await this.ensureIdentity(updated);
+    return {
+      treeId: updated.id,
+      slug: identity.slug,
+      nodeId,
+      member: members[nodeId],
+      synced: { name: linkedUser.name, avatar: linkedUser.avatar, email: linkedUser.email, phone: linkedUser.phone },
+    };
+  }
+
   // ─── PUBLIC FAMILY / PROFILE PAGES ──────────────────────────
 
   /** Public family page data resolved by tree slug. */

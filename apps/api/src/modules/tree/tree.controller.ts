@@ -56,6 +56,12 @@ export class TreeController {
     return this.treeService.saveLayout(userId, dto.config, dto.members);
   }
 
+  @Post('sync-linked-user/:nodeId')
+  @ApiOperation({ summary: 'Sync avatar and info from linked user account into member node' })
+  async syncLinkedUser(@CurrentUser('id') userId: string, @Param('nodeId') nodeId: string) {
+    return this.treeService.syncLinkedUser(userId, nodeId);
+  }
+
   @Put('slug')
   @ApiOperation({ summary: 'Manually create or update the family slug' })
   async setSlug(@CurrentUser('id') userId: string, @Body() dto: SetSlugDto) {

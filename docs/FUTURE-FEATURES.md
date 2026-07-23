@@ -93,7 +93,8 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 - [ ] Ads Manager | Mengatur tiap spot diisi banner apa, untuk siapa, durasi/due date, tarif, discount role, serta toggle aktif/tidak.
 
 ### Spot Advertising
-- [ ]
+- [ ] Banner id dash-in disediakan untuk dapat menampung banner dengan ratio 3:1 pada app.digsan.id/dashboard box Informasi, diletakkan di bawah tulisan Informasi
+- [ ] Banner Modal Left-Tree pada halaman app.digsan.id/tree dengan posisi top-left di bawah navigasi tree yang dapat diisi 3 Banner id ratio 1:1 tree-l-r1/1-01, tree-l-r1/1-02, tree-l-r1/1-03, atau dua banner id aspek rasio 1:2 tree-l-r1/2 dan aspek rasio 1:1 tree-l-1/1-01, atau banner aspek rasio 1:3 tree-l-r1/3;  
 
 
 ## Sistem Ai Asisten / Helper
@@ -103,7 +104,7 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 - [ ] Chat Keluarga | Sistem percakapan private/inclusive antar anggota keluarga yang bisa ditingkatkan dengan pengaturan hingga lintas family, keluarga besar, keluarga simbah dan buyut.
 - [ ] Digital Membercard dengan foto profil, nomor keanggotaan, nama lengkap, alamat, qrcode yang bila discan mengarah ke profil public user tersebut | Aktif ketika satu silsilah keluarga dalam satu Family tree telah aktif semua (terkecuali yang meninggal dunia);
 - [ ] Doa Almarhum, berupa susunan nama-nama keluarga yang telah almarhum (nama binti orangtua) dari yang terdekat hingga yang terjauh, yang bisa diatur kedalamannya melalui filter yang komprehensif, bisa di atur font-size, ketebalan, perataan sebelum dicetak/download dalam bentuk print, jpg, maupun pdf | Otomatis aktif ketika lebih dari 5 Family tree terhubung;
-- [ ] Personal Channel | Personal Branding seperti Youtube channel namun lebih luas tidak terbatas hanya video, namun juga blog/artikel, update status, atau share lainnya | Bisa diaktifkan ketika poin aktivitas telah mencapai 1000 poin;
+- [ ] Personal Channel | Personal Branding seperti Youtube channel namun lebih luas tidak terbatas hanya video, namun juga blog/artikel, update status, upload gambar/galeri, atau share lainnya;
 - [ ] Arisan Keluarga. Fasilitas membuat arisan yang bisa diaktifkan ketika sebuah koneksi telah menghubungkan lebih dari 50 orang dengan user aktif mencapai 70% lebih;
 - [ ] Koperasi Keluarga. Fasilitas upgrade keanggotaan yang akan aktif dalam bentuk penawaran kepada user yang telah berusia di atas 20 tahun dan memiliki keanggotaan aktif lebih dari 3 bulan;
 - [ ] Usaha Keluarga. Fasilitas membangun usaha dan memunculkan dalam bentuk listing dan landingpage profil usaha milik sendiri dengan konten yang dapat diedit;
