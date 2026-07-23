@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class GamificationService {
+  private readonly logger = new Logger(GamificationService.name);
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationService,
@@ -221,7 +222,18 @@ export class GamificationService {
   async awardLoginPoints(userId: string) {
     // Check if daily_login rule is enabled and get configured amount
     const loginRule = await this.prisma.gamiRule.findUnique({ where: { key: 'daily_login' } });
-    if (!loginRule || !loginRule.isEnabled || loginRule.amount <= 0) return null;
+    if (!loginRule) {
+      this.logger.warn('GamiRule daily_login not found in DB');
+      return null;
+    }
+    if (!loginRule.isEnabled) {
+      this.logger.log('GamiRule daily_login is disabled, skipping');
+      return null;
+    }
+    if (loginRule.amount <= 0) {
+      this.logger.log('GamiRule daily_login amount is 0, skipping');
+      return null;
+    }
 
     // Check if user already got login points today
     const todayStart = new Date();
@@ -237,10 +249,17 @@ export class GamificationService {
         createdAt: { gte: todayStart, lte: todayEnd },
       },
     });
-    if (existingToday) return null; // Already awarded today
+    if (existingToday) {
+      this.logger.log(`User ${userId} already got login points today, skipping`);
+      return null;
+    }
 
     // Award daily login points
+    this.logger.log(`Awarding ${loginRule.amount} login points to user ${userId}`);
     await this.awardPoints(userId, loginRule.amount, loginRule.pointType, 'Daily login bonus');
+
+    // Send push notification
+    this.notifications.sendPushSafe(userId, 'Poin Diterima', `Anda mendapat +${loginRule.amount} poin ${loginRule.pointType} dari login harian`).catch(() => {});
 
     // Check streak bonus
     const streakRule = await this.prisma.gamiRule.findUnique({ where: { key: 'streak_5_day' } });

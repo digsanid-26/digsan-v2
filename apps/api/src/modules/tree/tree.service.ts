@@ -281,6 +281,44 @@ export class TreeService {
       throw new ForbiddenException('Hanya pemilik pohon yang dapat menyimpan perubahan bagan');
     }
 
+    // Detect newly linked users in members data to send consent notifications
+    if (members && typeof members === 'object') {
+      const oldMembers = (tree.layoutMembers as Record<string, any>) ?? {};
+      const newMembers = members as Record<string, any>;
+      const owner = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+
+      for (const [nodeId, member] of Object.entries(newMembers)) {
+        const m = member as any;
+        const oldM = oldMembers[nodeId] as any;
+        // If this member has a linkedUserId that wasn't there before, send notification
+        if (m?.linkedUserId && m.linkedUserId !== oldM?.linkedUserId) {
+          const linkedUser = await this.prisma.user.findUnique({
+            where: { id: m.linkedUserId },
+            select: { id: true, name: true },
+          }).catch(() => null);
+
+          if (linkedUser) {
+            // Send consent/approval notification to the linked user
+            this.notifications.create({
+              userId: linkedUser.id,
+              type: 'MEMBER_ADDED' as any,
+              title: 'Konfirmasi Hubungan Keluarga',
+              message: `${owner?.name || 'Seseorang'} mengidentifikasi Anda sebagai anggota keluarga dalam silsilah "${(config as any)?.mainFamilyName || tree.name}". Silakan konfirmasi hubungan keluarga ini.`,
+              data: { treeId: tree.id, nodeId, linkedUserId: m.linkedUserId, action: 'confirm_relationship' },
+            }).catch((err) => {
+              this.logger.error(`Failed to send relationship notification: ${err.message}`);
+            });
+            this.notifications.sendPushSafe(
+              linkedUser.id,
+              'Konfirmasi Keluarga',
+              `${owner?.name || 'Seseorang'} mengidentifikasi Anda sebagai anggota keluarganya`,
+            ).catch(() => {});
+            this.logger.log(`Sent relationship confirmation notification to user ${linkedUser.id} for node ${nodeId}`);
+          }
+        }
+      }
+    }
+
     const updated = await this.prisma.familyTree.update({
       where: { id: tree.id },
       data: {

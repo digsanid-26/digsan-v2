@@ -86,9 +86,14 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [ ] Mungkinkah email invitation bisa menyertakan logo digsan.id di header invitationnya, kalau tidak salah di folder apps/web/public/logo-white.svg (sekarang tulisan Digsan) dan bersama pesan invitation disertakan avatar si pengirim (kiri avatar, kanan pesan);
 
 ## Sistem Advertising
-- [ ] Admin menu Advertising
-- [ ] Ads Builder
-- [ ] Ads Manager 
+Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan program, kegiatan, atau ajakan internal hingga disewakan secara komersial baik untuk internal anggota digsanid maupun eksternal seperti Adsense maupun lainnya;
+
+- [ ] Admin menu Advertising | Dashboard admin yang mencakup statistik dan informasi total pemasukan iklan, jumlah spot, diikuti list spot, siapa yang pakai, dan durasi atau spot due date;
+- [ ] Ads Builder | Sebuah panel khusus yang terhubung dengan ai (open router) yang memungkinkan menggenerate gambar dari prompt, dengan fitur bisa diaktifkan/dipilih seperti dengan / tanpa tulisan, bentuk huruf dan jenis font, pewarnaan, mendukung berbagai ukuran banner (aspek rasio), dsb
+- [ ] Ads Manager | Mengatur tiap spot diisi banner apa, untuk siapa, durasi/due date, tarif, discount role, serta toggle aktif/tidak.
+
+### Spot Advertising
+- [ ]
 
 
 ## Sistem Ai Asisten / Helper
@@ -98,9 +103,12 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [ ] Chat Keluarga | Sistem percakapan private/inclusive antar anggota keluarga yang bisa ditingkatkan dengan pengaturan hingga lintas family, keluarga besar, keluarga simbah dan buyut.
 - [ ] Digital Membercard dengan foto profil, nomor keanggotaan, nama lengkap, alamat, qrcode yang bila discan mengarah ke profil public user tersebut | Aktif ketika satu silsilah keluarga dalam satu Family tree telah aktif semua (terkecuali yang meninggal dunia);
 - [ ] Doa Almarhum, berupa susunan nama-nama keluarga yang telah almarhum (nama binti orangtua) dari yang terdekat hingga yang terjauh, yang bisa diatur kedalamannya melalui filter yang komprehensif, bisa di atur font-size, ketebalan, perataan sebelum dicetak/download dalam bentuk print, jpg, maupun pdf | Otomatis aktif ketika lebih dari 5 Family tree terhubung;
-- [ ] Personal Channel | Seperti Youtube channel namun lebih luas tidak terbatas hanya video, namun juga blog/artikel, update status, atau share lainnya | Bisa diaktifkan ketika poin aktivitas telah mencapai 1000 poin;
-- [ ] Arisan Keluarga. Fasilitas yang otomatis aktif ketika sebuah koneksi telah menghubungkan lebih dari 50 orang dengan user aktif mencapai 70% lebih;
+- [ ] Personal Channel | Personal Branding seperti Youtube channel namun lebih luas tidak terbatas hanya video, namun juga blog/artikel, update status, atau share lainnya | Bisa diaktifkan ketika poin aktivitas telah mencapai 1000 poin;
+- [ ] Arisan Keluarga. Fasilitas membuat arisan yang bisa diaktifkan ketika sebuah koneksi telah menghubungkan lebih dari 50 orang dengan user aktif mencapai 70% lebih;
 - [ ] Koperasi Keluarga. Fasilitas upgrade keanggotaan yang akan aktif dalam bentuk penawaran kepada user yang telah berusia di atas 20 tahun dan memiliki keanggotaan aktif lebih dari 3 bulan;
+- [ ] Usaha Keluarga. Fasilitas membangun usaha dan memunculkan dalam bentuk listing dan landingpage profil usaha milik sendiri dengan konten yang dapat diedit;
+- [ ] Jasa dan Kerja Keluarga. Fasilitas menawarkan jasa diri sesuai keahlian, definisi pekerjaan, dan waktu kerja yang bisa ditentukan sendiri 
+- [ ] Digsan Konsultan | Beranggotakan member Digsan yang fokus membantu keluarga Digsan mengurus pekerjaan rutin berkaitan dengan perpajakan, hukum, 
 
 ## Backend Admin
 - [x] Cek apakah ada user role admin dan ketersediaan akses ke dashboard admin dsb; (Sudah ada: role `admin`/`super_admin`/`worker` + `RolesGuard`; backend `AdminController` (`/api/admin/*`: dashboard, users, workers, orders, settings, configs) dan halaman web `app/(dashboard)/admin/` (page, users, workers, settings).)
