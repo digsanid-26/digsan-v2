@@ -34,7 +34,10 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 
 ## Sistem Notifikasi
 - [ ] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan dan dikonfigurasi di admin seiring perkembangan aplikasi (karena saat ini masih proses pembangunan)
-- [ ] Cek kemungkinan membangun self-host email server di console idcloudhost (di virtual server lain) yang memungkinkan dengan domain sendiri (@digsan.id), untuk kedepannya juga mendukung multi domain name, terhubung dengan fitur digsan.id di mana user bisa membuat email @digsan.id dengan gratis, membaca dan mengirim email di dashboard email . 
+- [ ] Cek kemungkinan membangun self-host email server di console idcloudhost (di virtual server lain) yang memungkinkan dengan domain sendiri (@digsan.id), untuk kedepannya juga mendukung multi domain name, terhubung dengan fitur digsan.id di mana user bisa membuat email @digsan.id dengan gratis, membaca dan mengirim email di dashboard email .
+
+### Notifikasi Role
+- [ ] Notifikasi bel meminta konfirmasi jalinan keluarga dari user lain dengan tombol Konfirmasi. Isi Notifikasi : Anda dimasukkan sebagai (misal pasangan/istri, adik, kakak, anak, orangtua/ayah) oleh nama user (diikuti nama family);
 
 ## Sistem navigasi dan halaman detil
 - [x] Membuat halaman Family | tree/nama-keluarga (misal tree/farisma-fam) : berisi keluarga kecil ayah, ibu, anak-anak saja dengan konten yang lebih lengkap dan personal (untuk dikembangkan lebih lanjut nanti);
@@ -42,12 +45,16 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 
 
 ## Sistem Gamification
-- [ ] Buatkan halaman Admin untuk mengatur Sistem Gamification seperti Gami Konfigurasi: tempat membuat tipe poin (default poin pengabdian, poin aktivitas, dan poin produktivitas), Gami Stat & Logs : tempat statistik poin masing-masing tipe, peringkat top 10 member masing-masing tipe, serta listing history poin didapat dari user, action, jumlah poin, waktu, dst yang dilengkapi filter dan view detail (modal);
+- [x] Buatkan halaman Admin untuk mengatur Sistem Gamification seperti Gami Konfigurasi: tempat membuat tipe poin (default poin pengabdian, poin aktivitas, dan poin produktivitas), Gami Stat & Logs : tempat statistik poin masing-masing tipe, peringkat top 10 member masing-masing tipe, serta listing history poin didapat dari user, action, jumlah poin, waktu, dst yang dilengkapi filter dan view detail (modal);
 - [x] Gami Reward dan Redeem yang berisi pengaturan syarat dan hadiah yang diperoleh dari poin yang didapat oleh user, listing redeem request, dst;
 - [x] Poin pengabdian : Pengabdian dalam menyelesaikan task, pengabdian dalam mengembangkan jaringan / koneksi keluarga
 - [x] Poin aktivitas : Keaktifan dalam aplikasi, keaktifan dalam mengikuti kegiatan online / offline, keaktifan mengisi/mengupdate konten/status
 - [x] Poin produktivitas : Keaktifan dalam kegiatan bersifat ekonomis, keaktifan dalam mengikuti keanggotaan, keaktifan dalam wadah usaha/program bersama.
-- [ ] 
+
+### Gamification Role
+- [ ] Login tiap hari sekali mendapatkan poin aktivitas 2 poin;
+- [ ] Berturut-turun poin 5 hari mendapatkan bonus poin aktivitas 10 di luar poin login harian;
+- [ ] Mengembangkan jaringan berupa penambahan aktif user di jaringan mendapatkan 10 poin pengabdian; 
 
 ## Sistem Tree Keluarga / Family
 - [x] Sebelum bisa mengakses pengaturan bagan atau pertama kali seorang user login dan belum memiliki bagan atau tree, perlu ada intro dalam bentuk modal yang berisi step by step Mulai Membangun Silsilah. Modal muncul menutupi bagan tree dan navigasi lainnya tanpa tanda close (tidak bisa diclose) : 
@@ -58,8 +65,8 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [ ] Pada anggota keluarga baru (selain diri sendiri) yang bisa kita buat sesuai kapasitas/role kita yaitu pasangan (suami/istri), anak, saudara, ayah dan ibu, kita bisa menambahkan identifikasi di form Detail Anggota yang bisa dijadikan acuan pencocokan yaitu melalui Form Nama lengkap yang ditambah fungsi pencarian User (ajax 3 karakter) untuk mencari anggota yang sudah aktif yang bila ditemukan dan dipilih akan diikuti konfirmasi: Anda yakin dia anggota keluarga Anda? Ya akan otomatis menambahkan nama anggota tersebut ke dalam field, yang kedua melalui form email dan nomor whatsapp sebagai form baru di bawah nama lengkap. Sistem akan mempertimbangkan bila dua dari tiga informasi (nama dan email atau nama dan whatsapp) tersebut di atas tepat maka konfirmasi persetujuan akan dikirimkan ke user terkait melalui notifikasi bel dan ketika disetujui maka hubungan keluarga akan terjalin;  
 
 - [ ] Perlu dipastikan bahwa anggota keluarga utama (terkecil) hanya terdiri atas diri sendiri, pasangan (suami/istri), dan anak-anak, baik yang masih ada maupun yang sudah meninggal dunia;
-- [ ] Perlu dipastikan bahwa anggota keluarga besar akan terdiri atas keluarga utama orang tua sendiri, keluarga utama orang tua pasangan, keluarga kakak-kakak diri sendiri dan pasangan, keluarga adik-adik diri sendiri dan pasangan, baik yang masih ada maupun yang sudah meninggal dunia;
-- [ ] Perlu dipastikan bahwa anggota keluarga simbah akan terdiri atas keluarga utama kakek nenek sendiri, keluarga utama kakek nenek pasangan, keluarga kakek nenek dari sisi ayah, keluarga kakek nenek dari sisi ibu, baik yang masih ada maupun yang sudah meninggal dunia;
+- [ ] Perlu dipastikan bahwa anggota keluarga besar akan terdiri atas keluarga utama orang tua sendiri (diri sendiri, kakak dan adik sendiri, kedua orang tua sendiri), keluarga utama orang tua pasangan (pasangan Anda, kakak dan adik pasangan Anda, orang tua pasangan Anda), keluarga utama Anda, keluarga utama kakak dan adik Anda, keluarga utama kakak dan adik pasangan Anda, baik yang masih ada maupun yang sudah meninggal dunia;
+- [ ] Perlu dipastikan bahwa anggota keluarga simbah akan terdiri atas keluarga utama kakek nenek Anda yang beranggotakan keluarga besar Anda, keluarga utama kakek nenek pasangan Anda, keluarga kakek nenek dari sisi ayah, keluarga kakek nenek dari sisi ibu, baik yang masih ada maupun yang sudah meninggal dunia;
 - [ ] Tree antar kelompok keluarga perlu dibangun. Mungkin perlu layout baru sebagai alternatif layout tree sekarang. Keluarga besar akan terdiri dari beberapa keluarga utama (kecil), Untuk beberapa keluarga besar yang terhubung membentuk keluarga Simbah, lalu beberapa keluarga Simbah membentuk keluarga Buyut, untuk keluarga antar buyut yang terhubung membentuk keluarga Canggah, untuk keluarga antar Canggah membentuk keluarga Wareng, dst (Udheg-udheg, Gantung Siwur, Gropak Senthe);
 - [ ] Gambaran layout baru (perlu dinamai) bisa dibaca dari skenario berikut : Dari bagan tree user akan hanya ada , bagan tree keluarga utama (lingkaran dengan label nama keluarga utama) seperti berada di belakang (z-index lebih rendah) dengan penampakan agak tersamar. Ada garis tipis yang menghubungkan anggota dari keluarga utama tersebut di mana anggota keluarga utama adalah dirinya, suami atau istrinya, serta anak-anaknya. Ketika lingkaran family disorot, garis dan lingkaran keluarga utama menjadi jelas, setelah diklik maka bagan tree keluarga muncul. Bagan Tree Keluarga memiliki susunan seperti bagan tree user namun berisi koneksi antar bagan keluarga utama lainnya yang membentuk keluarga besar.
 
@@ -78,12 +85,17 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [ ] User terundang setelah login dihadapkan oleh tree yang masih kosong, padahal dirinya diminta untuk melengkapi tree yang sudah dibuat oleh suami/istri atau kerabatnya misalnya dalam satu kesatuan keluarga/family. Sehingga ketika dicek di Pengaturan Bagan, sudah ada nama Keluarga Utama atau kelompok keluarga besar di sana. Harusnya sudah ada bagan dari keluarga tersebut dan dirinya tinggal menverifikasi bahwa dirinya yang ada di lingkaran atau tree tersebut.
 - [ ] Mungkinkah email invitation bisa menyertakan logo digsan.id di header invitationnya, kalau tidak salah di folder apps/web/public/logo-white.svg (sekarang tulisan Digsan) dan bersama pesan invitation disertakan avatar si pengirim (kiri avatar, kanan pesan);
 
+## Sistem Advertising
+- [ ] Admin menu Advertising
+- [ ] Ads Builder
+- [ ] Ads Manager 
+
 
 ## Sistem Ai Asisten / Helper
 - [ ] Apa yang diperlukan agar digsan.id dapat memunculkan data analisis berbasis database yang dihimpun yang kemudian diikuti dengan aksi merekomendasikan hubungan antar tree yang belum terhubung misalnya keluarga si A direkomendasikan untuk menjalin koneksi dengan keluarga si B (juga sebaliknya) karena memiliki keterkaitan/kesamaan silsilah kakek / nenek atau paman atau buyut, atau lainnya?
 
 ## Fasilitas Digsan.id
-- [ ] Chat Keluarga | Sistem percakapan private antar anggota keluarga yang bisa ditingkatkan dengan pengaturan hingga lintas family.
+- [ ] Chat Keluarga | Sistem percakapan private/inclusive antar anggota keluarga yang bisa ditingkatkan dengan pengaturan hingga lintas family, keluarga besar, keluarga simbah dan buyut.
 - [ ] Digital Membercard dengan foto profil, nomor keanggotaan, nama lengkap, alamat, qrcode yang bila discan mengarah ke profil public user tersebut | Aktif ketika satu silsilah keluarga dalam satu Family tree telah aktif semua (terkecuali yang meninggal dunia);
 - [ ] Doa Almarhum, berupa susunan nama-nama keluarga yang telah almarhum (nama binti orangtua) dari yang terdekat hingga yang terjauh, yang bisa diatur kedalamannya melalui filter yang komprehensif, bisa di atur font-size, ketebalan, perataan sebelum dicetak/download dalam bentuk print, jpg, maupun pdf | Otomatis aktif ketika lebih dari 5 Family tree terhubung;
 - [ ] Personal Channel | Seperti Youtube channel namun lebih luas tidak terbatas hanya video, namun juga blog/artikel, update status, atau share lainnya | Bisa diaktifkan ketika poin aktivitas telah mencapai 1000 poin;

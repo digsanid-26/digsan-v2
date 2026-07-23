@@ -122,6 +122,48 @@ export class GamificationAdminService {
     }));
   }
 
+  // ─── GAMI RULES (Role Config) ────────────────────────────────
+
+  async getGamiRules() {
+    return this.prisma.gamiRule.findMany({ orderBy: { createdAt: 'asc' } });
+  }
+
+  async updateGamiRule(id: string, data: {
+    label?: string;
+    description?: string;
+    pointType?: string;
+    amount?: number;
+    isEnabled?: boolean;
+    streakDays?: number | null;
+    bonusAmount?: number | null;
+  }) {
+    const rule = await this.prisma.gamiRule.findUnique({ where: { id } });
+    if (!rule) throw new NotFoundException('Aturan gamifikasi tidak ditemukan');
+    return this.prisma.gamiRule.update({ where: { id }, data });
+  }
+
+  async createGamiRule(data: {
+    key: string;
+    label: string;
+    description?: string;
+    pointType: string;
+    amount?: number;
+    isEnabled?: boolean;
+    streakDays?: number;
+    bonusAmount?: number;
+  }) {
+    const existing = await this.prisma.gamiRule.findUnique({ where: { key: data.key } });
+    if (existing) throw new BadRequestException('Aturan dengan key ini sudah ada');
+    return this.prisma.gamiRule.create({ data });
+  }
+
+  async deleteGamiRule(id: string) {
+    const rule = await this.prisma.gamiRule.findUnique({ where: { id } });
+    if (!rule) throw new NotFoundException('Aturan gamifikasi tidak ditemukan');
+    await this.prisma.gamiRule.delete({ where: { id } });
+    return { message: 'Aturan gamifikasi dihapus' };
+  }
+
   // ─── REWARDS ─────────────────────────────────────────────────
 
   async getRewards() {

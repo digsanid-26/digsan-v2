@@ -12,6 +12,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import { EmailService } from '../notification/email.service';
 import { WhatsappService } from '../notification/whatsapp.service';
+import { GamificationService } from '../gamification/gamification.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -25,6 +26,7 @@ export class AuthService {
     private configService: ConfigService,
     private emailService: EmailService,
     private whatsappService: WhatsappService,
+    private gamification: GamificationService,
   ) {}
 
   // ─── REGISTER ──────────────────────────────────────────────
@@ -150,6 +152,11 @@ export class AuthService {
     });
 
     await this.logLogin(user.id, dto.email, 'SUCCESS', null, meta);
+
+    // Award daily login points (non-blocking, ignores errors)
+    this.gamification.awardLoginPoints(user.id).catch((err) => {
+      this.logger.error(`Failed to award login points: ${err}`);
+    });
 
     const userRoles = await this.prisma.userRole.findMany({
       where: { userId: user.id },
@@ -439,6 +446,11 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
+    });
+
+    // Award daily login points (non-blocking)
+    this.gamification.awardLoginPoints(user.id).catch((err) => {
+      this.logger.error(`Failed to award login points: ${err}`);
     });
 
     const userRoles = await this.prisma.userRole.findMany({

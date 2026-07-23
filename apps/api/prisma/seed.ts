@@ -261,6 +261,45 @@ async function main() {
     console.log(`  ✓ Badge: ${badgeData.name}`);
   }
 
+  // ─── GAMI RULES SEED ────────────────────────────────────────
+  const gamiRules = [
+    {
+      key: 'daily_login',
+      label: 'Login Harian',
+      description: 'Login tiap hari sekali mendapatkan poin aktivitas',
+      pointType: 'aktivitas',
+      amount: 2,
+      isEnabled: true,
+    },
+    {
+      key: 'streak_5_day',
+      label: 'Bonus 5 Hari Berturut',
+      description: 'Berturut-turut login 5 hari mendapatkan bonus poin aktivitas',
+      pointType: 'aktivitas',
+      amount: 0,
+      isEnabled: true,
+      streakDays: 5,
+      bonusAmount: 10,
+    },
+    {
+      key: 'network_add',
+      label: 'Penambahan Jaringan',
+      description: 'Mengembangkan jaringan berupa penambahan aktif user di jaringan',
+      pointType: 'pengabdian',
+      amount: 10,
+      isEnabled: true,
+    },
+  ];
+
+  for (const rule of gamiRules) {
+    await prisma.gamiRule.upsert({
+      where: { key: rule.key },
+      update: {},
+      create: rule,
+    });
+    console.log(`  ✓ GamiRule: ${rule.label}`);
+  }
+
   console.log('✅ Seeding complete!');
 }
 

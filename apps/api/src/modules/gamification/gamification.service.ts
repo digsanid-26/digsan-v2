@@ -219,7 +219,83 @@ export class GamificationService {
   // ─── POINT AWARD HELPERS ────────────────────────────────────
 
   async awardLoginPoints(userId: string) {
-    return this.awardPoints(userId, 5, 'login', 'Daily login bonus');
+    // Check if daily_login rule is enabled and get configured amount
+    const loginRule = await this.prisma.gamiRule.findUnique({ where: { key: 'daily_login' } });
+    if (!loginRule || !loginRule.isEnabled || loginRule.amount <= 0) return null;
+
+    // Check if user already got login points today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const existingToday = await this.prisma.point.findFirst({
+      where: {
+        userId,
+        type: loginRule.pointType,
+        reason: 'Daily login bonus',
+        createdAt: { gte: todayStart, lte: todayEnd },
+      },
+    });
+    if (existingToday) return null; // Already awarded today
+
+    // Award daily login points
+    await this.awardPoints(userId, loginRule.amount, loginRule.pointType, 'Daily login bonus');
+
+    // Check streak bonus
+    const streakRule = await this.prisma.gamiRule.findUnique({ where: { key: 'streak_5_day' } });
+    if (streakRule && streakRule.isEnabled && streakRule.streakDays && streakRule.bonusAmount && streakRule.bonusAmount > 0) {
+      // Count consecutive days of login (including today)
+      const streakDays = await this.calculateLoginStreak(userId, loginRule.pointType);
+      if (streakDays >= streakRule.streakDays) {
+        // Check if streak bonus already awarded for this streak cycle
+        const streakBonusKey = `streak_bonus_${streakRule.streakDays}_${Math.floor(streakDays / streakRule.streakDays)}`;
+        const existingBonus = await this.prisma.point.findFirst({
+          where: { userId, type: streakRule.pointType, metadata: { path: ['streakCycle'], equals: streakBonusKey } },
+        });
+        if (!existingBonus) {
+          await this.awardPoints(userId, streakRule.bonusAmount, streakRule.pointType, `Bonus ${streakRule.streakDays} hari berturut login`, { streakCycle: streakBonusKey, streakDays });
+        }
+      }
+    }
+
+    return { awarded: true, amount: loginRule.amount };
+  }
+
+  private async calculateLoginStreak(userId: string, pointType: string): Promise<number> {
+    // Get login points ordered by date desc
+    const loginPoints = await this.prisma.point.findMany({
+      where: { userId, type: pointType, reason: 'Daily login bonus' },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+
+    if (loginPoints.length === 0) return 0;
+
+    // Count consecutive days
+    let streak = 0;
+    let expectedDate = new Date();
+    expectedDate.setHours(0, 0, 0, 0);
+
+    for (const point of loginPoints) {
+      const pointDate = new Date(point.createdAt);
+      pointDate.setHours(0, 0, 0, 0);
+
+      const diffDays = Math.floor((expectedDate.getTime() - pointDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) {
+        streak++;
+        expectedDate.setDate(expectedDate.getDate() - 1);
+      } else if (diffDays === 1) {
+        // Gap of 1 day is OK (today not counted yet, yesterday was)
+        streak++;
+        expectedDate = pointDate;
+        expectedDate.setDate(expectedDate.getDate() - 1);
+      } else {
+        break; // Streak broken
+      }
+    }
+
+    return streak;
   }
 
   async awardRegistrationPoints(userId: string) {
@@ -240,5 +316,11 @@ export class GamificationService {
 
   async awardReviewPoints(userId: string, reviewId: string) {
     return this.awardPoints(userId, 10, 'review', 'Review submitted', { reviewId });
+  }
+
+  async awardNetworkAddPoints(userId: string, newUserId: string) {
+    const rule = await this.prisma.gamiRule.findUnique({ where: { key: 'network_add' } });
+    if (!rule || !rule.isEnabled || rule.amount <= 0) return null;
+    return this.awardPoints(userId, rule.amount, rule.pointType, 'Penambahan jaringan keluarga', { newUserId });
   }
 }

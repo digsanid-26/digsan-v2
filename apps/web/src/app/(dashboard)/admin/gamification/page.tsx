@@ -17,6 +17,7 @@ import {
   Check,
   Clock,
   Package,
+  Zap,
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
@@ -40,7 +41,7 @@ export default function AdminGamificationPage() {
   const { user } = useAuth();
   const router = useRouter();
   const isAdmin = user?.roles?.includes('admin') || user?.roles?.includes('super_admin');
-  const [tab, setTab] = useState<'config' | 'stats' | 'rewards'>('config');
+  const [tab, setTab] = useState<'config' | 'rules' | 'stats' | 'rewards'>('config');
 
   useEffect(() => {
     if (user && !isAdmin) router.replace('/dashboard');
@@ -61,11 +62,13 @@ export default function AdminGamificationPage() {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-200 dark:border-white/[0.06]">
         <TabButton active={tab === 'config'} onClick={() => setTab('config')} icon={Settings} label="Konfigurasi" />
+        <TabButton active={tab === 'rules'} onClick={() => setTab('rules')} icon={Zap} label="Role Poin" />
         <TabButton active={tab === 'stats'} onClick={() => setTab('stats')} icon={BarChart3} label="Stat & Logs" />
         <TabButton active={tab === 'rewards'} onClick={() => setTab('rewards')} icon={Gift} label="Reward & Redeem" />
       </div>
 
       {tab === 'config' && <ConfigTab />}
+      {tab === 'rules' && <RulesTab />}
       {tab === 'stats' && <StatsTab />}
       {tab === 'rewards' && <RewardsTab />}
     </div>
@@ -275,6 +278,228 @@ function ConfigTab() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── RULES TAB (Role Poin) ──────────────────────────────────────
+
+function RulesTab() {
+  const [rules, setRules] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ label: '', description: '', pointType: '', amount: 0, isEnabled: true, streakDays: null as number | null, bonusAmount: null as number | null });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadRules = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await apiRequest('/admin/gamification/rules');
+      setRules(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadRules(); }, [loadRules]);
+
+  const startEdit = (rule: any) => {
+    setEditing(rule);
+    setEditForm({
+      label: rule.label || '',
+      description: rule.description || '',
+      pointType: rule.pointType || '',
+      amount: rule.amount || 0,
+      isEnabled: rule.isEnabled ?? true,
+      streakDays: rule.streakDays ?? null,
+      bonusAmount: rule.bonusAmount ?? null,
+    });
+  };
+
+  const saveRule = async () => {
+    if (!editing) return;
+    setSaving(true);
+    setError('');
+    try {
+      await apiRequest(`/admin/gamification/rules/${editing.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(editForm),
+      });
+      setEditing(null);
+      loadRules();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleEnabled = async (rule: any) => {
+    try {
+      await apiRequest(`/admin/gamification/rules/${rule.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ isEnabled: !rule.isEnabled }),
+      });
+      loadRules();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  if (loading) return <div className="text-center py-8 text-slate-400">Memuat...</div>;
+
+  return (
+    <div className="space-y-4">
+      {error && <div className="rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 px-4 py-2 text-sm text-rose-600 dark:text-rose-400">{error}</div>}
+
+      <div className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-white/50 text-xs">
+            <tr>
+              <th className="text-left px-4 py-3 font-medium">Role</th>
+              <th className="text-left px-4 py-3 font-medium">Tipe Poin</th>
+              <th className="text-center px-4 py-3 font-medium">Jumlah</th>
+              <th className="text-center px-4 py-3 font-medium">Streak Bonus</th>
+              <th className="text-center px-4 py-3 font-medium">Status</th>
+              <th className="text-right px-4 py-3 font-medium">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {rules.map((rule) => (
+              <tr key={rule.id} className="hover:bg-slate-50 dark:hover:bg-white/5">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-slate-900 dark:text-white">{rule.label}</div>
+                  {rule.description && <div className="text-xs text-slate-400 dark:text-white/40 mt-0.5">{rule.description}</div>}
+                </td>
+                <td className="px-4 py-3">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">{rule.pointType}</span>
+                </td>
+                <td className="px-4 py-3 text-center font-semibold text-slate-900 dark:text-white">{rule.amount}</td>
+                <td className="px-4 py-3 text-center text-xs text-slate-500 dark:text-white/50">
+                  {rule.streakDays && rule.bonusAmount ? `${rule.bonusAmount} poin / ${rule.streakDays} hari` : '—'}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <button
+                    onClick={() => toggleEnabled(rule)}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${rule.isEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-white/20'}`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${rule.isEnabled ? 'translate-x-4.5' : 'translate-x-0.5'}`} style={{ transform: rule.isEnabled ? 'translateX(18px)' : 'translateX(2px)' }} />
+                  </button>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={() => startEdit(rule)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <Edit size={13} />Edit
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Edit Modal */}
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setEditing(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0a0e1a] border border-slate-200 dark:border-white/10 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Edit Role: {editing.label}</h3>
+              <button onClick={() => setEditing(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white"><X size={18} /></button>
+            </div>
+
+            {error && <div className="text-sm text-rose-500">{error}</div>}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Label</label>
+                <input
+                  value={editForm.label}
+                  onChange={(e) => setEditForm({ ...editForm, label: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Deskripsi</label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Tipe Poin</label>
+                <input
+                  value={editForm.pointType}
+                  onChange={(e) => setEditForm({ ...editForm, pointType: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Jumlah Poin</label>
+                <input
+                  type="number"
+                  value={editForm.amount}
+                  onChange={(e) => setEditForm({ ...editForm, amount: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                />
+              </div>
+              {editing.key === 'streak_5_day' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Hari Streak</label>
+                    <input
+                      type="number"
+                      value={editForm.streakDays ?? ''}
+                      onChange={(e) => setEditForm({ ...editForm, streakDays: e.target.value ? parseInt(e.target.value) : null })}
+                      className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Bonus Poin</label>
+                    <input
+                      type="number"
+                      value={editForm.bonusAmount ?? ''}
+                      onChange={(e) => setEditForm({ ...editForm, bonusAmount: e.target.value ? parseInt(e.target.value) : null })}
+                      className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+              )}
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-white/70">
+                <input
+                  type="checkbox"
+                  checked={editForm.isEnabled}
+                  onChange={(e) => setEditForm({ ...editForm, isEnabled: e.target.checked })}
+                  className="rounded border-slate-300 dark:border-white/20"
+                />
+                Aktif
+              </label>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={saveRule}
+                disabled={saving}
+                className="flex-1 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50"
+              >
+                {saving ? 'Menyimpan...' : 'Simpan'}
+              </button>
+              <button
+                onClick={() => setEditing(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-white/15 text-slate-600 dark:text-white/60 hover:bg-slate-50 dark:hover:bg-white/5"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

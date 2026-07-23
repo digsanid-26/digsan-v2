@@ -80,6 +80,32 @@ export class GamificationAdminController {
     return this.gamiAdminService.getTopUsers(type, limit ? parseInt(limit) : 10);
   }
 
+  // ─── GAMI RULES (Role Config) ────────────────────────────────
+
+  @Get('rules')
+  @ApiOperation({ summary: 'List all gamification rules' })
+  async getGamiRules() {
+    return this.gamiAdminService.getGamiRules();
+  }
+
+  @Post('rules')
+  @ApiOperation({ summary: 'Create a new gamification rule' })
+  async createGamiRule(@Body() dto: { key: string; label: string; description?: string; pointType: string; amount?: number; isEnabled?: boolean; streakDays?: number; bonusAmount?: number }) {
+    return this.gamiAdminService.createGamiRule(dto);
+  }
+
+  @Put('rules/:id')
+  @ApiOperation({ summary: 'Update a gamification rule (enable/disable, edit points)' })
+  async updateGamiRule(@Param('id') id: string, @Body() dto: { label?: string; description?: string; pointType?: string; amount?: number; isEnabled?: boolean; streakDays?: number | null; bonusAmount?: number | null }) {
+    return this.gamiAdminService.updateGamiRule(id, dto);
+  }
+
+  @Delete('rules/:id')
+  @ApiOperation({ summary: 'Delete a gamification rule' })
+  async deleteGamiRule(@Param('id') id: string) {
+    return this.gamiAdminService.deleteGamiRule(id);
+  }
+
   // ─── REWARDS ─────────────────────────────────────────────────
 
   @Get('rewards')

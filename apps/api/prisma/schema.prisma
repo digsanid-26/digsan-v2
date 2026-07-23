@@ -430,6 +430,24 @@ model PointType {
   @@map("point_types")
 }
 
+// Configurable gamification rules — admin can enable/disable and edit amounts
+model GamiRule {
+  id          String   @id @default(cuid())
+  key         String   @unique  // e.g. 'daily_login', 'streak_5_day', 'network_add'
+  label       String             // human-readable label
+  description String?
+  pointType   String             // maps to Point.type, e.g. 'aktivitas', 'pengabdian'
+  amount      Int      @default(0)   // points to award
+  isEnabled   Boolean  @default(true) @map("is_enabled")
+  // For streak-based bonus rules
+  streakDays  Int?                // e.g. 5 for "5 consecutive days" bonus
+  bonusAmount Int?                // bonus points on streak completion
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("gami_rules")
+}
+
 model Reward {
   id          String   @id @default(cuid())
   name        String
