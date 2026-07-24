@@ -135,8 +135,14 @@ function generateCollapsed(cfg: TreeConfig): { nodes: TNode[]; lines: Poly[] } {
   if (cfg.parentCount > 0) bubbles.push({ id: 'grp-ot', name: 'Orang Tua', role: 'group', x: 0, y: -235, group: 'parent', count: cfg.parentCount });
   if (cfg.olderCount > 0) bubbles.push({ id: 'grp-kk', name: 'Kakak', role: 'group', x: -235, y: 0, group: 'kakak', count: cfg.olderCount });
   if (cfg.youngerCount > 0) bubbles.push({ id: 'grp-ad', name: 'Adik', role: 'group', x: 235, y: 0, group: 'adik', count: cfg.youngerCount });
-  if (cfg.childCount > 0) bubbles.push({ id: 'grp-an', name: 'Anak', role: 'group', x: 0, y: 235, group: 'child', count: cfg.childCount });
   bubbles.forEach((b) => { nodes.push(b); lines.push({ points: [[0, 0], [b.x, b.y]] }); });
+
+  // Children — always shown individually (part of main family)
+  const coupleMid = coupleXs.reduce((a, b) => a + b, 0) / coupleXs.length;
+  const childXs = spread(cfg.childCount, 130, coupleMid);
+  childXs.forEach((x, i) => nodes.push({ id: `child-${i}`, name: `Anak ${i + 1}`, role: 'Keturunan', x, y: 210, group: 'child' }));
+  connectDown(lines, coupleMid, 0, childXs, 210);
+
   return { nodes, lines };
 }
 
@@ -1341,8 +1347,9 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
           );
         })()}
 
-        {/* Invite — opens the invitation studio (image + method dropdown) */}
-        {!isSelf && (() => {
+        {/* Invite — opens the invitation studio (image + method dropdown)
+            Hidden for already-linked members (they are the identity owner) */}
+        {!isSelf && !form.linkedUserId && (() => {
           const deceased = !form.alive;
           return (
             <div className="rounded-xl border border-slate-200 dark:border-white/10 p-4">
@@ -1360,7 +1367,8 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
               </button>
             </div>
           );
-        })()}
+        })()
+      }
       </div>
 
       <div className="p-5 border-t border-slate-200 dark:border-white/10">
