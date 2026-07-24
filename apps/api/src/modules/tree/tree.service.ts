@@ -578,7 +578,7 @@ export class TreeService {
 
     const user = await this.prisma.user.findUnique({
       where: { username },
-      select: { id: true, name: true, username: true, avatar: true, bio: true, createdAt: true },
+      select: { id: true, name: true, username: true, avatar: true, bio: true, createdAt: true, birthDate: true, birthPlace: true, education: true, occupation: true, hobbies: true },
     });
     if (!user) throw new NotFoundException('Profil tidak ditemukan');
 
@@ -596,6 +596,11 @@ export class TreeService {
         bio: user.bio,
         isOwner,
         joinedAt: user.createdAt,
+        birthDate: user.birthDate,
+        birthPlace: user.birthPlace,
+        education: user.education,
+        occupation: user.occupation,
+        hobbies: user.hobbies,
       },
     };
   }

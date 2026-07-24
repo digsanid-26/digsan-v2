@@ -185,6 +185,11 @@ export interface PublicProfile {
     bio: string | null;
     isOwner: boolean;
     joinedAt: string;
+    birthDate: string | null;
+    birthPlace: string | null;
+    education: string | null;
+    occupation: string | null;
+    hobbies: string | null;
   };
 }
 

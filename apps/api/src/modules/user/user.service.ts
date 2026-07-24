@@ -24,6 +24,11 @@ export class UserService {
         provider: true,
         lastLoginAt: true,
         createdAt: true,
+        birthDate: true,
+        birthPlace: true,
+        education: true,
+        occupation: true,
+        hobbies: true,
         userRoles: {
           select: { role: { select: { name: true } } },
         },
@@ -79,6 +84,11 @@ export class UserService {
         ...(dto.avatar !== undefined && { avatar: dto.avatar }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(dto.isWhatsapp !== undefined && { isWhatsapp: dto.isWhatsapp }),
+        ...(dto.birthDate !== undefined && { birthDate: dto.birthDate ? new Date(dto.birthDate) : null }),
+        ...(dto.birthPlace !== undefined && { birthPlace: dto.birthPlace }),
+        ...(dto.education !== undefined && { education: dto.education }),
+        ...(dto.occupation !== undefined && { occupation: dto.occupation }),
+        ...(dto.hobbies !== undefined && { hobbies: dto.hobbies }),
       },
       select: {
         id: true,
@@ -88,6 +98,11 @@ export class UserService {
         bio: true,
         phone: true,
         isWhatsapp: true,
+        birthDate: true,
+        birthPlace: true,
+        education: true,
+        occupation: true,
+        hobbies: true,
       },
     });
   }

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getUser } from '@/lib/auth';
 import { useTheme } from '@/app/components/ThemeProvider';
-import { User, Mail, Lock, Eye, EyeOff, Briefcase, Heart, Check, Camera } from 'lucide-react';
+import { useAuthApi } from '@/lib/hooks';
+import { User, Mail, Lock, Eye, EyeOff, Briefcase, Heart, Check, Camera, MapPin, GraduationCap, Cake } from 'lucide-react';
 
 const JOBS = [
   'Wiraswasta', 'PNS', 'Karyawan Swasta', 'Guru/Dosen', 'Dokter/Bidan/Perawat',
@@ -13,21 +14,25 @@ const JOBS = [
 export default function ProfilePage() {
   const { theme } = useTheme();
   const dark = theme === 'dark';
+  const { request } = useAuthApi();
   const [user, setUser] = useState<{ id: string; name: string; email: string; avatar: string | null } | null>(null);
 
   const [form, setForm] = useState({
     fullName: '',
-    nickname: '',
     username: '',
     password: '',
     bio: '',
-    job: '',
+    occupation: '',
     hobbies: '',
+    birthDate: '',
+    birthPlace: '',
+    education: '',
   });
 
   const [photo, setPhoto] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
 
   useEffect(() => {
     const u = getUser();
@@ -36,18 +41,57 @@ export default function ProfilePage() {
       setForm((f) => ({ ...f, fullName: u.name, username: u.email.split('@')[0] }));
       setPhoto(u.avatar);
     }
+    // Fetch full profile from API
+    request('/users/me').then((data: any) => {
+      setForm((f) => ({
+        ...f,
+        fullName: data.name || f.fullName,
+        bio: data.bio || '',
+        occupation: data.occupation || '',
+        hobbies: data.hobbies || '',
+        birthDate: data.birthDate ? new Date(data.birthDate).toISOString().split('T')[0] : '',
+        birthPlace: data.birthPlace || '',
+        education: data.education || '',
+      }));
+      if (data.avatar) setPhoto(data.avatar);
+    }).catch(() => {});
   }, []);
+
+  // Profile completeness calculation
+  const completeness = useCallback(() => {
+    const fields = [form.fullName, form.bio, form.occupation, form.hobbies, form.birthDate, form.birthPlace, form.education, photo];
+    const filled = fields.filter((v) => v && String(v).trim()).length;
+    return Math.round((filled / fields.length) * 100);
+  }, [form, photo]);
+
+  const pct = completeness();
 
   const inputCls = 'w-full px-4 py-2.5 rounded-xl text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    // Demo: simulate save
-    setTimeout(() => {
+    setSavedMsg('');
+    try {
+      await request('/users/me', {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: form.fullName,
+          bio: form.bio,
+          occupation: form.occupation,
+          hobbies: form.hobbies,
+          birthDate: form.birthDate || undefined,
+          birthPlace: form.birthPlace,
+          education: form.education,
+        }),
+      });
+      setSavedMsg('Profil berhasil disimpan');
+    } catch (err: any) {
+      setSavedMsg(err.message || 'Gagal menyimpan profil');
+    } finally {
       setSaving(false);
-      alert('Profil berhasil disimpan (demo)');
-    }, 800);
+      setTimeout(() => setSavedMsg(''), 3000);
+    }
   };
 
   return (
@@ -58,6 +102,22 @@ export default function ProfilePage() {
           Profil Saya
         </h1>
         <p className="text-slate-500 dark:text-white/50 mt-1 text-sm">Kelola informasi akun dan profil Anda.</p>
+      </div>
+
+      {/* Lengkapi Profil progress */}
+      <div className={`rounded-2xl border p-5 ${pct < 100 ? 'border-blue-300 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10' : 'border-emerald-300 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'}`}>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-medium text-slate-900 dark:text-white">Kelengkapan Profil</p>
+          <span className={`text-sm font-bold ${pct < 100 ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{pct}%</span>
+        </div>
+        <div className="h-2 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden mb-2">
+          <div className={`h-full rounded-full transition-all ${pct < 100 ? 'bg-blue-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
+        </div>
+        <p className="text-xs text-slate-500 dark:text-white/50">
+          {pct < 100
+            ? 'Melengkapi profil 100% bisa memberikan poin pengabdian sebesar 20 poin.'
+            : 'Profil Anda sudah lengkap! Poin pengabdian +20.'}
+        </p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
@@ -95,14 +155,6 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Nama Panggilan</label>
-              <input value={form.nickname} onChange={(e) => setForm({ ...form, nickname: e.target.value })}
-                className={inputCls} placeholder="Nama panggilan" />
-            </div>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div>
               <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Username</label>
               <div className="relative">
                 <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40" />
@@ -110,7 +162,9 @@ export default function ProfilePage() {
                   className={`${inputCls} pl-10`} placeholder="@username" required />
               </div>
             </div>
+          </div>
 
+          <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Email</label>
               <div className="relative">
@@ -119,18 +173,54 @@ export default function ProfilePage() {
                   className={`${inputCls} pl-10 opacity-60 cursor-not-allowed`} />
               </div>
             </div>
+
+            <div>
+              <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Password Baru</label>
+              <div className="relative">
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40" />
+                <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  className={`${inputCls} pl-10 pr-10`} placeholder="Biarkan kosong jika tidak ingin mengubah" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-white/40 dark:hover:text-white/60">
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Personal Info */}
+        <section className="rounded-2xl border p-6 space-y-5
+          bg-white border-slate-200 shadow-sm
+          dark:bg-white/[0.03] dark:border-white/10 dark:shadow-none">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Informasi Pribadi</h2>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Tempat Lahir</label>
+              <div className="relative">
+                <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40" />
+                <input value={form.birthPlace} onChange={(e) => setForm({ ...form, birthPlace: e.target.value })}
+                  className={`${inputCls} pl-10`} placeholder="Tempat lahir" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Tanggal Lahir</label>
+              <div className="relative">
+                <Cake size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40" />
+                <input type="date" value={form.birthDate} onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+                  className={`${inputCls} pl-10`} />
+              </div>
+            </div>
           </div>
 
           <div>
-            <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Password Baru</label>
+            <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Pendidikan Terakhir</label>
             <div className="relative">
-              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40" />
-              <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className={`${inputCls} pl-10 pr-10`} placeholder="Biarkan kosong jika tidak ingin mengubah" />
-              <button type="button" onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-white/40 dark:hover:text-white/60">
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+              <GraduationCap size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40" />
+              <input value={form.education} onChange={(e) => setForm({ ...form, education: e.target.value })}
+                className={`${inputCls} pl-10`} placeholder="Misal: S1 Teknik Informatika" />
             </div>
           </div>
         </section>
@@ -152,7 +242,7 @@ export default function ProfilePage() {
             <label className="block text-xs text-slate-500 dark:text-white/50 mb-1.5">Pekerjaan</label>
             <div className="relative">
               <Briefcase size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40" />
-              <select value={form.job} onChange={(e) => setForm({ ...form, job: e.target.value })}
+              <select value={form.occupation} onChange={(e) => setForm({ ...form, occupation: e.target.value })}
                 className={`${inputCls} pl-10 appearance-none cursor-pointer`}>
                 <option value="">Pilih pekerjaan</option>
                 {JOBS.map((j) => <option key={j} value={j}>{j}</option>)}
@@ -169,6 +259,10 @@ export default function ProfilePage() {
             </div>
           </div>
         </section>
+
+        {savedMsg && (
+          <p className={`text-sm text-center ${savedMsg.includes('Gagal') ? 'text-red-500' : 'text-emerald-500'}`}>{savedMsg}</p>
+        )}
 
         <div className="flex justify-end">
           <button type="submit" disabled={saving}

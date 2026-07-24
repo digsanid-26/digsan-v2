@@ -26,6 +26,11 @@ model User {
   username      String?    @unique
   avatar        String?
   bio           String?
+  birthDate     DateTime?  @map("birth_date")
+  birthPlace    String?    @map("birth_place")
+  education     String?
+  occupation    String?
+  hobbies       String?
   googleId      String?    @unique @map("google_id")
   provider      String     @default("credentials")
   emailVerified DateTime?  @map("email_verified")
