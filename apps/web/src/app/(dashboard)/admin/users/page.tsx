@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApi, useAuthApi } from '@/lib/hooks';
 import { useAuth } from '@/components/providers/auth-provider';
-import { Users, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function AdminUsersPage() {
   const { user } = useAuth();
@@ -30,6 +29,50 @@ export default function AdminUsersPage() {
       refetch();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const [editUser, setEditUser] = useState<any>(null);
+  const [selectedRole, setSelectedRole] = useState<string>('');
+  const [savingRole, setSavingRole] = useState(false);
+
+  const ALL_ROLES = ['user', 'worker', 'admin', 'super_admin', 'super_user'];
+
+  const openEditModal = (u: any) => {
+    setEditUser(u);
+    setSelectedRole(u.roles?.[0] || 'user');
+  };
+
+  const closeEditModal = () => {
+    setEditUser(null);
+    setSelectedRole('');
+  };
+
+  const handleSaveRole = async () => {
+    if (!editUser) return;
+    setSavingRole(true);
+    try {
+      const currentRoles = editUser.roles || [];
+      const targetRole = selectedRole;
+      const hasRole = currentRoles.includes(targetRole);
+      const rolesToRemove = currentRoles.filter((r: string) => r !== targetRole && r !== 'user');
+      const rolesToAdd = hasRole ? [] : [targetRole];
+
+      for (const role of rolesToRemove) {
+        await request(`/admin/users/${editUser.id}/roles/${role}`, { method: 'DELETE' });
+      }
+      for (const role of rolesToAdd) {
+        await request(`/admin/users/${editUser.id}/roles`, {
+          method: 'POST',
+          body: JSON.stringify({ roleName: role }),
+        });
+      }
+      refetch();
+      closeEditModal();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSavingRole(false);
     }
   };
 
@@ -70,6 +113,7 @@ export default function AdminUsersPage() {
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Nama</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Email</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600">Role</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Terdaftar</th>
                   <th className="text-right px-4 py-3 font-medium text-slate-600">Aksi</th>
@@ -80,6 +124,24 @@ export default function AdminUsersPage() {
                   <tr key={u.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-900">{u.name}</td>
                     <td className="px-4 py-3 text-slate-600">{u.email}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {(u.roles || []).map((role: string) => (
+                          <span
+                            key={role}
+                            className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                              role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
+                              role === 'admin' ? 'bg-blue-100 text-blue-700' :
+                              role === 'super_user' ? 'bg-amber-100 text-amber-700' :
+                              role === 'worker' ? 'bg-teal-100 text-teal-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {role.replace('_', ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
                         u.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' :
@@ -93,21 +155,12 @@ export default function AdminUsersPage() {
                       {new Date(u.createdAt).toLocaleDateString('id-ID')}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {u.status === 'ACTIVE' ? (
-                        <button
-                          onClick={() => handleStatusChange(u.id, 'SUSPENDED')}
-                          className="text-xs text-red-600 hover:underline"
-                        >
-                          Suspend
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleStatusChange(u.id, 'ACTIVE')}
-                          className="text-xs text-emerald-600 hover:underline"
-                        >
-                          Aktivkan
-                        </button>
-                      )}
+                      <button
+                        onClick={() => openEditModal(u)}
+                        className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-blue-600"
+                      >
+                        <Pencil size={14} /> Edit
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -139,6 +192,73 @@ export default function AdminUsersPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edit Role Modal */}
+      {editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closeEditModal}>
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-900">Edit Role User</h2>
+              <button onClick={closeEditModal} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <p className="text-sm text-slate-500">Nama</p>
+                <p className="font-medium text-slate-900">{editUser.name}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Email</p>
+                <p className="text-slate-700">{editUser.email}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Role</label>
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                >
+                  {ALL_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {role.replace('_', ' ')}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  Role saat ini: {(editUser.roles || []).join(', ') || 'tidak ada'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  onClick={() => handleStatusChange(editUser.id, editUser.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE')}
+                  className="text-xs text-slate-500 hover:text-red-600"
+                >
+                  {editUser.status === 'ACTIVE' ? 'Suspend' : 'Aktivkan'}
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-200">
+              <button
+                onClick={closeEditModal}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleSaveRole}
+                disabled={savingRole}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+              >
+                {savingRole ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
