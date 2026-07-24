@@ -629,6 +629,18 @@ export class TreeService {
     return tree?.userId === userId;
   }
 
+  /** Check if a user is a member (or owner) of a tree by slug. */
+  async isTreeMember(slug: string, userId: string): Promise<boolean> {
+    const tree = await this.prisma.familyTree.findUnique({ where: { slug }, select: { id: true, userId: true } });
+    if (!tree) return false;
+    if (tree.userId === userId) return true;
+    const member = await this.prisma.familyMember.findFirst({
+      where: { treeId: tree.id, userId },
+      select: { id: true },
+    });
+    return !!member;
+  }
+
   /** Get the configured expiry hours for public links (default 8, admin-configurable). */
   private async getPublicLinkExpiryHours(): Promise<number> {
     const setting = await this.prisma.systemSettings.findUnique({

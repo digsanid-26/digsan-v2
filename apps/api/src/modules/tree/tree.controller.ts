@@ -386,13 +386,13 @@ export class PublicFamilyController {
       await this.treeService.validatePublicLinkToken(token, slug);
       return this.treeService.getPublicFamily(slug);
     }
-    // Check if authenticated user is the owner
+    // Check if authenticated user is the owner or a member of the tree
     const userId = this.extractUserId(req);
     if (userId) {
-      const isOwner = await this.treeService.isTreeOwner(slug, userId);
-      if (isOwner) return this.treeService.getPublicFamily(slug);
+      const isMember = await this.treeService.isTreeMember(slug, userId);
+      if (isMember) return this.treeService.getPublicFamily(slug);
     }
-    throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai pemilik keluarga.');
+    throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai anggota keluarga.');
   }
 
   @Get(':slug/:username')
@@ -409,9 +409,9 @@ export class PublicFamilyController {
     }
     const userId = this.extractUserId(req);
     if (userId) {
-      const isOwner = await this.treeService.isTreeOwner(slug, userId);
-      if (isOwner) return this.treeService.getPublicProfile(slug, username);
+      const isMember = await this.treeService.isTreeMember(slug, userId);
+      if (isMember) return this.treeService.getPublicProfile(slug, username);
     }
-    throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai pemilik keluarga.');
+    throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai anggota keluarga.');
   }
 }
