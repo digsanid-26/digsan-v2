@@ -86,31 +86,9 @@ export default function PublicFamilyPage() {
     childXs.forEach((x, i) => ns.push({ id: `child-${i}`, name: `Anak ${i + 1}`, role: 'Keturunan', x, y: 210, group: 'child' }));
     connectDown(ls, coupleMid, 0, childXs, 210);
 
-    // Self's parents (y = -210, left of self)
-    const selfParentCenter = selfX - 100;
-    const selfParentXs = spreadX(cfg.parentCount, 140, selfParentCenter);
-    const selfParentLabels = cfg.parentCount === 2 ? ['Ayah', 'Ibu'] : Array.from({ length: cfg.parentCount }, (_, i) => `Orang Tua ${i + 1}`);
-    selfParentXs.forEach((x, i) => ns.push({ id: `parent-${i}`, name: selfParentLabels[i], role: 'Orang Tua', x, y: -210, group: 'parent' }));
-    if (cfg.parentCount >= 2) ls.push({ points: [[selfParentXs[0], -210], [selfParentXs[cfg.parentCount - 1], -210]], marriage: true });
-    const selfParentMid = selfParentXs.length ? selfParentXs.reduce((a, b) => a + b, 0) / selfParentXs.length : selfParentCenter;
-    connectDown(ls, selfParentMid, -210, [selfX], 0);
-
-    // Spouse's parents (y = -210, right of spouse)
-    const spouseX = coupleXs[1] ?? 160;
-    const spouseParentCenter = spouseX + 100;
-    const spouseParentXs = spreadX(2, 140, spouseParentCenter);
-    const spouseParentLabels = ['Mertua (Ayah)', 'Mertua (Ibu)'];
-    spouseParentXs.forEach((x, i) => ns.push({ id: `spouse-parent-${i}`, name: spouseParentLabels[i], role: 'Mertua', x, y: -210, group: 'parent' }));
-    ls.push({ points: [[spouseParentXs[0], -210], [spouseParentXs[1], -210]], marriage: true });
-    const spouseParentMid = spouseParentXs.reduce((a, b) => a + b, 0) / spouseParentXs.length;
-    connectDown(ls, spouseParentMid, -210, [spouseX], 0);
-
-    // "Keluarga Besar" group node (y = -380), centered between both parent couples
-    const allParentXs = [...selfParentXs, ...spouseParentXs];
-    const kbCenterX = (Math.min(...allParentXs) + Math.max(...allParentXs)) / 2;
-    ns.push({ id: 'grp-kb', name: 'Keluarga Besar', role: 'group', x: kbCenterX, y: -380, group: 'parent', count: cfg.parentCount + 2 });
-    ls.push({ points: [[kbCenterX, -380], [selfParentMid, -210]] });
-    ls.push({ points: [[kbCenterX, -380], [spouseParentMid, -210]] });
+    // "Keluarga Besar" group node (y = -210), connected directly to the couple
+    ns.push({ id: 'grp-kb', name: 'Keluarga Besar', role: 'group', x: coupleMid, y: -210, group: 'parent', count: cfg.parentCount + 2 });
+    ls.push({ points: [[coupleMid, 0], [coupleMid, -210]] });
 
     return { nodes: ns, lines: ls };
   }, [data?.config, config, members]);
