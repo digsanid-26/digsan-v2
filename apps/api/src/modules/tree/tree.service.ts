@@ -202,14 +202,23 @@ export class TreeService {
     const familyName = (tree.layoutConfig?.mainFamilyName as string) || tree.name || 'keluarga';
     const desiredBase = `${familyName}-fam`;
 
+    // For connected users (non-owners), use sharedFamilySlug from config instead of creating own slug
+    const sharedFamilySlug = tree.layoutConfig?.sharedFamilySlug as string | undefined;
+
     if (!slug) {
-      try {
-        slug = await this.uniqueTreeSlug(desiredBase, tree.id);
-        await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
-        this.logger.log(`Created slug "${slug}" for tree ${tree.id} (base: "${desiredBase}")`);
-      } catch (err) {
-        this.logger.error(`Failed to create slug for tree ${tree.id}: ${err}`);
-        slug = null;
+      if (sharedFamilySlug) {
+        // This is a connected user — use the inviter's shared slug, don't create own
+        slug = sharedFamilySlug;
+      } else {
+        // This is a tree owner — create a unique slug
+        try {
+          slug = await this.uniqueTreeSlug(desiredBase, tree.id);
+          await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
+          this.logger.log(`Created slug "${slug}" for tree ${tree.id} (base: "${desiredBase}")`);
+        } catch (err) {
+          this.logger.error(`Failed to create slug for tree ${tree.id}: ${err}`);
+          slug = null;
+        }
       }
     }
 
@@ -239,35 +248,34 @@ export class TreeService {
     const identity = await this.ensureIdentity(tree);
 
     // Check if this user is a connected member (not the tree owner)
+    const isTreeOwner = tree.userId === userId;
     let connectedFamily: { familyName: string; slug: string; ownerId: string; ownerName: string } | null = null;
-    if (tree.userId !== userId) {
+
+    if (!isTreeOwner) {
       // User is a member of someone else's tree — return inviter's family info
       const inviterConfig = (tree.layoutConfig as any) ?? {};
+      const sharedSlug = inviterConfig.sharedFamilySlug || identity.slug || '';
       connectedFamily = {
         familyName: inviterConfig.mainFamilyName || tree.name || 'Keluarga',
-        slug: identity.slug || '',
+        slug: sharedSlug,
         ownerId: tree.userId,
         ownerName: identity.owner?.name || '',
       };
-    } else {
-      // Check if any member node in the user's tree has a linkedUserId
-      // (user is the head, but we want to know if they have connected members)
-      const membersData = (tree.layoutMembers as Record<string, any>) ?? {};
-      const selfMember = membersData['self'];
-      // If self node has linkedUserId, this user is connected to someone else's tree
-      if (selfMember?.linkedUserId) {
-        // This shouldn't normally happen for the tree owner, but handle it
-      }
     }
+
+    // For connected users, return the shared slug as the main slug
+    const effectiveSlug = !isTreeOwner
+      ? (connectedFamily?.slug || identity.slug)
+      : identity.slug;
 
     return {
       treeId: tree.id,
-      slug: identity.slug,
+      slug: effectiveSlug,
       owner: identity.owner,
       config: tree.layoutConfig ?? null,
       members: tree.layoutMembers ?? null,
       updatedAt: tree.updatedAt,
-      isTreeOwner: tree.userId === userId,
+      isTreeOwner,
       connectedFamily,
     };
   }
@@ -275,11 +283,39 @@ export class TreeService {
   /** Manually create or update the family slug. */
   async setSlug(userId: string, desiredSlug?: string) {
     const tree = await this.getOrCreateDefaultTree(userId);
+    if (tree.userId !== userId) {
+      throw new ForbiddenException('Hanya pemilik pohon yang dapat mengatur slug');
+    }
     const familyName = (tree.layoutConfig as any)?.mainFamilyName || tree.name || 'keluarga';
     const base = desiredSlug?.trim() || `${familyName}-fam`;
     const slug = await this.uniqueTreeSlug(base, tree.id);
     await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
     this.logger.log(`Slug manually set to "${slug}" for tree ${tree.id}`);
+
+    // Propagate new slug to all connected members' trees
+    const membersData = (tree.layoutMembers as Record<string, any>) ?? {};
+    const linkedUserIds = new Set<string>();
+    for (const [, m] of Object.entries(membersData)) {
+      if ((m as any)?.linkedUserId) linkedUserIds.add((m as any).linkedUserId);
+    }
+    for (const linkedUserId of linkedUserIds) {
+      try {
+        const linkedTree = await this.prisma.familyTree.findFirst({ where: { userId: linkedUserId } });
+        if (linkedTree) {
+          const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
+          await this.prisma.familyTree.update({
+            where: { id: linkedTree.id },
+            data: {
+              layoutConfig: { ...linkedConfig, sharedFamilySlug: slug } as any,
+              slug: null,
+            },
+          });
+          this.logger.log(`Propagated new slug "${slug}" to linked user ${linkedUserId}'s tree`);
+        }
+      } catch (err) {
+        this.logger.error(`Failed to propagate slug to linked user ${linkedUserId}: ${err}`);
+      }
+    }
 
     const owner = await this.prisma.user.findUnique({
       where: { id: tree.userId },
@@ -352,6 +388,37 @@ export class TreeService {
       },
     });
     const identity = await this.ensureIdentity(updated);
+
+    // ─── Propagate family name & slug to all connected members' trees ───
+    if (config && identity.slug) {
+      const newFamilyName = (config as any)?.mainFamilyName as string | undefined;
+      if (newFamilyName) {
+        const membersData = (members as Record<string, any>) ?? (tree.layoutMembers as Record<string, any>) ?? {};
+        const linkedUserIds = new Set<string>();
+        for (const [, m] of Object.entries(membersData)) {
+          if ((m as any)?.linkedUserId) linkedUserIds.add((m as any).linkedUserId);
+        }
+        for (const linkedUserId of linkedUserIds) {
+          try {
+            const linkedTree = await this.prisma.familyTree.findFirst({ where: { userId: linkedUserId } });
+            if (linkedTree) {
+              const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
+              await this.prisma.familyTree.update({
+                where: { id: linkedTree.id },
+                data: {
+                  layoutConfig: { ...linkedConfig, mainFamilyName: newFamilyName, sharedFamilySlug: identity.slug } as any,
+                  slug: null,
+                },
+              });
+              this.logger.log(`Propagated familyName="${newFamilyName}" slug="${identity.slug}" to linked user ${linkedUserId}'s tree`);
+            }
+          } catch (err) {
+            this.logger.error(`Failed to propagate to linked user ${linkedUserId}: ${err}`);
+          }
+        }
+      }
+    }
+
     return {
       treeId: updated.id,
       slug: identity.slug,
@@ -400,7 +467,7 @@ export class TreeService {
 
     const identity = await this.ensureIdentity(updated);
 
-    // ─── Sync linked user's family tree to follow inviter's slug ───
+    // ─── Sync linked user's family tree to share inviter's family page ───
     const inviterConfig = (tree.layoutConfig as any) ?? {};
     const inviterFamilyName = inviterConfig.mainFamilyName || tree.name || 'keluarga';
     const inviterSlug = identity.slug;
@@ -415,26 +482,21 @@ export class TreeService {
       const updatedLinkedConfig = {
         ...linkedConfig,
         mainFamilyName: inviterFamilyName,
+        sharedFamilySlug: inviterSlug || null,
       };
 
-      // Generate slug following the inviter's slug
-      // If inviter slug is "keluarga-besar-fam", linked user gets same base but unique
-      let newSlug = linkedTree.slug;
-      if (inviterSlug) {
-        // Try to use the inviter's slug base; make it unique for the linked user's tree
-        newSlug = await this.uniqueTreeSlug(inviterSlug, linkedTree.id);
-      }
-
+      // Set the linked user's slug to null — they share the inviter's family page
+      // The inviter's slug is stored in sharedFamilySlug for reference
       await this.prisma.familyTree.update({
         where: { id: linkedTree.id },
         data: {
           layoutConfig: updatedLinkedConfig as any,
-          ...(newSlug && newSlug !== linkedTree.slug && { slug: newSlug }),
+          slug: null,
         },
       });
 
-      linkedTreeSlug = newSlug || linkedTree.slug;
-      this.logger.log(`Synced linked user ${linkedUser.id} tree: familyName="${inviterFamilyName}", slug="${linkedTreeSlug}"`);
+      linkedTreeSlug = inviterSlug;
+      this.logger.log(`Synced linked user ${linkedUser.id} tree: familyName="${inviterFamilyName}", sharedSlug="${inviterSlug}"`);
     } catch (err) {
       this.logger.error(`Failed to sync linked user's tree: ${err}`);
     }
