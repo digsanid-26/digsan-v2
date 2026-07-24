@@ -193,10 +193,10 @@ export interface PublicProfile {
   };
 }
 
-async function publicRequest<T>(endpoint: string): Promise<T> {
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    headers: { 'Content-Type': 'application/json' },
-  });
+async function publicRequest<T>(endpoint: string, authToken?: string): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const res = await fetch(`${API_URL}${endpoint}`, { headers });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error((body as { message?: string }).message || `HTTP ${res.status}`) as Error & { status: number };
@@ -208,11 +208,24 @@ async function publicRequest<T>(endpoint: string): Promise<T> {
 }
 
 export const publicTreeApi = {
-  getFamily: <C = unknown, M = unknown>(slug: string) =>
-    publicRequest<PublicFamily<C, M>>(`/public/family/${encodeURIComponent(slug)}`),
+  getFamily: <C = unknown, M = unknown>(slug: string, token?: string, authToken?: string) =>
+    publicRequest<PublicFamily<C, M>>(`/public/family/${encodeURIComponent(slug)}${token ? `?t=${token}` : ''}`, authToken),
 
-  getProfile: (slug: string, username: string) =>
-    publicRequest<PublicProfile>(`/public/family/${encodeURIComponent(slug)}/${encodeURIComponent(username)}`),
+  getProfile: (slug: string, username: string, token?: string, authToken?: string) =>
+    publicRequest<PublicProfile>(`/public/family/${encodeURIComponent(slug)}/${encodeURIComponent(username)}${token ? `?t=${token}` : ''}`, authToken),
+
+  generatePublicLink: async (slug: string, username?: string) => {
+    const tokens = getTokens();
+    if (!tokens?.accessToken) throw new Error('Not authenticated');
+    const res = await fetch(`${API_URL}/trees/public-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokens.accessToken}` },
+      body: JSON.stringify({ slug, username }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as { message?: string }).message || `HTTP ${res.status}`);
+    return ((body as { data?: unknown }).data ?? body) as { token: string; expiresAt: string; slug: string; username: string | null };
+  },
 };
 
 // ─── Pending node claim (across register/login redirect) ─────

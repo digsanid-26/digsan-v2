@@ -7,6 +7,10 @@ import Link from 'next/link';
 import { User, ArrowLeft, Loader2, BadgeCheck, CalendarDays, MapPin, Briefcase, GraduationCap, Heart, Newspaper, Activity } from 'lucide-react';
 import { publicTreeApi } from '@/lib/tree';
 import type { PublicProfile } from '@/lib/tree';
+import { getTokens, getUser } from '@/lib/auth';
+import AppHeader from '@/app/components/AppHeader';
+import { ThemeProvider } from '@/app/components/ThemeProvider';
+import { AuthProvider } from '@/components/providers/auth-provider';
 
 export default function PublicProfilePage() {
   const params = useParams<{ slug: string; username: string }>();
@@ -16,18 +20,27 @@ export default function PublicProfilePage() {
   const [data, setData] = useState<PublicProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('t');
+    if (t) setLinkToken(t);
+    setIsLoggedIn(!!getUser());
+  }, []);
 
   useEffect(() => {
     if (!slug || !username) return;
     let cancelled = false;
     setLoading(true);
+    const tokens = getTokens();
     publicTreeApi
-      .getProfile(slug, username)
+      .getProfile(slug, username, linkToken ?? undefined, tokens?.accessToken)
       .then((res) => { if (!cancelled) setData(res); })
       .catch((e: Error) => { if (!cancelled) setError(e.message || 'Gagal memuat profil'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [slug, username]);
+  }, [slug, username, linkToken]);
 
   const joined = data?.profile.joinedAt
     ? new Date(data.profile.joinedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long' })
@@ -39,12 +52,20 @@ export default function PublicProfilePage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#05050f' }}>
-      <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
-        <Link href="/">
-          <Image src="/logo-white.svg" alt="Digsan" width={110} height={28} priority className="h-7 w-auto" />
-        </Link>
-        <Link href="/login" className="text-sm text-white/60 hover:text-white transition-colors">Masuk</Link>
-      </header>
+      {isLoggedIn ? (
+        <ThemeProvider>
+          <AuthProvider>
+            <AppHeader />
+          </AuthProvider>
+        </ThemeProvider>
+      ) : (
+        <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <Link href="/">
+            <Image src="/logo-white.svg" alt="Digsan" width={110} height={28} priority className="h-7 w-auto" />
+          </Link>
+          <Link href="/login" className="text-sm text-white/60 hover:text-white transition-colors">Masuk</Link>
+        </header>
+      )}
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-white/50">
@@ -53,9 +74,12 @@ export default function PublicProfilePage() {
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
           <User size={40} className="text-white/25 mb-3" />
-          <h1 className="text-white text-lg font-semibold mb-1">Profil tidak ditemukan</h1>
-          <p className="text-white/40 text-sm mb-5">{error}</p>
-          <Link href={`/family/${slug}`} className="text-blue-400 hover:underline text-sm">Kembali ke keluarga</Link>
+          <h1 className="text-white text-lg font-semibold mb-1">Akses terbatas</h1>
+          <p className="text-white/40 text-sm mb-5 max-w-sm">{error}</p>
+          <div className="flex gap-3">
+            <Link href="/login" className="text-blue-400 hover:underline text-sm">Masuk</Link>
+            <Link href={`/family/${slug}`} className="text-white/40 hover:text-white text-sm">Kembali ke keluarga</Link>
+          </div>
         </div>
       ) : data ? (
         <main className="flex-1 px-4 py-8">

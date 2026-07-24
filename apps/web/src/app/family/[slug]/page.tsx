@@ -7,10 +7,13 @@ import Link from 'next/link';
 import { Users, ArrowRight, Loader2, X } from 'lucide-react';
 import { publicTreeApi, treeApi, savePendingClaim } from '@/lib/tree';
 import type { PublicFamily } from '@/lib/tree';
-import { getTokens } from '@/lib/auth';
+import { getTokens, getUser } from '@/lib/auth';
 import type { TreeConfig, Members, TNode, Poly } from '@/app/components/treeTypes';
 import { DEFAULT_CONFIG } from '@/app/components/treeTypes';
 import PublicTreeCanvas from '@/app/components/PublicTreeCanvas';
+import AppHeader from '@/app/components/AppHeader';
+import { ThemeProvider } from '@/app/components/ThemeProvider';
+import { AuthProvider } from '@/components/providers/auth-provider';
 
 // Local layout helpers for main family + both sets of parents + Keluarga Besar
 const spreadX = (count: number, gap: number, cx: number): number[] => {
@@ -39,24 +42,32 @@ export default function PublicFamilyPage() {
   const [claimNode, setClaimNode] = useState<TNode | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Deep link from an invitation: /family/{slug}?m={nodeId} focuses that member.
+  // Also read public link token from ?t= query param.
   useEffect(() => {
-    const m = new URLSearchParams(window.location.search).get('m');
+    const params = new URLSearchParams(window.location.search);
+    const m = params.get('m');
     if (m) setHighlightId(m);
+    const t = params.get('t');
+    if (t) setLinkToken(t);
+    setIsLoggedIn(!!getUser());
   }, []);
 
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
     setLoading(true);
+    const tokens = getTokens();
     publicTreeApi
-      .getFamily<Partial<TreeConfig>, Members>(slug)
+      .getFamily<Partial<TreeConfig>, Members>(slug, linkToken ?? undefined, tokens?.accessToken)
       .then((res) => { if (!cancelled) setData(res); })
       .catch((e: Error) => { if (!cancelled) setError(e.message || 'Gagal memuat keluarga'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, linkToken]);
 
   const config: TreeConfig = useMemo(
     () => ({ ...DEFAULT_CONFIG, ...(data?.config ?? {}) }),
@@ -132,12 +143,20 @@ export default function PublicFamilyPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#05050f' }}>
-      <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
-        <Link href="/">
-          <Image src="/logo-white.svg" alt="Digsan" width={110} height={28} priority className="h-7 w-auto" />
-        </Link>
-        <Link href="/login" className="text-sm text-white/60 hover:text-white transition-colors">Masuk</Link>
-      </header>
+      {isLoggedIn ? (
+        <ThemeProvider>
+          <AuthProvider>
+            <AppHeader />
+          </AuthProvider>
+        </ThemeProvider>
+      ) : (
+        <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <Link href="/">
+            <Image src="/logo-white.svg" alt="Digsan" width={110} height={28} priority className="h-7 w-auto" />
+          </Link>
+          <Link href="/login" className="text-sm text-white/60 hover:text-white transition-colors">Masuk</Link>
+        </header>
+      )}
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-white/50">
@@ -146,9 +165,12 @@ export default function PublicFamilyPage() {
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
           <Users size={40} className="text-white/25 mb-3" />
-          <h1 className="text-white text-lg font-semibold mb-1">Keluarga tidak ditemukan</h1>
-          <p className="text-white/40 text-sm mb-5">{error}</p>
-          <Link href="/" className="text-blue-400 hover:underline text-sm">Kembali ke beranda</Link>
+          <h1 className="text-white text-lg font-semibold mb-1">Akses terbatas</h1>
+          <p className="text-white/40 text-sm mb-5 max-w-sm">{error}</p>
+          <div className="flex gap-3">
+            <Link href="/login" className="text-blue-400 hover:underline text-sm">Masuk</Link>
+            <Link href="/" className="text-white/40 hover:text-white text-sm">Kembali ke beranda</Link>
+          </div>
         </div>
       ) : data ? (
         <main className="flex-1 flex flex-col">

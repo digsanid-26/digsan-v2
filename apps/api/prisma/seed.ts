@@ -33,6 +33,12 @@ async function main() {
     create: { key: 'maintenance_mode', value: 'false', label: 'Maintenance Mode', description: 'Maintenance mode toggle', category: 'general', type: 'boolean' },
   });
 
+  await prisma.systemSettings.upsert({
+    where: { key: 'public_link_expiry_hours' },
+    update: {},
+    create: { key: 'public_link_expiry_hours', value: '8', label: 'Public Link Expiry (hours)', description: 'How long public family/profile page links remain valid before requiring a new token', category: 'security', type: 'number' },
+  });
+
   console.log('  ✓ System settings');
 
   // ─── JOB CATALOG SEED DATA ──────────────────────────────────

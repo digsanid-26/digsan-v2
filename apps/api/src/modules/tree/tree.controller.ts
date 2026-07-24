@@ -1,8 +1,9 @@
 import {
   Controller, Get, Post, Put, Delete, Patch,
-  Param, Body, Query, UseGuards,
+  Param, Body, Query, UseGuards, Req, ForbiddenException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { TreeService } from './tree.service';
@@ -116,6 +117,15 @@ export class TreeController {
   @ApiOperation({ summary: 'Claim an unclaimed node on a public family tree ("Apakah ini Anda?")' })
   async claimNode(@CurrentUser('id') userId: string, @Body() dto: ClaimNodeDto) {
     return this.treeService.claimNode(userId, dto.slug, dto.nodeId);
+  }
+
+  @Post('public-link')
+  @ApiOperation({ summary: 'Generate a time-limited token for a public family/profile page link' })
+  async generatePublicLink(
+    @CurrentUser('id') userId: string,
+    @Body() body: { slug: string; username?: string },
+  ) {
+    return this.treeService.generatePublicLinkToken(userId, body.slug, body.username);
   }
 
   @Get('search')
@@ -347,17 +357,61 @@ export class PublicTreeController {
 @ApiTags('Public Family Pages')
 @Controller('public/family')
 export class PublicFamilyController {
-  constructor(private readonly treeService: TreeService) {}
+  constructor(
+    private readonly treeService: TreeService,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  /** Extract userId from Bearer token if present and valid. */
+  private extractUserId(req: any): string | null {
+    const authHeader = req.headers?.authorization;
+    if (!authHeader?.startsWith('Bearer ')) return null;
+    try {
+      const payload = this.jwtService.verify(authHeader.slice(7));
+      return payload?.sub || payload?.userId || null;
+    } catch {
+      return null;
+    }
+  }
 
   @Get(':slug')
-  @ApiOperation({ summary: 'Get a family page by slug' })
-  async getFamily(@Param('slug') slug: string) {
-    return this.treeService.getPublicFamily(slug);
+  @ApiOperation({ summary: 'Get a family page by slug (token or owner auth required)' })
+  async getFamily(
+    @Param('slug') slug: string,
+    @Query('t') token: string | undefined,
+    @Req() req: any,
+  ) {
+    // If token provided, validate it
+    if (token) {
+      await this.treeService.validatePublicLinkToken(token, slug);
+      return this.treeService.getPublicFamily(slug);
+    }
+    // Check if authenticated user is the owner
+    const userId = this.extractUserId(req);
+    if (userId) {
+      const isOwner = await this.treeService.isTreeOwner(slug, userId);
+      if (isOwner) return this.treeService.getPublicFamily(slug);
+    }
+    throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai pemilik keluarga.');
   }
 
   @Get(':slug/:username')
-  @ApiOperation({ summary: 'Get a personal profile page by family slug + username' })
-  async getProfile(@Param('slug') slug: string, @Param('username') username: string) {
-    return this.treeService.getPublicProfile(slug, username);
+  @ApiOperation({ summary: 'Get a personal profile page by family slug + username (token or owner auth required)' })
+  async getProfile(
+    @Param('slug') slug: string,
+    @Param('username') username: string,
+    @Query('t') token: string | undefined,
+    @Req() req: any,
+  ) {
+    if (token) {
+      await this.treeService.validatePublicLinkToken(token, slug, username);
+      return this.treeService.getPublicProfile(slug, username);
+    }
+    const userId = this.extractUserId(req);
+    if (userId) {
+      const isOwner = await this.treeService.isTreeOwner(slug, userId);
+      if (isOwner) return this.treeService.getPublicProfile(slug, username);
+    }
+    throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai pemilik keluarga.');
   }
 }

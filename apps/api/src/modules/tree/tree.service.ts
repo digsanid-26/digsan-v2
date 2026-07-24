@@ -605,6 +605,59 @@ export class TreeService {
     };
   }
 
+  // ─── PUBLIC LINK TOKENS ─────────────────────────────────────
+
+  /** Check if a user is the owner of a tree by slug. */
+  async isTreeOwner(slug: string, userId: string): Promise<boolean> {
+    const tree = await this.prisma.familyTree.findUnique({ where: { slug }, select: { userId: true } });
+    return tree?.userId === userId;
+  }
+
+  /** Get the configured expiry hours for public links (default 8, admin-configurable). */
+  private async getPublicLinkExpiryHours(): Promise<number> {
+    const setting = await this.prisma.systemSettings.findUnique({
+      where: { key: 'public_link_expiry_hours' },
+    });
+    const val = setting ? parseInt(setting.value, 10) : 8;
+    return isNaN(val) || val <= 0 ? 8 : val;
+  }
+
+  /** Generate a time-limited token for a public family/profile page. */
+  async generatePublicLinkToken(userId: string, slug: string, username?: string) {
+    const tree = await this.prisma.familyTree.findUnique({ where: { slug } });
+    if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
+
+    // Only the tree owner can generate tokens for their family
+    if (tree.userId !== userId) {
+      throw new ForbiddenException('Hanya pemilik keluarga yang dapat membuat link publik');
+    }
+
+    const hours = await this.getPublicLinkExpiryHours();
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + hours);
+
+    const record = await this.prisma.publicLinkToken.create({
+      data: { token, slug, username: username || null, userId, expiresAt },
+    });
+
+    return { token: record.token, expiresAt: record.expiresAt, slug, username: username || null };
+  }
+
+  /** Validate a public link token. Returns true if valid, throws if expired/invalid. */
+  async validatePublicLinkToken(token: string, slug: string, username?: string): Promise<boolean> {
+    const record = await this.prisma.publicLinkToken.findUnique({ where: { token } });
+    if (!record) throw new ForbiddenException('Token link publik tidak valid');
+    if (record.slug !== slug) throw new ForbiddenException('Token tidak sesuai untuk keluarga ini');
+    if (username && record.username && record.username !== username) {
+      throw new ForbiddenException('Token tidak sesuai untuk profil ini');
+    }
+    if (record.expiresAt < new Date()) {
+      throw new ForbiddenException('Token link publik telah kedaluwarsa. Silakan minta link baru.');
+    }
+    return true;
+  }
+
   // ─── GUARDIANSHIP CONSENT ───────────────────────────────────
 
   /**
@@ -959,10 +1012,18 @@ export class TreeService {
       },
     });
 
+    // Auto-generate a public link token so the invitee can view the family page
+    const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { slug: true } });
+    let publicLinkToken: string | null = null;
+    if (tree?.slug) {
+      const plt = await this.generatePublicLinkToken(userId, tree.slug);
+      publicLinkToken = plt.token;
+    }
+
     // Fire the email (best-effort — EmailService logs when SMTP is unset).
     if (dto.email) {
       try {
-        const [tree, inviter] = await Promise.all([
+        const [treeRow, inviter] = await Promise.all([
           this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { name: true } }),
           this.prisma.user.findUnique({ where: { id: userId }, select: { name: true, avatar: true } }),
         ]);
@@ -971,7 +1032,7 @@ export class TreeService {
         await this.email.sendTreeInvitationEmail(
           dto.email,
           inviter?.name || 'Seseorang',
-          tree?.name || 'Keluarga',
+          treeRow?.name || 'Keluarga',
           acceptUrl,
           dto.message,
           inviter?.avatar || null,
@@ -999,7 +1060,7 @@ export class TreeService {
       }
     }
 
-    return invitation;
+    return { ...invitation, publicLinkToken };
   }
 
   async getInvitations(treeId: string, userId: string) {

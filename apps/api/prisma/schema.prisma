@@ -333,6 +333,21 @@ enum InvitationStatus {
   CANCELLED
 }
 
+// ─── Public link tokens (time-limited access to public pages) ──
+model PublicLinkToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  slug      String
+  username  String?  @map("username")
+  userId    String?  @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([token])
+  @@index([slug])
+  @@map("public_link_tokens")
+}
+
 // ─── Guardianship consent ─────────────────────────────────────
 // A guardian (usually the tree owner) requests permission to manage
 // the sub-tree of a LIVING member. The living person (targetUser)
