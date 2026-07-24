@@ -77,8 +77,8 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [ ] Gambaran layout baru (perlu dinamai) bisa dibaca dari skenario berikut : Dari bagan tree user akan hanya ada , bagan tree keluarga utama (lingkaran dengan label nama keluarga utama) seperti berada di belakang (z-index lebih rendah) dengan penampakan agak tersamar. Ada garis tipis yang menghubungkan anggota dari keluarga utama tersebut di mana anggota keluarga utama adalah dirinya, suami atau istrinya, serta anak-anaknya. Ketika lingkaran family disorot, garis dan lingkaran keluarga utama menjadi jelas, setelah diklik maka bagan tree keluarga muncul. Bagan Tree Keluarga memiliki susunan seperti bagan tree user namun berisi koneksi antar bagan keluarga utama lainnya yang membentuk keluarga besar.
 
 ### Sistem Perijinan
-- [ ] Role super-user | Role tambahan yang otomatis dimiliki oleh user pembuat silsilah keluarganya yang pertama kali;
-- [ ] Untuk orang tua dan anak baik yang masih hidup maupun yang sudah meninggal dunia dapat dikelola dan diedit profil dan silsilahnya oleh orang yang membuat silsilah tanpa perlu meminta ijin (super-user) yang bersangkutan. Yang perlu ijin justru adalah ketika hendak mengedit silsilah atau detil anggota berstatus saudara (kakak/adik); 
+- [ ] Role super-user | Agar tidak bingung dalam menentukan kuasa terhadap silsilah keluarga, buatkan role tambahan dengan nama super-user yang otomatis dimiliki oleh user pembuat silsilah keluarganya yang pertama kali;
+- [ ] Untuk orang tua, saudara orang tua, dan anak-anak yang secara usia belum cukup umur/belum memiliki identitas ktp, baik yang masih hidup maupun yang sudah meninggal dunia dapat dikelola dan diedit profil dan silsilahnya oleh orang yang membuat silsilah tanpa perlu meminta ijin (super-user) yang bersangkutan. Yang perlu ijin adalah ketika hendak mengedit silsilah atau detil anggota telah berstatus user aktif/menerima invitation; 
 
 ### Sistem Labeling
 - [ ] Pria (suami) di halaman publik tree akan diberi tambahan label Kepala Keluarga
@@ -130,7 +130,7 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 
 ## Backend Admin
 - [x] Cek apakah ada user role admin dan ketersediaan akses ke dashboard admin dsb; (Sudah ada: role `admin`/`super_admin`/`worker` + `RolesGuard`; backend `AdminController` (`/api/admin/*`: dashboard, users, workers, orders, settings, configs) dan halaman web `app/(dashboard)/admin/` (page, users, workers, settings).)
-- [ ] Admin memiliki dashboard relatif sama dengan tampilan app.digsan.id namun memiliki area konten berupa tree yang mencakup perkembangan jaringan semua keluarga dalam satu map besar dengan sistem filter, search, bisa mengklik semua lingkaran yang ada untuk melihat profil atau informasi yang ada.
-- [ ] buatkan script untuk menjadikan user dengan alamat email digsanid@gmail.com sebagai superadmin untuk dijalankan di ssh.
+- [x] Admin memiliki dashboard relatif sama dengan tampilan app.digsan.id namun memiliki area konten berupa tree yang mencakup perkembangan jaringan semua keluarga dalam satu map besar dengan sistem filter, search, bisa mengklik semua lingkaran yang ada untuk melihat profil atau informasi yang ada.
+- [x] buatkan script untuk menjadikan user dengan alamat email digsanid@gmail.com sebagai superadmin untuk dijalankan di ssh.
 *Terakhir diperbarui: Juli 2026*
 

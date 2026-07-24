@@ -6,7 +6,7 @@ async function main() {
   console.log('🌱 Seeding database...');
 
   // Create default roles
-  const roles = ['user', 'worker', 'admin', 'super_admin'];
+  const roles = ['user', 'worker', 'admin', 'super_admin', 'super_user'];
 
   for (const name of roles) {
     await prisma.role.upsert({

@@ -253,6 +253,34 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                   {d.gender === 'P' ? 'Istri' : 'Suami'}
                 </text>
               )}
+              {/* Kepala Keluarga label for the male in the couple (self or spouse) */}
+              {!isGroup && d?.gender === 'L' && (n.group === 'self' || n.group === 'spouse') && (
+                <text
+                  y={r + (n.group === 'spouse' ? 50 : 34)}
+                  textAnchor="middle"
+                  fill="rgba(250,204,21,0.7)"
+                  fontSize={10}
+                  fontWeight={600}
+                >
+                  Kepala Keluarga
+                </text>
+              )}
+              {/* Child label: Anak{n}{gender} */}
+              {!isGroup && n.group === 'child' && d?.name && (() => {
+                const childIdx = parseInt(n.id.replace('child-', ''), 10) + 1;
+                const genderLabel = d.gender === 'L' ? 'pa' : d.gender === 'P' ? 'pi' : '';
+                return (
+                  <text
+                    y={r + 34}
+                    textAnchor="middle"
+                    fill="rgba(255,255,255,0.5)"
+                    fontSize={11}
+                    fontWeight={400}
+                  >
+                    {`Anak ${childIdx}${genderLabel}`}
+                  </text>
+                );
+              })()}
             </g>
           );
         })}

@@ -159,9 +159,25 @@ export class TreeService {
     if (memberOf?.tree) return memberOf.tree;
 
     // 3. Create a new tree
-    return this.prisma.familyTree.create({
+    const newTree = await this.prisma.familyTree.create({
       data: { name: 'Pohon Keluarga Saya', userId },
     });
+
+    // Auto-assign super_user role to the tree creator (first-time tree owner)
+    await this.assignSuperUserRole(userId);
+
+    return newTree;
+  }
+
+  /** Assign the super_user role to a user if they don't already have it. */
+  private async assignSuperUserRole(userId: string) {
+    const role = await this.prisma.role.findUnique({ where: { name: 'super_user' } });
+    if (!role) return;
+    await this.prisma.userRole.upsert({
+      where: { userId_roleId: { userId, roleId: role.id } },
+      update: {},
+      create: { userId, roleId: role.id },
+    }).catch(() => {});
   }
 
   /** Generate a unique tree slug from a base string. */
@@ -868,6 +884,32 @@ export class TreeService {
       where: { id: memberId, treeId },
     });
     if (!member) throw new NotFoundException('Anggota tidak ditemukan');
+
+    // If the member is linked to an active user account, require consent
+    // (super-user can edit freely only for non-active/unlinked members)
+    if (member.userId && member.userId !== userId) {
+      const linkedUser = await this.prisma.user.findUnique({
+        where: { id: member.userId },
+        select: { status: true },
+      });
+      if (linkedUser && linkedUser.status === 'ACTIVE') {
+        // Check if consent has been granted
+        const consent = await this.prisma.guardianConsent.findFirst({
+          where: {
+            treeId,
+            nodeId: memberId,
+            requesterId: userId,
+            targetUserId: member.userId,
+            status: 'GRANTED',
+          },
+        });
+        if (!consent) {
+          throw new ForbiddenException(
+            'Anggota ini telah memiliki akun aktif. Anda perlu meminta izin terlebih dahulu untuk mengedit profil/silsilahnya.',
+          );
+        }
+      }
+    }
 
     // Validate parentId
     if (dto.parentId !== undefined && dto.parentId) {
