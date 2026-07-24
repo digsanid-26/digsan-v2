@@ -525,9 +525,10 @@ export class TreeService {
       include: { user: { select: { name: true, username: true, avatar: true, bio: true } } },
     });
     if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
+    const mainFamilyName = (tree.layoutConfig as any)?.mainFamilyName as string | undefined;
     return {
       slug: tree.slug,
-      name: (tree.layoutConfig as any)?.mainFamilyName || tree.name,
+      name: mainFamilyName?.trim() || tree.user?.name || tree.name,
       description: tree.description,
       coverImage: tree.coverImage,
       config: tree.layoutConfig ?? null,

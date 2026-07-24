@@ -8,10 +8,24 @@ import { Users, ArrowRight, Loader2, X } from 'lucide-react';
 import { publicTreeApi, treeApi, savePendingClaim } from '@/lib/tree';
 import type { PublicFamily } from '@/lib/tree';
 import { getTokens } from '@/lib/auth';
-import type { TreeConfig, Members, TNode } from '@/app/components/treeTypes';
+import type { TreeConfig, Members, TNode, Poly } from '@/app/components/treeTypes';
 import { DEFAULT_CONFIG } from '@/app/components/treeTypes';
-import { configToGraph, layoutGraph } from '@/app/components/familyGraph';
 import PublicTreeCanvas from '@/app/components/PublicTreeCanvas';
+
+// Local layout helpers for main family + both sets of parents + Keluarga Besar
+const spreadX = (count: number, gap: number, cx: number): number[] => {
+  if (count <= 0) return [];
+  const total = (count - 1) * gap;
+  return Array.from({ length: count }, (_, i) => cx - total / 2 + i * gap);
+};
+function connectDown(lines: Poly[], midX: number, parentY: number, childXs: number[], childY: number) {
+  if (childXs.length === 0) return;
+  const trunkY = (parentY + childY) / 2;
+  lines.push({ points: [[midX, parentY], [midX, trunkY]] });
+  const xs = [...childXs, midX];
+  lines.push({ points: [[Math.min(...xs), trunkY], [Math.max(...xs), trunkY]] });
+  for (const cx of childXs) lines.push({ points: [[cx, trunkY], [cx, childY]] });
+}
 
 export default function PublicFamilyPage() {
   const params = useParams<{ slug: string }>();
@@ -51,25 +65,54 @@ export default function PublicFamilyPage() {
   const members: Members = useMemo(() => data?.members ?? {}, [data?.members]);
 
   const { nodes, lines } = useMemo(() => {
-    if (!data?.config) return { nodes: [] as TNode[], lines: [] };
-    const selfName = data.owner?.name || members['self']?.name || 'Anda';
-    const graph = configToGraph(config, members, selfName);
-    // Filter to main family only: self, spouse, parents, children.
-    // Exclude grandparents, ancestors, uncles, siblings — this is the
-    // public-facing main family view (like the collapsed tree).
-    const mainFamilyIds = new Set(['self']);
-    for (const [id, m] of Object.entries(graph)) {
-      if (m.group === 'spouse' || m.group === 'parent' || m.group === 'child') {
-        mainFamilyIds.add(id);
-      }
+    if (!data?.config) return { nodes: [] as TNode[], lines: [] as Poly[] };
+    const cfg = config;
+    const ns: TNode[] = [];
+    const ls: Poly[] = [];
+
+    // Self + spouses (y = 0)
+    const coupleXs = spreadX(1 + cfg.spouseCount, 160, 0);
+    const selfX = coupleXs[0];
+    ns.push({ id: 'self', name: 'Anda', role: 'Diri Sendiri', x: selfX, y: 0, group: 'self' });
+    for (let i = 0; i < cfg.spouseCount; i++) {
+      const sx = coupleXs[i + 1];
+      ns.push({ id: `spouse-${i}`, name: cfg.spouseCount > 1 ? `Pasangan ${i + 1}` : 'Pasangan', role: 'Suami / Istri', x: sx, y: 0, group: 'spouse' });
+      ls.push({ points: [[selfX, 0], [sx, 0]], marriage: true });
     }
-    const filteredGraph: typeof graph = {};
-    for (const [id, m] of Object.entries(graph)) {
-      if (mainFamilyIds.has(id)) {
-        filteredGraph[id] = m;
-      }
-    }
-    return layoutGraph(filteredGraph);
+    const coupleMid = coupleXs.reduce((a, b) => a + b, 0) / coupleXs.length;
+
+    // Children (y = 210)
+    const childXs = spreadX(cfg.childCount, 130, coupleMid);
+    childXs.forEach((x, i) => ns.push({ id: `child-${i}`, name: `Anak ${i + 1}`, role: 'Keturunan', x, y: 210, group: 'child' }));
+    connectDown(ls, coupleMid, 0, childXs, 210);
+
+    // Self's parents (y = -210, left of self)
+    const selfParentCenter = selfX - 100;
+    const selfParentXs = spreadX(cfg.parentCount, 140, selfParentCenter);
+    const selfParentLabels = cfg.parentCount === 2 ? ['Ayah', 'Ibu'] : Array.from({ length: cfg.parentCount }, (_, i) => `Orang Tua ${i + 1}`);
+    selfParentXs.forEach((x, i) => ns.push({ id: `parent-${i}`, name: selfParentLabels[i], role: 'Orang Tua', x, y: -210, group: 'parent' }));
+    if (cfg.parentCount >= 2) ls.push({ points: [[selfParentXs[0], -210], [selfParentXs[cfg.parentCount - 1], -210]], marriage: true });
+    const selfParentMid = selfParentXs.length ? selfParentXs.reduce((a, b) => a + b, 0) / selfParentXs.length : selfParentCenter;
+    connectDown(ls, selfParentMid, -210, [selfX], 0);
+
+    // Spouse's parents (y = -210, right of spouse)
+    const spouseX = coupleXs[1] ?? 160;
+    const spouseParentCenter = spouseX + 100;
+    const spouseParentXs = spreadX(2, 140, spouseParentCenter);
+    const spouseParentLabels = ['Mertua (Ayah)', 'Mertua (Ibu)'];
+    spouseParentXs.forEach((x, i) => ns.push({ id: `spouse-parent-${i}`, name: spouseParentLabels[i], role: 'Mertua', x, y: -210, group: 'parent' }));
+    ls.push({ points: [[spouseParentXs[0], -210], [spouseParentXs[1], -210]], marriage: true });
+    const spouseParentMid = spouseParentXs.reduce((a, b) => a + b, 0) / spouseParentXs.length;
+    connectDown(ls, spouseParentMid, -210, [spouseX], 0);
+
+    // "Keluarga Besar" group node (y = -380), centered between both parent couples
+    const allParentXs = [...selfParentXs, ...spouseParentXs];
+    const kbCenterX = (Math.min(...allParentXs) + Math.max(...allParentXs)) / 2;
+    ns.push({ id: 'grp-kb', name: 'Keluarga Besar', role: 'group', x: kbCenterX, y: -380, group: 'parent', count: cfg.parentCount + 2 });
+    ls.push({ points: [[kbCenterX, -380], [selfParentMid, -210]] });
+    ls.push({ points: [[kbCenterX, -380], [spouseParentMid, -210]] });
+
+    return { nodes: ns, lines: ls };
   }, [data?.config, config, members]);
 
   const resolve = (id: string, fallback: string) => {
@@ -175,6 +218,13 @@ export default function PublicFamilyPage() {
                 resolve={resolve}
                 onNodeClick={onNodeClick}
                 onUnclaimedClick={setClaimNode}
+                onGroupClick={(n) => {
+                  // Keluarga Besar Tree view not yet built — will be implemented
+                  // after Family Mode layout (FUTURE-FEATURES.md L68)
+                  if (n.id === 'grp-kb') {
+                    console.log('Keluarga Besar clicked — view not yet available');
+                  }
+                }}
                 highlightId={highlightId ?? undefined}
                 focusId="self"
                 className="w-full h-[70vh] min-h-[420px] max-h-[720px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"

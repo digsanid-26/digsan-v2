@@ -23,6 +23,8 @@ interface Props {
   onNodeClick?: (node: TNode) => void;
   /** Click handler for an unclaimed node — should open the "is this you?" prompt. */
   onUnclaimedClick?: (node: TNode) => void;
+  /** Click handler for a group node (e.g. "Keluarga Besar"). */
+  onGroupClick?: (node: TNode) => void;
   /** Optional node id to highlight (e.g. the invited member from a deep link). */
   highlightId?: string;
   /** Node id to center the initial viewport on (defaults to "self"). */
@@ -36,7 +38,7 @@ const MAX_SCALE = 4;
 const INITIAL_SCALE = 1.5;
 
 /** Pannable, zoomable renderer for a family graph, focused on a given node. */
-export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, highlightId, focusId, className }: Props) {
+export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
   const movedRef = useRef(false);
@@ -157,9 +159,11 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
           const alive = d ? d.alive : true;
           const isSelf = n.id === 'self';
           const unclaimed = !isGroup && !isSelf && !d?.verified;
-          const clickable = !isGroup && ((isSelf && !!onNodeClick) || (unclaimed && !!onUnclaimedClick));
+          const groupClickable = isGroup && !!onGroupClick;
+          const clickable = groupClickable || (!isGroup && ((isSelf && !!onNodeClick) || (unclaimed && !!onUnclaimedClick)));
           const onClick = () => handleNodeClick(() => {
-            if (isSelf) onNodeClick?.(n);
+            if (isGroup) onGroupClick?.(n);
+            else if (isSelf) onNodeClick?.(n);
             else if (unclaimed) onUnclaimedClick?.(n);
           });
           return (
@@ -215,6 +219,17 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
               )}
 
               {/* Name label */}
+              {isGroup && n.name && (
+                <text
+                  y={r + 18}
+                  textAnchor="middle"
+                  fill="rgba(255,255,255,0.7)"
+                  fontSize={13}
+                  fontWeight={500}
+                >
+                  {n.name}
+                </text>
+              )}
               {!isGroup && d?.name && (
                 <text
                   y={r + 18}
