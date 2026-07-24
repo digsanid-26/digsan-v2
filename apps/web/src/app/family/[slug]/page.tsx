@@ -54,7 +54,22 @@ export default function PublicFamilyPage() {
     if (!data?.config) return { nodes: [] as TNode[], lines: [] };
     const selfName = data.owner?.name || members['self']?.name || 'Anda';
     const graph = configToGraph(config, members, selfName);
-    return layoutGraph(graph);
+    // Filter to main family only: self, spouse, parents, children.
+    // Exclude grandparents, ancestors, uncles, siblings — this is the
+    // public-facing main family view (like the collapsed tree).
+    const mainFamilyIds = new Set(['self']);
+    for (const [id, m] of Object.entries(graph)) {
+      if (m.group === 'spouse' || m.group === 'parent' || m.group === 'child') {
+        mainFamilyIds.add(id);
+      }
+    }
+    const filteredGraph: typeof graph = {};
+    for (const [id, m] of Object.entries(graph)) {
+      if (mainFamilyIds.has(id)) {
+        filteredGraph[id] = m;
+      }
+    }
+    return layoutGraph(filteredGraph);
   }, [data?.config, config, members]);
 
   const resolve = (id: string, fallback: string) => {
@@ -123,7 +138,7 @@ export default function PublicFamilyPage() {
               className="text-3xl sm:text-4xl font-bold text-white mb-3 tracking-tight"
               style={{ fontFamily: 'var(--font-space-grotesk, Space Grotesk, sans-serif)' }}
             >
-              {data.name}
+              Pohon Keluarga {data.name}
             </h1>
             {data.description && <p className="text-white/50 text-sm leading-relaxed">{data.description}</p>}
             {data.owner && (
