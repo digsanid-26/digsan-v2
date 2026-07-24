@@ -33,19 +33,23 @@ export default function AdminUsersPage() {
   };
 
   const [editUser, setEditUser] = useState<any>(null);
-  const [selectedRole, setSelectedRole] = useState<string>('');
+  const [roleToggles, setRoleToggles] = useState<Record<string, boolean>>({});
   const [savingRole, setSavingRole] = useState(false);
 
-  const ALL_ROLES = ['user', 'worker', 'admin', 'super_admin', 'super_user'];
+  const ADDON_ROLES = ['worker', 'admin', 'super_admin', 'super_user'];
 
   const openEditModal = (u: any) => {
     setEditUser(u);
-    setSelectedRole(u.roles?.[0] || 'user');
+    const toggles: Record<string, boolean> = {};
+    for (const r of ADDON_ROLES) {
+      toggles[r] = (u.roles || []).includes(r);
+    }
+    setRoleToggles(toggles);
   };
 
   const closeEditModal = () => {
     setEditUser(null);
-    setSelectedRole('');
+    setRoleToggles({});
   };
 
   const handleSaveRole = async () => {
@@ -53,19 +57,17 @@ export default function AdminUsersPage() {
     setSavingRole(true);
     try {
       const currentRoles = editUser.roles || [];
-      const targetRole = selectedRole;
-      const hasRole = currentRoles.includes(targetRole);
-      const rolesToRemove = currentRoles.filter((r: string) => r !== targetRole && r !== 'user');
-      const rolesToAdd = hasRole ? [] : [targetRole];
-
-      for (const role of rolesToRemove) {
-        await request(`/admin/users/${editUser.id}/roles/${role}`, { method: 'DELETE' });
-      }
-      for (const role of rolesToAdd) {
-        await request(`/admin/users/${editUser.id}/roles`, {
-          method: 'POST',
-          body: JSON.stringify({ roleName: role }),
-        });
+      for (const r of ADDON_ROLES) {
+        const has = currentRoles.includes(r);
+        const want = roleToggles[r];
+        if (want && !has) {
+          await request(`/admin/users/${editUser.id}/roles`, {
+            method: 'POST',
+            body: JSON.stringify({ roleName: r }),
+          });
+        } else if (!want && has) {
+          await request(`/admin/users/${editUser.id}/roles/${r}`, { method: 'DELETE' });
+        }
       }
       refetch();
       closeEditModal();
@@ -218,20 +220,23 @@ export default function AdminUsersPage() {
                 <p className="text-slate-700">{editUser.email}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Role</label>
-                <select
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                >
-                  {ALL_ROLES.map((role) => (
-                    <option key={role} value={role}>
-                      {role.replace('_', ' ')}
-                    </option>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Role Tambahan</label>
+                <p className="text-xs text-slate-400 mb-3">Role <code className="bg-slate-100 px-1 rounded">user</code> selalu aktif. Centang role tambahan:</p>
+                <div className="space-y-2">
+                  {ADDON_ROLES.map((role) => (
+                    <label key={role} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={roleToggles[role] || false}
+                        onChange={(e) => setRoleToggles((prev) => ({ ...prev, [role]: e.target.checked }))}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-slate-700 capitalize">{role.replace('_', ' ')}</span>
+                    </label>
                   ))}
-                </select>
-                <p className="text-xs text-slate-400 mt-1.5">
-                  Role saat ini: {(editUser.roles || []).join(', ') || 'tidak ada'}
+                </div>
+                <p className="text-xs text-slate-400 mt-3">
+                  Role saat ini: {(editUser.roles || []).join(', ') || 'user'}
                 </p>
               </div>
               <div className="flex items-center gap-2 pt-2">
