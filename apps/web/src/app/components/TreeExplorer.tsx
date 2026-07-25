@@ -15,8 +15,9 @@ import type { Region } from './InvitationStudio';
 import OnboardingModal from './OnboardingModal';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw,
+  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Edit,
 } from 'lucide-react';
+import UserProfileModal from './UserProfileModal';
 
 // ─── Styling per group ──────────────────────────────────────
 
@@ -843,6 +844,7 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
   const [slugInput, setSlugInput] = useState('');
   const [slugLoading, setSlugLoading] = useState(false);
   const [slugError, setSlugError] = useState('');
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   // User search for identity matching
   const [userSearchQuery, setUserSearchQuery] = useState('');
@@ -1279,12 +1281,18 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
                   className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium bg-white dark:bg-white/5 border border-slate-200 dark:border-white/15 text-slate-600 dark:text-white/70 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors">
                   {copied ? <Check size={15} className="text-emerald-500" /> : <Link2 size={15} />}{copied ? 'Link Tersalin' : 'Salin Link Publik'}
                 </button>
+                <button type="button" onClick={() => setProfileModalOpen(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium bg-white dark:bg-white/5 border border-slate-200 dark:border-white/15 text-slate-600 dark:text-white/70 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors">
+                  <Edit size={15} />Edit Profil Detail
+                </button>
               </div>
             ) : (
               <p className="text-xs text-slate-400 dark:text-white/40">Simpan silsilah terlebih dahulu untuk mengaktifkan link publik keluarga.</p>
             )}
           </div>
         )}
+
+        <UserProfileModal open={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
 
         {/* Family setup — guardian manages a member's own network.
             Deceased direct relative: unlocked. Living member: requires consent. */}

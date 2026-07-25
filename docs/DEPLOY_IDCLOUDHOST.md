@@ -945,6 +945,10 @@ cd ~/digsan-v2
 # Deploy terbaru
 ~/digsan-v2/deploy.sh
 
+# Migrate Prisma
+cd ~/digsan-v2/apps/api
+npx prisma migrate deploy --schema prisma/schema.prisma
+
 # Restart semua services
 pm2 restart all
 

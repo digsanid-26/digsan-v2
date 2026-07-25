@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { User, ArrowLeft, Loader2, BadgeCheck, CalendarDays, MapPin, Briefcase, GraduationCap, Heart, Newspaper, Activity } from 'lucide-react';
+import { User, ArrowLeft, Loader2, BadgeCheck, CalendarDays, MapPin, Briefcase, GraduationCap, Heart, Newspaper, Activity, Edit } from 'lucide-react';
 import { publicTreeApi } from '@/lib/tree';
 import type { PublicProfile } from '@/lib/tree';
 import { getTokens, getUser } from '@/lib/auth';
 import AppHeader from '@/app/components/AppHeader';
 import { ThemeProvider } from '@/app/components/ThemeProvider';
 import { AuthProvider } from '@/components/providers/auth-provider';
+import UserProfileModal from '@/app/components/UserProfileModal';
+import { useAuthApi } from '@/lib/hooks';
 
 export default function PublicProfilePage() {
   const params = useParams<{ slug: string; username: string }>();
@@ -22,12 +24,20 @@ export default function PublicProfilePage() {
   const [loading, setLoading] = useState(true);
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const { request } = useAuthApi();
 
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('t');
     if (t) setLinkToken(t);
     setIsLoggedIn(!!getUser());
-  }, []);
+    if (getUser()) {
+      request('/users/me').then((me: any) => {
+        setIsOwnProfile(me.username === username);
+      }).catch(() => {});
+    }
+  }, [username, request]);
 
   useEffect(() => {
     if (!slug || !username) return;
@@ -126,7 +136,15 @@ export default function PublicProfilePage() {
 
               {/* Profile Details */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-4">
-                <h2 className="text-sm font-semibold text-white">Detail Profil</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-white">Detail Profil</h2>
+                  {isLoggedIn && isOwnProfile && (
+                    <button onClick={() => setProfileModalOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/15 text-white transition-colors">
+                      <Edit size={13} /> Edit Profil
+                    </button>
+                  )}
+                </div>
                 {birthDate && (
                   <div className="flex items-center gap-3 text-sm text-white/60">
                     <CalendarDays size={16} className="text-white/40" />
@@ -224,6 +242,14 @@ export default function PublicProfilePage() {
           </div>
         </main>
       ) : null}
+
+      <UserProfileModal open={profileModalOpen} onClose={() => setProfileModalOpen(false)} onSaved={() => {
+        const tokens = getTokens();
+        publicTreeApi
+          .getProfile(slug, username, linkToken ?? undefined, tokens?.accessToken)
+          .then((res) => setData(res))
+          .catch(() => {});
+      }} />
 
       <footer className="text-center pb-5 text-white/25 text-xs">
         © {new Date().getFullYear()} Digsan — Platform Keluarga Indonesia
