@@ -79,7 +79,7 @@ export default function AdminSettingsPage() {
                       <select
                         value={editValues[s.id] || ''}
                         onChange={(e) => setEditValues({ ...editValues, [s.id]: e.target.value })}
-                        className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="px-3 py-1.5 border border-slate-300 dark:border-white/10 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-white/5 text-slate-900 dark:text-white"
                       >
                         <option value="true">Ya</option>
                         <option value="false">Tidak</option>

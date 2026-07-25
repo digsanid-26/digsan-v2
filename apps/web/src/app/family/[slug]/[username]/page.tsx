@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { User, ArrowLeft, Loader2, BadgeCheck, CalendarDays, MapPin, Briefcase, GraduationCap, Heart, Newspaper, Activity, Edit } from 'lucide-react';
+import { User, ArrowLeft, Loader2, BadgeCheck, CalendarDays, MapPin, Briefcase, GraduationCap, Heart, Newspaper, Activity, Edit, Settings } from 'lucide-react';
 import { publicTreeApi } from '@/lib/tree';
 import type { PublicProfile } from '@/lib/tree';
 import { getTokens, getUser } from '@/lib/auth';
@@ -12,6 +12,7 @@ import AppHeader from '@/app/components/AppHeader';
 import { ThemeProvider } from '@/app/components/ThemeProvider';
 import { AuthProvider } from '@/components/providers/auth-provider';
 import UserProfileModal from '@/app/components/UserProfileModal';
+import ViewSettingsModal, { loadVisibilitySettings, type VisibilitySettings } from '@/app/components/ViewSettingsModal';
 import { useAuthApi } from '@/lib/hooks';
 
 export default function PublicProfilePage() {
@@ -26,12 +27,15 @@ export default function PublicProfilePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [viewSettingsOpen, setViewSettingsOpen] = useState(false);
+  const [visibility, setVisibility] = useState<VisibilitySettings>({ bio: true, birthPlace: true, birthDate: true, occupation: true, education: true, hobbies: true });
   const { request } = useAuthApi();
 
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('t');
     if (t) setLinkToken(t);
     setIsLoggedIn(!!getUser());
+    setVisibility(loadVisibilitySettings());
     if (getUser()) {
       request('/users/me').then((me: any) => {
         setIsOwnProfile(me.username === username);
@@ -121,7 +125,7 @@ export default function PublicProfilePage() {
                   </div>
                   {data.profile.username && <p className="text-white/40 text-sm">@{data.profile.username}</p>}
 
-                  {data.profile.bio && <p className="text-white/70 text-sm mt-4 leading-relaxed">{data.profile.bio}</p>}
+                  {data.profile.bio && visibility.bio && <p className="text-white/70 text-sm mt-4 leading-relaxed">{data.profile.bio}</p>}
 
                   <div className="mt-5 flex flex-wrap gap-4 text-white/50 text-sm">
                     {joined && (
@@ -139,43 +143,58 @@ export default function PublicProfilePage() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-white">Detail Profil</h2>
                   {isLoggedIn && isOwnProfile && (
-                    <button onClick={() => setProfileModalOpen(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/15 text-white transition-colors">
-                      <Edit size={13} /> Edit Profil
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setViewSettingsOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/15 text-white transition-colors"
+                        title="Pengaturan View">
+                        <Settings size={13} /> View
+                      </button>
+                      <button onClick={() => setProfileModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/15 text-white transition-colors">
+                        <Edit size={13} /> Edit Profil
+                      </button>
+                    </div>
                   )}
                 </div>
-                {birthDate && (
-                  <div className="flex items-center gap-3 text-sm text-white/60">
-                    <CalendarDays size={16} className="text-white/40" />
-                    <span>{birthDate}{data.profile.birthPlace ? `, ${data.profile.birthPlace}` : ''}</span>
-                  </div>
-                )}
-                {!birthDate && data.profile.birthPlace && (
+                {data.profile.birthPlace && visibility.birthPlace && (
                   <div className="flex items-center gap-3 text-sm text-white/60">
                     <MapPin size={16} className="text-white/40" />
                     <span>{data.profile.birthPlace}</span>
                   </div>
                 )}
-                {data.profile.occupation && (
+                {birthDate && visibility.birthDate && (
+                  <div className="flex items-center gap-3 text-sm text-white/60">
+                    <CalendarDays size={16} className="text-white/40" />
+                    <span>{birthDate}</span>
+                  </div>
+                )}
+                {data.profile.occupation && visibility.occupation && (
                   <div className="flex items-center gap-3 text-sm text-white/60">
                     <Briefcase size={16} className="text-white/40" />
                     <span>{data.profile.occupation}</span>
                   </div>
                 )}
-                {data.profile.education && (
+                {data.profile.education && visibility.education && (
                   <div className="flex items-center gap-3 text-sm text-white/60">
                     <GraduationCap size={16} className="text-white/40" />
                     <span>{data.profile.education}</span>
                   </div>
                 )}
-                {data.profile.hobbies && (
+                {data.profile.hobbies && visibility.hobbies && (
                   <div className="flex items-center gap-3 text-sm text-white/60">
                     <Heart size={16} className="text-white/40" />
                     <span>{data.profile.hobbies}</span>
                   </div>
                 )}
-                {!birthDate && !data.profile.birthPlace && !data.profile.occupation && !data.profile.education && !data.profile.hobbies && (
+                {(data.profile.bio && !visibility.bio) ||
+                 (data.profile.birthPlace && !visibility.birthPlace) ||
+                 (birthDate && !visibility.birthDate) ||
+                 (data.profile.occupation && !visibility.occupation) ||
+                 (data.profile.education && !visibility.education) ||
+                 (data.profile.hobbies && !visibility.hobbies) ? (
+                  <p className="text-white/30 text-xs">Beberapa detail disembunyikan sesuai pengaturan view.</p>
+                ) : null}
+                {!data.profile.birthPlace && !birthDate && !data.profile.occupation && !data.profile.education && !data.profile.hobbies && (
                   <p className="text-white/30 text-xs">Belum ada detail profil dilengkapi.</p>
                 )}
               </div>
@@ -249,6 +268,11 @@ export default function PublicProfilePage() {
           .getProfile(slug, username, linkToken ?? undefined, tokens?.accessToken)
           .then((res) => setData(res))
           .catch(() => {});
+      }} />
+
+      <ViewSettingsModal open={viewSettingsOpen} onClose={() => {
+        setViewSettingsOpen(false);
+        setVisibility(loadVisibilitySettings());
       }} />
 
       <footer className="text-center pb-5 text-white/25 text-xs">

@@ -50,7 +50,7 @@ export default function AdminTreesPage() {
         <select
           value={hasSlug}
           onChange={(e) => { setHasSlug(e.target.value); setPage(1); }}
-          className="px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2.5 border border-slate-300 dark:border-white/10 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white dark:bg-white/5 text-slate-900 dark:text-white"
         >
           <option value="">Semua</option>
           <option value="yes">Punya Slug</option>

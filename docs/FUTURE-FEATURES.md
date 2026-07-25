@@ -36,15 +36,28 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [x] Halaman / link publik seperti https://app.digsan.id/family/nama-keluarga dan https://app.digsan.id/family/nama-keluarga/nama-user perlu perlindungan seperti session / expired dengan menambahkan key-unik/token di belakang link agar hanya bisa dilihat dalam jangka waktu tertentu, default 8 jam, namun bisa diatur secara khusus oleh super admin dari halaman admin, lewat dari itu akan membutuhkan login atau request link baru. Tiap user bila membuat invitation baru otomatis menggenerate token baru. Untuk halaman publik tersebut, untuk user pemilik akun/halaman ketika diri sendiri mengunjungi link publik harusnya tetap dalam kondisi login dengan fasilitas header lengkap;
 
 ## Sistem Notifikasi
-- [x] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan dan dikonfigurasi di admin seiring perkembangan aplikasi (karena saat ini masih proses pembangunan)
+- [x] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan dan dikonfigurasi di admin seiring perkembangan aplikasi (karena saat ini masih proses pembangunan);
+- [ ] Aktifkan Push notifikasi dan cek build whatsapp verifikasi dan invitation via whatsapp menggunakan fontee whatsapp gateway;
 - [ ] Cek kemungkinan membangun self-host email server di console idcloudhost (di virtual server lain) yang memungkinkan dengan domain sendiri (@digsan.id), untuk kedepannya juga mendukung multi domain name, terhubung dengan fitur digsan.id di mana user bisa membuat email @digsan.id dengan gratis, membaca dan mengirim email di dashboard email .
 
 ### Notifikasi Role
 - [ ] Notifikasi bel meminta konfirmasi jalinan keluarga dari user lain dengan tombol Konfirmasi. Isi Notifikasi : Anda dimasukkan sebagai (misal pasangan/istri, adik, kakak, anak, orangtua/ayah) oleh nama user (diikuti nama family);
+- [ ] Notifikasi detil page. Bisakah notifikasi
+
+## Share, Like, Reaction, Comment System
+
+## User Post System
+- [ ] Bangun kemampuan user membuat cerita, status, berita dan informasi dengan fasilitas bisa melampirkan link, gambar, video, audio (record/upload), dst;
+- [ ]
+
+## Chat System
 
 ## Sistem navigasi dan halaman detil
 - [x] Membuat halaman Family | tree/nama-keluarga (misal tree/farisma-fam) : berisi keluarga kecil ayah, ibu, anak-anak saja dengan konten yang lebih lengkap dan personal (untuk dikembangkan lebih lanjut nanti);
 - [x] Membuat halaman profil personal | tree/nama-keluarga/nama-publik-anda (misal tree/farisma-fam/arisnwh) : Halaman profil pribadi untuk diri sendiri yang nantinya bisa dikembangkan lebih lanjut
+
+## Pengembangan Aktivitas Status
+- [ ] Ubah mode dummy aktivitas lini masa ke real. Buat sistemnya dan jelajahi apa saja yang bisa dibangun untuk ditampilkan di lini masa aktivitas;
 
 
 ## Sistem Gamification
@@ -74,15 +87,23 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [ ] Perlu dipastikan bahwa anggota keluarga besar akan terdiri atas beberapa node family (keluarga utama). Pada tree (app.digsan.id/tree) perlu dibuat opsi tombol dropdown View Mode: Single Mode (1) (yang sekarang) di mana display jaringan atau tree berbasis user dan Family Mode (2) di mana jaringan dibuat antar keluarga utama (diri sendiri, pasangan, dan anak-anak), ke atas akan terhubung dengan family orang tua (yang terdiri atas diri sendiri, orang tua, kakak dan adik sendiri), ke samping (kanan kalau Anda pria/suami, kiri kalau Anda istri/perempuan) terhubung ke family keluarga pasangan (diri pasangan Anda, orang tua pasangan Anda, kakak dan adik pasangan Anda), baik yang masih ada maupun yang sudah meninggal dunia;
 - [ ] Perlu dipastikan bahwa anggota keluarga simbah akan terdiri atas keluarga utama kakek-nenek Anda yang terdiri kakek dan nenek dari ibu Anda, juga kakek nenek dari ayah Anda, kemudian keluarga utama kakek dan nenek pasangan Anda yang terdiri atas kakek-nenek dari ayah pasangan Anda serta kakek-nenek dari ibu pasangan Anda. Termasuk juga nantinya garis lurus ke samping kanan kakak-kakak dari ayah dan ibu serta ayah dan ibu pasangan Anda, garis samping kiri adik-adik dari ayah dan ibu Anda serta ayah dan ibu pasangan Anda;
 - [ ] Tree antar kelompok keluarga perlu dibangun. Menu Expand akan memunculkan dua pilihan User mode (yang sekarang) dan Family Mode (akan menjadi default kalau sudah jadi) dengan gambaran layout baru Family Mode yang perlu dibuat sebagai berikut : Family Slug perlu memiliki halaman edit yang lebih komprehensif (page family edit) dengan tambahan data (field baru) seperti Family Image dan Family Cover (fitur upload gambar) beserta field yang sebelumnya ada di Pengaturan Bagan (seperti nama family beserta edit slug, jumlah pasangan, jumlah anak), Anggota tergabung, lalu ada text area field untuk Family Bio, tanggal pernikahan (tgl, bulan, tahun), Status Pernikahan (Tanpa Status, Berlangsung, Cerai hidup, Cerai mati) untuk nantinya membentuk profil family yang lebih lengkap (app.digsan.id/family/nama-family). Lingkaran utama akan ditempati family user sebagai family induk. Family Image akan digunakan untuk mengisi lingkaran dengan label nama Family dibawahnya. Ketika diklik muncul lingkaran kecil anggota family mengelilinginya mulai dari kiri Suami/Kepala Keluarga, diikuti Istri/Pasangan, diikuti oleh anak-anaknya (lebih dari 2 anak akan ada lingkaran dengan tanda + yang bisa diexpand). Garis hubungan ke atas akan bercabang dua dengan sebelah kiri nama family Ortu Suami/Kepala Keluarga, sebelah kanan nama family ortu pasangan/istri. Garis ke bawah lurus lalu membuat cabang sesuai jumlah family anak bila anak sudah berkeluarga, namun bila tidak ada dikosongkan karena berarti masih di dalam family induk.
- 
-## Role Improvement
-### Super User
-- [ ] Disediakan tombol Upgrade super_user yang akan memunculkan modal Request form yang ditujukan ke super admin (via admin) untuk menjadikan dirinya sebagai super_user. Di Modal tersebut dijelaskan secara ringkas fungsi dan akses yang dimiliki supe_ruser. 
-- [ ] Bisa membuat early access berupa pembuatan username (email) dan password untuk node yang dibuatnya, tidak terbatas pada anak-anak, pasangannya, serta kedua orang tua saja, tapi dari seluruh jaringan yang dibuatnya. Dia akan melihat form pembuatan akses (alamat email dan password) tersedia di sidebar detil anggota node/lingkaran yang dibuatnya;
 
-### User
+### Node Improvement
+- [ ] Node perlu memiliki fitur untuk menambah, mengedit, dan menghapus anggota keluarga dalam bentuk icon kecil yang muncul pada saat sebuah node/lingkaran dihover;
+- [ ] Icon + yang muncul di keempat sudut bagian luar node (icon warna putih dibalut lingkaran warna hijau) yang berfungsi membuat node baru sesuai posisi icon (misal klik icon + yang berada di kanan node akan menambah node baru di sebelah kanan node saat ini);
+- [ ] Tombol Hapus Profil di sidebar Detil Anggota (dibawah tombol edit profil);
+
+## Role Improvement
+### Super User (super_user)
+- [ ] Bisa membuat node unlimited dari node-node turunan dari misalnya node paman-pamannya (saudara ayah dan ibu) atau node kakak dan adiknya; 
+- [ ] Bisa membuat early access berupa pembuatan username (email) dan password untuk node yang dibuatnya, tidak terbatas pada anak-anak, pasangannya, serta kedua orang tua saja, tapi dari seluruh jaringan yang dibuatnya. Dia akan melihat form pembuatan akses (alamat email dan password) tersedia di sidebar detil anggota node/lingkaran yang dibuatnya;
+- [ ] Memiliki akses ke list / daftar user aktif dalam nodenya secara lengkap seperti nama lengkap, alamat email, nomor telepon, dan 
+- [ ] Bisa menerima permintaan klaim kepemilikan node/lingkaran yang dibuatnya dari user biasa; 
+
+### User (user)
+- [ ] Setelah login otomatis role user didapatkan. Dari sana dia dapat membuat tree baru atau melakukan klaim terhadap node yang dibuat oleh user lain untuk kemudian bila klaim diterima dia dapat melakukan pengaturan jumlah node keluarga utama miliknya hingga keluarga simbahnya;
 - [ ] User dapat menjadi super_user dengan syarat memiliki kemampuan dan kemauan mengembangkan tree yang dibuatnya;
-- 
+- [ ] Disediakan tombol Upgrade super_user yang akan memunculkan modal request form yang ditujukan ke super admin (via email dan bel notifikasi) untuk menjadikan dirinya sebagai super_user. Di Modal tersebut dijelaskan secara ringkas fungsi dan akses yang dimiliki super_user.
 
 ### World Tree
 - Pelajari tentang D3.js dan apa saja kemampuan dan yang bisa dilakukannya dan bisakah membangun View Mode World Tree dengan konsep sbb:
@@ -129,22 +150,24 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 ## Sistem Ai Asisten / Helper
 - [ ] Apa yang diperlukan agar digsan.id dapat memunculkan data analisis berbasis database yang dihimpun yang kemudian diikuti dengan aksi merekomendasikan hubungan antar tree yang belum terhubung misalnya keluarga si A direkomendasikan untuk menjalin koneksi dengan keluarga si B (juga sebaliknya) karena memiliki keterkaitan/kesamaan silsilah kakek / nenek atau paman atau buyut, atau lainnya?
 
+## Digsan Profil
+
 ## Fasilitas Digsan.id
 - [ ] Chat Keluarga | Sistem percakapan antar anggota keluarga dari yang private antar anggota keluarga, antar anggota keluarga dalam keluarga besar, lintas keluarga besar, hingga keluarga simbah dan buyut, dengan pengaturan privasi dan allow/disallow, block dan unblock, show dan disable;
 - [ ] Digital Membercard multifungsi dengan foto profil, nomor keanggotaan, nama lengkap, alamat, qrcode yang bila discan mengarah ke profil public user tersebut atau untuk transaksi tukar poin antar anggota (bila fitur telah tersedia);
 - [ ] MMBC Membership | Diberikan gratis kepada anggota yang telah memiliki KTP dan smartphone. MMBC Tour & Travel adalah platform layanan digital yang memungkinkan Anda memesan tiket pesawat, hotel, kereta api, hingga mengurus pembayaran tagihan (PLN, PDAM, pulsa) dan transfer uang dalam satu aplikasi;
 - [ ] Doa Almarhum, berupa susunan nama-nama keluarga yang telah almarhum (nama almarhum binti orangtua) dari yang terdekat hingga yang terjauh, yang bisa diatur kedalamannya melalui filter yang komprehensif, bisa di atur font-size, ketebalan, perataan sebelum dicetak/download dalam bentuk print, jpg, maupun pdf | Otomatis aktif ketika lebih dari 5 Family tree terhubung;
 - [ ] Personal Channel | Personal Branding seperti Youtube channel namun lebih luas tidak terbatas hanya video, namun juga blog/artikel, update status, upload gambar/galeri, atau share lainnya. Fitur pengembangan halaman profil user;
-- [ ] Arisan Keluarga. Fasilitas membuat arisan yang bisa diaktifkan ketika sebuah koneksi telah menghubungkan lebih dari 50 orang dengan user aktif mencapai 70% lebih;
-- [ ] Koperasi Keluarga. Fasilitas upgrade keanggotaan yang akan aktif dalam bentuk penawaran kepada user yang telah ber-ktp atau memiliki pekerjaan;
-- [ ] Digsan Komunitas | Memadukan kesenangan seperti hobi, kegiatan, kabar-kabar, informasi, dsb kepada keluarga / lintas keluarga; 
-- [ ] Digsan Usaha. Fasilitas mempromosikan atau membangun usaha dan memunculkan dalam bentuk listing dan landingpage profil usaha milik sendiri dengan konten yang dapat diedit;
+- [ ] Arisan Keluarga | Fasilitas membuat arisan yang bisa diaktifkan ketika sebuah koneksi telah menghubungkan lebih dari 50 orang dengan user aktif mencapai 70% lebih;
+- [ ] Koperasi Keluarga | Fasilitas upgrade keanggotaan yang akan aktif dalam bentuk penawaran kepada user yang telah ber-ktp atau memiliki pekerjaan;
+- [ ] Digsan Komunitas | Memadukan kesenangan bersosial media seperti berbagi momen/status, kegiatan, kabar-kabar, informasi, dsb beserta interaksinya seperti like, reaction, share, comment kepada keluarga / lintas keluarga / umum; 
+- [ ] Digsan Usaha | Fasilitas mempromosikan atau membangun usaha dan memunculkan dalam bentuk listing dan landingpage profil usaha milik sendiri dengan konten yang dapat diedit;
 - [ ] Digsan Kerja | Marketplace jasa dan kerja Keluarga. Fasilitas menawarkan jasa diri sesuai keahlian, definisi pekerjaan, dan waktu kerja yang bisa ditentukan sendiri; 
-- [ ] Digsan Konsultan | Beranggotakan member Digsan yang fokus membantu keluarga Digsan mengurus pekerjaan rutin berkaitan dengan perpajakan, hukum, dsb;
 
 ## Backend Admin
 - [x] Cek apakah ada user role admin dan ketersediaan akses ke dashboard admin dsb; (Sudah ada: role `admin`/`super_admin`/`worker` + `RolesGuard`; backend `AdminController` (`/api/admin/*`: dashboard, users, workers, orders, settings, configs) dan halaman web `app/(dashboard)/admin/` (page, users, workers, settings).)
 - [x] Admin memiliki dashboard relatif sama dengan tampilan app.digsan.id namun memiliki area konten berupa tree yang mencakup perkembangan jaringan semua keluarga dalam satu map besar dengan sistem filter, search, bisa mengklik semua lingkaran yang ada untuk melihat profil atau informasi yang ada.
 - [x] buatkan script untuk menjadikan user dengan alamat email digsanid@gmail.com sebagai superadmin untuk dijalankan di ssh.
+
 *Terakhir diperbarui: Juli 2026*
 
