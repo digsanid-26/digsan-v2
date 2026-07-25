@@ -11,6 +11,7 @@ import {
   UpdateWorkerStatusDto,
   AdminOrderQueryDto,
   UpdateSettingDto,
+  UpsertSettingDto,
   CreateAppConfigDto,
   UpdateAppConfigDto,
 } from './dto/admin.dto';
@@ -116,6 +117,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Update a system setting' })
   async updateSetting(@Param('key') key: string, @Body() dto: UpdateSettingDto) {
     return this.adminService.updateSetting(key, dto.value);
+  }
+
+  @Put('settings/:key/upsert')
+  @ApiOperation({ summary: 'Upsert a system setting (create if not exists)' })
+  async upsertSetting(@Param('key') key: string, @Body() dto: UpsertSettingDto) {
+    return this.adminService.upsertSetting(key, dto.value, dto.label, dto.category, dto.type, dto.description);
   }
 
   // ─── APP CONFIG ───────────────────────────────────────────

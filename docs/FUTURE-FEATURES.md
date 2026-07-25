@@ -63,15 +63,17 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 ## Sistem Gamification
 - [x] Buatkan halaman Admin untuk mengatur Sistem Gamification seperti Gami Konfigurasi: tempat membuat tipe poin (default poin pengabdian, poin aktivitas, dan poin produktivitas), Gami Stat & Logs : tempat statistik poin masing-masing tipe, peringkat top 10 member masing-masing tipe, serta listing history poin didapat dari user, action, jumlah poin, waktu, dst yang dilengkapi filter dan view detail (modal);
 - [x] Gami Reward dan Redeem yang berisi pengaturan syarat dan hadiah yang diperoleh dari poin yang didapat oleh user, listing redeem request, dst;
+- [ ] General Poin : Poin yang didapatkan dari sistem yang bisa didistribusikan dengan syarat tertentu ke tipe poin lain seperti poin pengabdian, aktivitas, maupun produktivitas;
 - [x] Poin pengabdian : Pengabdian dalam menyelesaikan task, pengabdian dalam mengembangkan jaringan / koneksi keluarga
 - [x] Poin aktivitas : Keaktifan dalam aplikasi, keaktifan dalam mengikuti kegiatan online / offline, keaktifan mengisi/mengupdate konten/status
 - [x] Poin produktivitas : Keaktifan dalam kegiatan bersifat ekonomis, keaktifan dalam mengikuti keanggotaan, keaktifan dalam wadah usaha/program bersama.
 - [ ] Bagaimanakah caranya menambah dan mengubah gamification role?
+- [ ] Buatkan metode mendistribusikan poin secara manual dari dashboard admin dari admin ke user tertentu (super admin).
 
 ### Gamification Role
-- [ ] Login tiap hari sekali mendapatkan poin aktivitas 2 poin;
+- [ ] Login tiap hari sekali mendapatkan aktivitas poin 2;
 - [ ] Berturut-turun poin 5 hari mendapatkan bonus poin aktivitas 10 di luar poin login harian;
-- [ ] Membuat akun baru baik inisiatif sendiri maupun dari undangan mendapatkan 10 poin;
+- [ ] Membuat akun baru (real user) dan mengaktifkannya baik inisiatif sendiri maupun dari undangan/klaim mendapatkan 100 general poin. Tidak termasuk akun ;
 - [ ] Mengembangkan jaringan berupa penambahan aktif user di jaringan mendapatkan 10 poin pengabdian; 
 
 ## Sistem Tree Keluarga / Family
@@ -94,6 +96,8 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [ ] Tombol Hapus Profil di sidebar Detil Anggota (dibawah tombol edit profil);
 
 ## Role Improvement
+Mengatur perijinan dari member / anggota digsan.
+
 ### Super User (super_user)
 - [ ] Bisa membuat node unlimited dari node-node turunan dari misalnya node paman-pamannya (saudara ayah dan ibu) atau node kakak dan adiknya; 
 - [ ] Bisa membuat early access berupa pembuatan username (email) dan password untuk node yang dibuatnya, tidak terbatas pada anak-anak, pasangannya, serta kedua orang tua saja, tapi dari seluruh jaringan yang dibuatnya. Dia akan melihat form pembuatan akses (alamat email dan password) tersedia di sidebar detil anggota node/lingkaran yang dibuatnya;
@@ -151,6 +155,9 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 - [ ] Apa yang diperlukan agar digsan.id dapat memunculkan data analisis berbasis database yang dihimpun yang kemudian diikuti dengan aksi merekomendasikan hubungan antar tree yang belum terhubung misalnya keluarga si A direkomendasikan untuk menjalin koneksi dengan keluarga si B (juga sebaliknya) karena memiliki keterkaitan/kesamaan silsilah kakek / nenek atau paman atau buyut, atau lainnya?
 
 ## Digsan Profil
+### Digsan Profile Completenest
+### Digsan Profile Tree
+### Digsan Investment Area
 
 ## Fasilitas Digsan.id
 - [ ] Chat Keluarga | Sistem percakapan antar anggota keluarga dari yang private antar anggota keluarga, antar anggota keluarga dalam keluarga besar, lintas keluarga besar, hingga keluarga simbah dan buyut, dengan pengaturan privasi dan allow/disallow, block dan unblock, show dan disable;

@@ -336,6 +336,21 @@ export class AdminService {
     });
   }
 
+  async upsertSetting(key: string, value: string, label?: string, category?: string, type?: string, description?: string) {
+    return this.prisma.systemSettings.upsert({
+      where: { key },
+      create: {
+        key,
+        value,
+        label: label || key,
+        category: category || 'features',
+        type: type || 'boolean',
+        description: description || null,
+      },
+      update: { value },
+    });
+  }
+
   // ─── APP CONFIG ───────────────────────────────────────────
 
   async getAppConfigs(category?: string) {

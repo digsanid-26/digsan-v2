@@ -130,6 +130,32 @@ export class UpdateSettingDto {
   value: string;
 }
 
+export class UpsertSettingDto {
+  @ApiProperty()
+  @IsString()
+  value: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @ApiPropertyOptional({ default: 'features' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({ default: 'boolean' })
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
+
 export class CreateAppConfigDto {
   @ApiProperty()
   @IsString()
