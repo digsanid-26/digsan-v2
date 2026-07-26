@@ -47,7 +47,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
     });
 
-    if (!user || user.status !== 'ACTIVE') {
+    if (!user || (user.status !== 'ACTIVE' && user.status !== 'EARLY_ACCESS')) {
       throw new UnauthorizedException();
     }
 
@@ -56,6 +56,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
+      status: user.status,
       roles: user.userRoles.map((ur: any) => ur.role.name),
     };
   }

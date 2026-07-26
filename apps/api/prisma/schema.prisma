@@ -80,6 +80,7 @@ model User {
 enum UserStatus {
   PENDING
   ACTIVE
+  EARLY_ACCESS
   DORMANT
   INACTIVE
   SUSPENDED

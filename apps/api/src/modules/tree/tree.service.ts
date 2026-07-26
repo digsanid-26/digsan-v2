@@ -642,6 +642,15 @@ export class TreeService {
     return !!member;
   }
 
+  /** Check if a user has super_user role. */
+  async isSuperUser(userId: string): Promise<boolean> {
+    const userRoles = await this.prisma.userRole.findMany({
+      where: { userId },
+      include: { role: { select: { name: true } } },
+    });
+    return userRoles.some((ur) => ur.role.name === 'super_user');
+  }
+
   /** Get the configured expiry hours for public links (default 8, admin-configurable). */
   private async getPublicLinkExpiryHours(): Promise<number> {
     const setting = await this.prisma.systemSettings.findUnique({
@@ -1408,8 +1417,8 @@ export class TreeService {
   // ─── SUPER USER: EARLY ACCESS & NODE LIST ───────────────────
 
   /**
-   * Super User creates an email+password account for a family member node.
-   * The new user is auto-activated (super_user vouches) and linked to the member.
+   * Super User creates an email+password early access account for a FamilyMember (table-based).
+   * The new user gets EARLY_ACCESS status (can login without verification to fill profile).
    */
   async createEarlyAccess(
     treeId: string,
@@ -1456,8 +1465,7 @@ export class TreeService {
         name: member.name,
         passwordHash,
         phone: phone || null,
-        status: 'ACTIVE',
-        emailVerified: new Date(),
+        status: 'EARLY_ACCESS',
       },
     });
 
@@ -1476,13 +1484,96 @@ export class TreeService {
         userId: newUser.id,
         email,
         phone: phone || member.phone,
-        accountStatus: 'ACTIVE',
       },
     });
 
     return {
       message: 'Early access berhasil dibuat',
-      user: { id: newUser.id, email: newUser.email, name: newUser.name },
+      user: { id: newUser.id, email: newUser.email, name: newUser.name, status: newUser.status },
+    };
+  }
+
+  /**
+   * Super User creates an email+password early access account for a layout node.
+   * Works with config-driven layout node IDs (e.g. 'parent-0', 'child-1').
+   * The new user gets EARLY_ACCESS status (can login without verification to fill profile).
+   */
+  async createEarlyAccessForNode(
+    userId: string,
+    roles: string[],
+    nodeId: string,
+    email: string,
+    password: string,
+    phone?: string,
+  ) {
+    if (!roles?.includes('super_user')) {
+      throw new ForbiddenException('Hanya super_user yang dapat membuat early access');
+    }
+
+    const tree = await this.getOrCreateDefaultTree(userId);
+
+    const members = (tree.layoutMembers as Record<string, any>) ?? {};
+    const member = members[nodeId];
+    if (!member) throw new NotFoundException('Node tidak ditemukan dalam silsilah');
+
+    if (member.linkedUserId || member.claimedByUserId) {
+      throw new BadRequestException('Node ini sudah memiliki akun terhubung');
+    }
+
+    if (nodeId === 'self') {
+      throw new BadRequestException('Tidak bisa membuat early access untuk diri sendiri');
+    }
+
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new ConflictException('Email sudah terdaftar');
+    }
+
+    if (phone) {
+      const existingPhone = await this.prisma.user.findUnique({ where: { phone } });
+      if (existingPhone) {
+        throw new ConflictException('Nomor telepon sudah terdaftar');
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const memberName = member.name || nodeId;
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        email,
+        name: memberName,
+        passwordHash,
+        phone: phone || null,
+        status: 'EARLY_ACCESS',
+      },
+    });
+
+    // Assign default 'user' role
+    const userRole = await this.prisma.role.findUnique({ where: { name: 'user' } });
+    if (userRole) {
+      await this.prisma.userRole.create({
+        data: { userId: newUser.id, roleId: userRole.id },
+      });
+    }
+
+    // Link layout member to the new user
+    members[nodeId] = {
+      ...member,
+      linkedUserId: newUser.id,
+      email,
+      phone: phone || member.phone || null,
+    };
+
+    await this.prisma.familyTree.update({
+      where: { id: tree.id },
+      data: { layoutMembers: members as any },
+    });
+
+    return {
+      message: 'Early access berhasil dibuat',
+      nodeId,
+      user: { id: newUser.id, email: newUser.email, name: newUser.name, status: newUser.status },
     };
   }
 

@@ -38,13 +38,16 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 ## Sistem Notifikasi
 - [x] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan dan dikonfigurasi di admin seiring perkembangan aplikasi (karena saat ini masih proses pembangunan);
 - [ ] Aktifkan Push notifikasi dan cek build whatsapp verifikasi dan invitation via whatsapp menggunakan fontee whatsapp gateway;
-- [ ] Cek kemungkinan membangun self-host email server di console idcloudhost (di virtual server lain) yang memungkinkan dengan domain sendiri (@digsan.id), untuk kedepannya juga mendukung multi domain name, terhubung dengan fitur digsan.id di mana user bisa membuat email @digsan.id dengan gratis, membaca dan mengirim email di dashboard email .
 
 ### Notifikasi Role
 #### Notifikasi untuk user
 - [ ] Notifikasi bel meminta konfirmasi jalinan keluarga dari user lain dengan tombol Konfirmasi. Isi Notifikasi : Anda dimasukkan sebagai (misal pasangan/istri, adik, kakak, anak, orangtua/ayah) oleh nama user (diikuti nama family);
 #### Notifikasi untuk user
 - [ ] Notifikasi klaim yang datang dari user terhadap node tree yang dikelolanya. Sediakan halaman Klaim untuk mencocokkan data serta menerima atau menolak klaim;
+
+### Perbaikan notifikasi
+- [ ] Cek bubble notifikasi bel yang spertinya belum bekerja dengan baik. Di app.digsan.id/notifications terdapat notifikasi namun bubbe notifikasi bel tidak menunjukkannya.
+- [ ] Pada halaman app.digsan.id/notifications lengkapi data dengan: Dikirim pada (date)  /notifications, lalu oleh dengan label nama pengirim ber-link ke profil publik user pengirim permintaan, lalu action button: Read / Accept / Reject.
 
 
 ## Share, Like, Reaction, Comment System
@@ -60,7 +63,7 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [x] Membuat halaman profil personal | tree/nama-keluarga/nama-publik-anda (misal tree/farisma-fam/arisnwh) : Halaman profil pribadi untuk diri sendiri yang nantinya bisa dikembangkan lebih lanjut
 
 ## Pengembangan Aktivitas Status
-- [ ] Ubah mode dummy aktivitas lini masa ke real. Buat sistemnya dan jelajahi apa saja yang bisa dibangun untuk ditampilkan di lini masa aktivitas;
+- [ ] Ubah mode dummy aktivitas lini masa ke real. Buat sistemnya dan jelajahi apa saja yang bisa dibangun untuk ditampilkan di lini masa aktivitas sebagai isi dari real aktivitas;
 
 
 ## Sistem Gamification
@@ -94,6 +97,7 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [ ] Tree antar kelompok keluarga perlu dibangun. Menu Expand akan memunculkan dua pilihan User mode (yang sekarang) dan Family Mode (akan menjadi default kalau sudah jadi) dengan gambaran layout baru Family Mode yang perlu dibuat sebagai berikut : Family Slug perlu memiliki halaman edit yang lebih komprehensif (page family edit) dengan tambahan data (field baru) seperti Family Image dan Family Cover (fitur upload gambar) beserta field yang sebelumnya ada di Pengaturan Bagan (seperti nama family beserta edit slug, jumlah pasangan, jumlah anak), Anggota tergabung, lalu ada text area field untuk Family Bio, tanggal pernikahan (tgl, bulan, tahun), Status Pernikahan (Tanpa Status, Berlangsung, Cerai hidup, Cerai mati) untuk nantinya membentuk profil family yang lebih lengkap (app.digsan.id/family/nama-family). Lingkaran utama akan ditempati family user sebagai family induk. Family Image akan digunakan untuk mengisi lingkaran dengan label nama Family dibawahnya. Ketika diklik muncul lingkaran kecil anggota family mengelilinginya mulai dari kiri Suami/Kepala Keluarga, diikuti Istri/Pasangan, diikuti oleh anak-anaknya (lebih dari 2 anak akan ada lingkaran dengan tanda + yang bisa diexpand). Garis hubungan ke atas akan bercabang dua dengan sebelah kiri nama family Ortu Suami/Kepala Keluarga, sebelah kanan nama family ortu pasangan/istri. Garis ke bawah lurus lalu membuat cabang sesuai jumlah family anak bila anak sudah berkeluarga, namun bila tidak ada dikosongkan karena berarti masih di dalam family induk.
 
 ### Node Improvement
+- [ ] Tiap node yang dibuat user / super_user akan otomatis ditambahkan ke dalam halaman Daftar Node Saya. Untuk User tanpa role super_user tetap memiliki halaman ini namun tidak diijinkan mengaksesnya kecuali upgrade user rolenya;
 - [ ] Node perlu memiliki fitur untuk menambah, mengedit, dan menghapus anggota keluarga dalam bentuk icon kecil yang muncul pada saat sebuah node/lingkaran dihover;
 - [ ] Icon + yang muncul di keempat sudut bagian luar node (icon warna putih dibalut lingkaran warna hijau) yang berfungsi membuat node baru sesuai posisi icon (misal klik icon + yang berada di kanan node akan menambah node baru di sebelah kanan node saat ini);
 - [ ] Tombol Hapus Profil di sidebar Detil Anggota (dibawah tombol edit profil);
@@ -102,10 +106,10 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 Mengatur perijinan dari member / anggota digsan.
 
 ### Super User (super_user)
-- [ ] Bisa membuat node unlimited dari node-node turunan dari misalnya node paman-pamannya (saudara ayah dan ibu) atau node kakak dan adiknya; 
+- [ ] (pembaharuan/tambahan) Bisa membuat lingkaran (familymember) unlimited dari lingkaran-lingkaran turunan di halaman app.digsan.id/tree dari misalnya node paman-pamannya (saudara ayah dan ibu) atau node kakak dan adiknya; 
 - [ ] Bisa membuat early access berupa pembuatan username (email) dan password untuk node yang dibuatnya, tidak terbatas pada anak-anak, pasangannya, serta kedua orang tua saja, tapi dari seluruh jaringan yang dibuatnya. Dia akan melihat form pembuatan akses (alamat email dan password) tersedia di sidebar detil anggota node/lingkaran yang dibuatnya;
--[ ] Early access memungkinkan login ke node user terkait tanpa perlu menempuh proses verifikasi akun dengan tujuan mengisi data profil general saja (seperti form di edit profil user); 
-- [ ] Memiliki akses ke list / daftar node yang dibuatnya secara lengkap seperti nama lengkap, alamat email, nomor telepon status keanggotaan (aktif/pasif) 
+- [ ] Mungkin ada kesalahan persepsi, yang dimaksud early access adalah memungkinkannya seseorang login ke node yang dibuat super_user di masing-masing node user non-aktif menggunakan alamat email dan password sementara yang dibuat super_user untuk masing-masing node tersebut. Role super_user dapat membuat email dan password sementara tersebut di sidebar Detail Anggota tiap node yang dibuatnya, mungkin setelah section identifikasi anggota dan hanya bisa dilihat oleh role super_user. Login ke node user non-aktif tanpa perlu menempuh proses verifikasi akun dengan tujuan mengisi data profil general saja (seperti form di edit profil user) tanpa harus menempuh verifikasi akun atau mengaktifkan akun terlebih dahulu (misal untuk anak bayi/dibawah umur/sudah meninggal); 
+- [ ] Memiliki akses ke list / daftar lingkaran/familymember yang dibuatnya secara lengkap seperti nama lengkap, alamat email, nomor telepon status keanggotaan (aktif/pasif) 
  
 
 ### User (user)
@@ -116,7 +120,7 @@ Mengatur perijinan dari member / anggota digsan.
 ### World Tree
 - Pelajari tentang D3.js dan apa saja kemampuan dan yang bisa dilakukannya dan bisakah membangun View Mode World Tree dengan konsep sbb:
 - Pelajari Neo4j and PostgreSQL integrasi untuk mengakomodir jaringan rumit dan komplek hubungan keluarga nantinya. Dengan kemungkinan di masa depan aplikasi berkembang sangat masif dan membutuhkan pencarian silsilah yang super kompleks (misalnya: mencari hubungan sepupu derajat ke-12 secara instan), bisa menggunakan arsitektur Hybrid.PostgreSQL / MySQL: Digunakan sebagai database utama (Source of Truth). Menyimpan data pengguna, profil lengkap, foto, modul artikel, sistem langganan, dan data transaksi aplikasi. Neo4j (Graph DB): Digunakan hanya sebagai microservice khusus silsilah. Database ini hanya menyimpan ID, Nama, dan Hubungan (sangat ringan). Cara Kerjanya: Ketika pengguna membuka modul silsilah, backend aplikasi akan meminta peta struktur jaringan (node & edges) dari Neo4j, lalu mencocokkan ID tersebut ke PostgreSQL untuk mengambil data profil lengkap dan fotonya. ;
-- Saya ingin membangun mode view World Tree yang secara gambaran kasar menjadikan Adam dan Hawa sebagai node/lingkaran pusat dengan garis-garis konektor membentuk lingkaran ke luar sebagai ilustrasi. Lingkaran terluar akan diisi oleh user-user yang mendaftar di digsan.id yang bisa memperdalam koneksinya dengan mengisi node-node kosong seperti ayah ibu, kakek, nenek, kakek buyut, nenek buyut dan seterusnya. 
+- Saya ingin membangun mode view World Tree yang secara gambaran kasar menjadikan Adam dan Hawa sebagai node/lingkaran pusat dengan garis-garis konektor membentuk lingkaran ke luar sebagai ilustrasi. Lingkaran terluar akan diisi oleh user-user yang mendaftar di digsan.id yang bisa memperdalam koneksinya dengan mengisi node-node kosong seperti ayah ibu, kakek, nenek, kakek buyut, nenek buyut dan seterusnya. Pada saat ini dibuatkan dummy dulu dengan heading Future Concept
 
 ### Sistem Perijinan
 - [x] Role super-user | Agar tidak bingung dalam menentukan kuasa terhadap silsilah keluarga, buatkan role tambahan dengan nama super-user yang otomatis dimiliki oleh user pembuat silsilah keluarganya yang pertama kali;

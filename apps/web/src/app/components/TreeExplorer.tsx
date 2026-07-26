@@ -856,6 +856,43 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
   const userSearchDebounce = useRef<ReturnType<typeof setTimeout>>(null);
   const [syncing, setSyncing] = useState(false);
 
+  // Early access form (super_user only)
+  const isSuperUser = getUser()?.roles?.includes('super_user') ?? false;
+  const [eaOpen, setEaOpen] = useState(false);
+  const [eaEmail, setEaEmail] = useState('');
+  const [eaPassword, setEaPassword] = useState('');
+  const [eaPhone, setEaPhone] = useState('');
+  const [eaLoading, setEaLoading] = useState(false);
+  const [eaError, setEaError] = useState('');
+  const [eaSuccess, setEaSuccess] = useState('');
+
+  const handleEarlyAccess = async () => {
+    setEaError('');
+    setEaSuccess('');
+    if (!eaEmail || !eaPassword) {
+      setEaError('Email dan password wajib diisi');
+      return;
+    }
+    if (eaPassword.length < 6) {
+      setEaError('Password minimal 6 karakter');
+      return;
+    }
+    setEaLoading(true);
+    try {
+      const res = await treeApi.createEarlyAccessForNode(node.id, eaEmail, eaPassword, eaPhone || undefined);
+      setEaSuccess(`Early access berhasil dibuat untuk ${res.user.email}`);
+      setForm((f) => ({ ...f, linkedUserId: res.user.id, email: eaEmail, phone: eaPhone || f.phone }));
+      setEaEmail('');
+      setEaPassword('');
+      setEaPhone('');
+      setTimeout(() => { setEaSuccess(''); setEaOpen(false); }, 3000);
+    } catch (e: any) {
+      setEaError(e.message || 'Gagal membuat early access');
+    } finally {
+      setEaLoading(false);
+    }
+  };
+
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
   const publicFamilyUrl = familySlug ? `${origin}/family/${familySlug}` : '';
   const publicProfileUrl = familySlug && ownerUsername ? `${origin}/family/${familySlug}/${ownerUsername}` : '';
@@ -1220,6 +1257,59 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
               >
                 Cek pencocokan identitas
               </button>
+            )}
+          </div>
+        )}
+
+        {/* Early Access — super_user only, for nodes without linked user */}
+        {isSuperUser && !isSelf && !form.linkedUserId && (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 p-4">
+            <button
+              type="button"
+              onClick={() => setEaOpen((v) => !v)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <div>
+                <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">Early Access</p>
+                <p className="text-xs text-slate-500 dark:text-white/50 mt-0.5">Buat akun login sementara untuk node ini</p>
+              </div>
+              <span className="text-amber-600 dark:text-amber-400 text-xs">{eaOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {eaOpen && (
+              <div className="mt-3 space-y-2">
+                {eaError && <p className="text-xs text-red-500">{eaError}</p>}
+                {eaSuccess && <p className="text-xs text-emerald-600 dark:text-emerald-400">{eaSuccess}</p>}
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={eaEmail}
+                  onChange={(e) => setEaEmail(e.target.value)}
+                  className={inputCls}
+                />
+                <input
+                  type="password"
+                  placeholder="Password (min. 6 karakter)"
+                  value={eaPassword}
+                  onChange={(e) => setEaPassword(e.target.value)}
+                  className={inputCls}
+                />
+                <input
+                  type="tel"
+                  placeholder="No. HP (opsional)"
+                  value={eaPhone}
+                  onChange={(e) => setEaPhone(e.target.value)}
+                  className={inputCls}
+                />
+                <button
+                  type="button"
+                  onClick={handleEarlyAccess}
+                  disabled={eaLoading}
+                  className="w-full py-2 rounded-lg text-sm font-medium bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50"
+                >
+                  {eaLoading ? 'Membuat…' : 'Buat Early Access'}
+                </button>
+              </div>
             )}
           </div>
         )}

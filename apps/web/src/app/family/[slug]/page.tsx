@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Users, ArrowRight, Loader2, X } from 'lucide-react';
+import { Users, ArrowRight, Loader2, X, KeyRound, BadgeCheck } from 'lucide-react';
 import { publicTreeApi, treeApi, savePendingClaim } from '@/lib/tree';
 import type { PublicFamily } from '@/lib/tree';
 import { getTokens, getUser } from '@/lib/auth';
@@ -39,11 +39,21 @@ export default function PublicFamilyPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [claimNode, setClaimNode] = useState<TNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<TNode | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Super user early access form
+  const [isSuperUser, setIsSuperUser] = useState(false);
+  const [eaOpen, setEaOpen] = useState(false);
+  const [eaEmail, setEaEmail] = useState('');
+  const [eaPassword, setEaPassword] = useState('');
+  const [eaPhone, setEaPhone] = useState('');
+  const [eaLoading, setEaLoading] = useState(false);
+  const [eaError, setEaError] = useState('');
+  const [eaSuccess, setEaSuccess] = useState('');
 
   // Deep link from an invitation: /family/{slug}?m={nodeId} focuses that member.
   // Also read public link token from ?t= query param.
@@ -53,7 +63,9 @@ export default function PublicFamilyPage() {
     if (m) setHighlightId(m);
     const t = params.get('t');
     if (t) setLinkToken(t);
-    setIsLoggedIn(!!getUser());
+    const u = getUser();
+    setIsLoggedIn(!!u);
+    setIsSuperUser(u?.roles?.includes('super_user') ?? false);
   }, []);
 
   useEffect(() => {
@@ -112,34 +124,67 @@ export default function PublicFamilyPage() {
   };
 
   const onNodeClick = (node: TNode) => {
-    // Only the owner (self) currently has a public profile username.
+    // Self node with username → navigate to profile directly
     if (node.id === 'self' && data?.owner?.username) {
       router.push(`/family/${slug}/${data.owner.username}`);
+      return;
     }
+    // All other nodes → open unified modal
+    setSelectedNode(node);
+    setClaimError(null);
+    setEaError('');
+    setEaSuccess('');
+    setEaOpen(false);
   };
 
-  const closeClaimModal = () => { setClaimNode(null); setClaimError(null); };
+  const closeModal = () => { setSelectedNode(null); setClaimError(null); setEaError(''); setEaSuccess(''); setEaOpen(false); };
 
   const confirmClaim = async () => {
-    if (!claimNode) return;
+    if (!selectedNode) return;
     if (!getTokens()?.accessToken) {
-      savePendingClaim({ slug, nodeId: claimNode.id });
-      router.push(`/register?tree=${encodeURIComponent(slug)}&node=${encodeURIComponent(claimNode.id)}`);
+      savePendingClaim({ slug, nodeId: selectedNode.id });
+      router.push(`/register?tree=${encodeURIComponent(slug)}&node=${encodeURIComponent(selectedNode.id)}`);
       return;
     }
     setClaiming(true);
     setClaimError(null);
     try {
-      await treeApi.claimNode(slug, claimNode.id);
-      const refreshed = await publicTreeApi.getFamily<Partial<TreeConfig>, Members>(slug);
+      await treeApi.claimNode(slug, selectedNode.id);
+      const refreshed = await publicTreeApi.getFamily<Partial<TreeConfig>, Members>(slug, linkToken ?? undefined, getTokens()?.accessToken);
       setData(refreshed);
-      closeClaimModal();
+      closeModal();
     } catch (e: any) {
       setClaimError(e.message || 'Gagal mengklaim bagian ini');
     } finally {
       setClaiming(false);
     }
   };
+
+  const handleEarlyAccess = async () => {
+    if (!selectedNode) return;
+    setEaError('');
+    setEaSuccess('');
+    if (!eaEmail || !eaPassword) { setEaError('Email dan password wajib diisi'); return; }
+    if (eaPassword.length < 6) { setEaError('Password minimal 6 karakter'); return; }
+    setEaLoading(true);
+    try {
+      const res = await treeApi.createEarlyAccessForNode(selectedNode.id, eaEmail, eaPassword, eaPhone || undefined);
+      setEaSuccess(`Early access berhasil dibuat untuk ${res.user.email}`);
+      const refreshed = await publicTreeApi.getFamily<Partial<TreeConfig>, Members>(slug, linkToken ?? undefined, getTokens()?.accessToken);
+      setData(refreshed);
+      setTimeout(() => closeModal(), 3000);
+    } catch (e: any) {
+      setEaError(e.message || 'Gagal membuat early access');
+    } finally {
+      setEaLoading(false);
+    }
+  };
+
+  // Resolve member info for the selected node
+  const selectedMember = selectedNode ? members[selectedNode.id] : null;
+  const selectedResolved = selectedNode ? resolve(selectedNode.id, selectedNode.name) : null;
+  const isVerifiedNode = selectedNode && selectedNode.id !== 'self' && (selectedMember?.verified || selectedMember?.linkedUserId);
+  const isSelfNode = selectedNode?.id === 'self';
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#05050f' }}>
@@ -217,7 +262,6 @@ export default function PublicFamilyPage() {
                 lines={lines}
                 resolve={resolve}
                 onNodeClick={onNodeClick}
-                onUnclaimedClick={setClaimNode}
                 onGroupClick={(n) => {
                   // Keluarga Besar Tree view not yet built — will be implemented
                   // after Family Mode layout (FUTURE-FEATURES.md L68)
@@ -261,48 +305,158 @@ export default function PublicFamilyPage() {
         © {new Date().getFullYear()} Digsan — Platform Keluarga Indonesia
       </footer>
 
-      {/* "Apakah ini Anda?" claim modal for an unclaimed node */}
-      {claimNode && (
+      {/* Unified node modal — membercard for verified, claim+early access for unclaimed */}
+      {selectedNode && selectedResolved && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
-          onClick={closeClaimModal}
+          onClick={closeModal}
         >
           <div
             className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0a0a16] p-6 text-center relative"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={closeClaimModal}
+              onClick={closeModal}
               aria-label="Tutup"
               className="absolute top-3 right-3 text-white/40 hover:text-white/80 transition-colors"
             >
               <X size={18} />
             </button>
-            <Users size={32} className="mx-auto text-blue-400 mb-3" />
-            <h3 className="text-white font-semibold text-lg mb-1">
-              Apakah ini <span className="text-blue-400">{claimNode.name}</span>?
-            </h3>
-            <p className="text-white/50 text-sm mb-5">
-              Jika ini Anda, hubungkan akun untuk melengkapi profil dan mengedit bagian silsilah ini.
-            </p>
-            {claimError && (
-              <p className="text-red-400 text-sm mb-3">{claimError}</p>
+
+            {/* Photo / avatar */}
+            {selectedResolved.photo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={selectedResolved.photo} alt={selectedResolved.name} referrerPolicy="no-referrer" className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-2 border-white/10" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3 border-2 border-white/10">
+                <Users size={28} className="text-white/30" />
+              </div>
             )}
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={confirmClaim}
-                disabled={claiming}
-                className="w-full py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white transition-colors"
-              >
-                {claiming ? 'Memproses…' : 'Ya, ini saya'}
-              </button>
-              <button
-                onClick={closeClaimModal}
-                className="w-full py-2.5 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/10 text-white/70 transition-colors"
-              >
-                Bukan saya
-              </button>
-            </div>
+
+            {/* View 1: Membercard for verified/active nodes */}
+            {(isVerifiedNode || isSelfNode) && (
+              <>
+                {isVerifiedNode && (
+                  <div className="inline-flex items-center gap-1 text-emerald-400 text-xs mb-1">
+                    <BadgeCheck size={14} /> Terverifikasi
+                  </div>
+                )}
+                <h3 className="text-white font-semibold text-lg mb-1">{selectedResolved.name}</h3>
+                <p className="text-white/40 text-xs mb-3">{selectedNode.role}</p>
+                <div className="grid grid-cols-2 gap-2 text-left mb-4">
+                  <div className="rounded-lg bg-white/5 px-3 py-2">
+                    <p className="text-white/30 text-[10px] uppercase">Jenis Kelamin</p>
+                    <p className="text-white/70 text-sm">{selectedResolved.gender === 'L' ? 'Laki-laki' : selectedResolved.gender === 'P' ? 'Perempuan' : '—'}</p>
+                  </div>
+                  <div className="rounded-lg bg-white/5 px-3 py-2">
+                    <p className="text-white/30 text-[10px] uppercase">Status</p>
+                    <p className="text-white/70 text-sm">{selectedResolved.alive ? 'Hidup' : 'Meninggal'}</p>
+                  </div>
+                  {selectedMember?.email && (
+                    <div className="rounded-lg bg-white/5 px-3 py-2 col-span-2">
+                      <p className="text-white/30 text-[10px] uppercase">Email</p>
+                      <p className="text-white/70 text-sm truncate">{selectedMember.email}</p>
+                    </div>
+                  )}
+                  {selectedMember?.phone && (
+                    <div className="rounded-lg bg-white/5 px-3 py-2 col-span-2">
+                      <p className="text-white/30 text-[10px] uppercase">No. HP</p>
+                      <p className="text-white/70 text-sm">{selectedMember.phone}</p>
+                    </div>
+                  )}
+                </div>
+                {isSelfNode && data?.owner?.username && (
+                  <button
+                    onClick={() => data?.owner?.username && router.push(`/family/${slug}/${data.owner.username}`)}
+                    className="w-full py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                  >
+                    Lihat Profil Lengkap
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* View 2: Claim + Early Access for unclaimed nodes */}
+            {!isVerifiedNode && !isSelfNode && (
+              <>
+                <h3 className="text-white font-semibold text-lg mb-1">
+                  Apakah ini <span className="text-blue-400">{selectedResolved.name}</span>?
+                </h3>
+                <p className="text-white/50 text-sm mb-5">
+                  Jika ini Anda, hubungkan akun untuk melengkapi profil dan mengedit bagian silsilah ini.
+                </p>
+                {claimError && (
+                  <p className="text-red-400 text-sm mb-3">{claimError}</p>
+                )}
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={confirmClaim}
+                    disabled={claiming}
+                    className="w-full py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white transition-colors"
+                  >
+                    {claiming ? 'Memproses…' : 'Ya, ini saya'}
+                  </button>
+                  <button
+                    onClick={closeModal}
+                    className="w-full py-2.5 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/10 text-white/70 transition-colors"
+                  >
+                    Bukan saya
+                  </button>
+                </div>
+
+                {/* Early Access — super_user only */}
+                {isSuperUser && (
+                  <div className="mt-4 pt-4 border-t border-white/10 text-left">
+                    <button
+                      type="button"
+                      onClick={() => setEaOpen((v) => !v)}
+                      className="w-full flex items-center justify-between text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <KeyRound size={16} className="text-amber-400" />
+                        <span className="text-sm font-medium text-amber-400">Login Early Access</span>
+                      </div>
+                      <span className="text-amber-400 text-xs">{eaOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {eaOpen && (
+                      <div className="mt-3 space-y-2">
+                        {eaError && <p className="text-xs text-red-400">{eaError}</p>}
+                        {eaSuccess && <p className="text-xs text-emerald-400">{eaSuccess}</p>}
+                        <input
+                          type="email"
+                          placeholder="Email"
+                          value={eaEmail}
+                          onChange={(e) => setEaEmail(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white/5 border-white/15 text-white placeholder-white/30"
+                        />
+                        <input
+                          type="password"
+                          placeholder="Password (min. 6 karakter)"
+                          value={eaPassword}
+                          onChange={(e) => setEaPassword(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white/5 border-white/15 text-white placeholder-white/30"
+                        />
+                        <input
+                          type="tel"
+                          placeholder="No. HP (opsional)"
+                          value={eaPhone}
+                          onChange={(e) => setEaPhone(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white/5 border-white/15 text-white placeholder-white/30"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleEarlyAccess}
+                          disabled={eaLoading}
+                          className="w-full py-2 rounded-lg text-sm font-medium bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50"
+                        >
+                          {eaLoading ? 'Membuat…' : 'Buat Early Access'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

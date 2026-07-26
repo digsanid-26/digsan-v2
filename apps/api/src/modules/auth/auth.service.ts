@@ -135,7 +135,8 @@ export class AuthService {
       throw new UnauthorizedException('Akun Anda telah ditangguhkan');
     }
 
-    if (user.status !== 'ACTIVE') {
+    // EARLY_ACCESS and ACTIVE users can login
+    if (user.status !== 'ACTIVE' && user.status !== 'EARLY_ACCESS') {
       await this.logLogin(user.id, dto.email, 'FAILED', `Status: ${user.status}`, meta);
       throw new UnauthorizedException('Akun tidak aktif');
     }
@@ -169,6 +170,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         avatar: user.avatar,
+        status: user.status,
         roles: userRoles.map((ur) => ur.role.name),
       },
       ...tokens,

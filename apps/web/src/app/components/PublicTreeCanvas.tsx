@@ -160,10 +160,10 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
           const isSelf = n.id === 'self';
           const unclaimed = !isGroup && !isSelf && !d?.verified;
           const groupClickable = isGroup && !!onGroupClick;
-          const clickable = groupClickable || (!isGroup && ((isSelf && !!onNodeClick) || (unclaimed && !!onUnclaimedClick)));
+          const clickable = groupClickable || (!isGroup && (!!onNodeClick || (unclaimed && !!onUnclaimedClick)));
           const onClick = () => handleNodeClick(() => {
             if (isGroup) onGroupClick?.(n);
-            else if (isSelf) onNodeClick?.(n);
+            else if (onNodeClick) onNodeClick?.(n);
             else if (unclaimed) onUnclaimedClick?.(n);
           });
           return (

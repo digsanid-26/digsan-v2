@@ -150,6 +150,17 @@ export class TreeController {
     return this.treeService.getSuperUserNodes(userId, roles);
   }
 
+  @Post('early-access/:nodeId')
+  @ApiOperation({ summary: 'Super User creates email+password early access for a layout node' })
+  async createEarlyAccessForNode(
+    @Param('nodeId') nodeId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
+    @Body() dto: CreateEarlyAccessDto,
+  ) {
+    return this.treeService.createEarlyAccessForNode(userId, roles, nodeId, dto.email, dto.password, dto.phone);
+  }
+
   @Post(':id/members/:memberId/early-access')
   @ApiOperation({ summary: 'Super User creates email+password account for a family member node' })
   async createEarlyAccess(
@@ -419,6 +430,9 @@ export class PublicFamilyController {
     if (userId) {
       const isMember = await this.treeService.isTreeMember(slug, userId);
       if (isMember) return this.treeService.getPublicFamily(slug);
+      // Super users can access any family page
+      const isSuper = await this.treeService.isSuperUser(userId);
+      if (isSuper) return this.treeService.getPublicFamily(slug);
     }
     throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai anggota keluarga.');
   }
@@ -439,6 +453,9 @@ export class PublicFamilyController {
     if (userId) {
       const isMember = await this.treeService.isTreeMember(slug, userId);
       if (isMember) return this.treeService.getPublicProfile(slug, username);
+      // Super users can access any profile page
+      const isSuper = await this.treeService.isSuperUser(userId);
+      if (isSuper) return this.treeService.getPublicProfile(slug, username);
     }
     throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai anggota keluarga.');
   }

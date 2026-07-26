@@ -126,6 +126,13 @@ export const treeApi = {
       body: JSON.stringify({ slug, nodeId }),
     }),
 
+  // ─── Super User: create early access for a layout node ──────
+  createEarlyAccessForNode: (nodeId: string, email: string, password: string, phone?: string) =>
+    authRequest<{ message: string; nodeId: string; user: { id: string; email: string; name: string; status: string } }>(`/trees/early-access/${encodeURIComponent(nodeId)}`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password, phone }),
+    }),
+
   // ─── Accept tree invitation ─────────────────────────────────
   acceptInvitation: (token: string) =>
     authRequest<{ message: string; member: unknown; treeId: string; slug: string }>(`/trees/invitations/${token}/accept`, {
