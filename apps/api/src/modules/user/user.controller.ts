@@ -33,6 +33,15 @@ export class UserController {
     return this.userService.changePassword(userId, body.currentPassword, body.newPassword);
   }
 
+  @Post('me/request-super-user')
+  @ApiOperation({ summary: 'Request upgrade to super_user role (notifies super_admins)' })
+  async requestSuperUserUpgrade(
+    @CurrentUser('id') userId: string,
+    @Body() body: { reason: string },
+  ) {
+    return this.userService.requestSuperUserUpgrade(userId, body.reason);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get public user profile by ID' })
   async getPublicProfile(@Param('id') id: string) {

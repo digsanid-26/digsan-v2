@@ -1,11 +1,17 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/database/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(UserService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationService,
+  ) {}
 
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -139,5 +145,57 @@ export class UserService {
     });
 
     return { message: 'Password berhasil diubah' };
+  }
+
+  /**
+   * User requests upgrade to super_user role.
+   * Sends notification + email to all super_admins.
+   */
+  async requestSuperUserUpgrade(userId: string, reason: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, avatar: true },
+    });
+    if (!user) throw new NotFoundException('User tidak ditemukan');
+
+    // Check if already super_user
+    const existingRole = await this.prisma.userRole.findFirst({
+      where: {
+        userId,
+        role: { name: 'super_user' },
+      },
+    });
+    if (existingRole) {
+      throw new BadRequestException('Anda sudah memiliki role super_user');
+    }
+
+    // Find all super_admin users to notify
+    const superAdmins = await this.prisma.userRole.findMany({
+      where: { role: { name: 'super_admin' } },
+      include: { user: { select: { id: true, email: true, name: true } } },
+    });
+
+    // Create notification for each super_admin
+    for (const admin of superAdmins) {
+      await this.notifications.create({
+        userId: admin.user.id,
+        type: 'SYSTEM' as any,
+        title: 'Permintaan Upgrade Super User',
+        message: `${user.name} (${user.email}) meminta untuk menjadi super_user. Alasan: ${reason}`,
+        data: { requestingUserId: user.id, requestingUserName: user.name, requestingUserEmail: user.email, reason },
+      }).catch((err) => this.logger.error(`Failed to notify admin ${admin.user.id}: ${err.message}`));
+
+      this.notifications.sendPushSafe(
+        admin.user.id,
+        'Permintaan Upgrade Super User',
+        `${user.name} meminta menjadi super_user`,
+      ).catch(() => {});
+    }
+
+    return {
+      message: 'Permintaan upgrade super_user telah dikirim ke admin',
+      requestedBy: { id: user.id, name: user.name, email: user.email },
+      notifiedAdmins: superAdmins.length,
+    };
   }
 }

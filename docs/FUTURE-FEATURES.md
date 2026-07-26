@@ -41,8 +41,11 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 - [ ] Cek kemungkinan membangun self-host email server di console idcloudhost (di virtual server lain) yang memungkinkan dengan domain sendiri (@digsan.id), untuk kedepannya juga mendukung multi domain name, terhubung dengan fitur digsan.id di mana user bisa membuat email @digsan.id dengan gratis, membaca dan mengirim email di dashboard email .
 
 ### Notifikasi Role
+#### Notifikasi untuk user
 - [ ] Notifikasi bel meminta konfirmasi jalinan keluarga dari user lain dengan tombol Konfirmasi. Isi Notifikasi : Anda dimasukkan sebagai (misal pasangan/istri, adik, kakak, anak, orangtua/ayah) oleh nama user (diikuti nama family);
-- [ ] Notifikasi detil page. Bisakah notifikasi
+#### Notifikasi untuk user
+- [ ] Notifikasi klaim yang datang dari user terhadap node tree yang dikelolanya. Sediakan halaman Klaim untuk mencocokkan data serta menerima atau menolak klaim;
+
 
 ## Share, Like, Reaction, Comment System
 
@@ -101,11 +104,12 @@ Mengatur perijinan dari member / anggota digsan.
 ### Super User (super_user)
 - [ ] Bisa membuat node unlimited dari node-node turunan dari misalnya node paman-pamannya (saudara ayah dan ibu) atau node kakak dan adiknya; 
 - [ ] Bisa membuat early access berupa pembuatan username (email) dan password untuk node yang dibuatnya, tidak terbatas pada anak-anak, pasangannya, serta kedua orang tua saja, tapi dari seluruh jaringan yang dibuatnya. Dia akan melihat form pembuatan akses (alamat email dan password) tersedia di sidebar detil anggota node/lingkaran yang dibuatnya;
-- [ ] Memiliki akses ke list / daftar user aktif dalam nodenya secara lengkap seperti nama lengkap, alamat email, nomor telepon, dan 
-- [ ] Bisa menerima permintaan klaim kepemilikan node/lingkaran yang dibuatnya dari user biasa; 
+-[ ] Early access memungkinkan login ke node user terkait tanpa perlu menempuh proses verifikasi akun dengan tujuan mengisi data profil general saja (seperti form di edit profil user); 
+- [ ] Memiliki akses ke list / daftar node yang dibuatnya secara lengkap seperti nama lengkap, alamat email, nomor telepon status keanggotaan (aktif/pasif) 
+ 
 
 ### User (user)
-- [ ] Setelah login otomatis role user didapatkan. Dari sana dia dapat membuat tree baru atau melakukan klaim terhadap node yang dibuat oleh user lain untuk kemudian bila klaim diterima dia dapat melakukan pengaturan jumlah node keluarga utama miliknya hingga keluarga simbahnya;
+- [ ] Setelah berhasil login dan menverifikasi keanggotaannya, otomatis role user didapatkan. Keanggotaan aktif setelah user menverifikasi dengan mengklik verifikasi link (email) atau whatsapp (token). Dari sana dia dapat membuat tree baru atau melakukan klaim terhadap node yang dibuat oleh user lain untuk kemudian bila klaim diterima dia dapat melakukan pengaturan jumlah node keluarga utama miliknya hingga keluarga simbahnya;
 - [ ] User dapat menjadi super_user dengan syarat memiliki kemampuan dan kemauan mengembangkan tree yang dibuatnya;
 - [ ] Disediakan tombol Upgrade super_user yang akan memunculkan modal request form yang ditujukan ke super admin (via email dan bel notifikasi) untuk menjadikan dirinya sebagai super_user. Di Modal tersebut dijelaskan secara ringkas fungsi dan akses yang dimiliki super_user.
 

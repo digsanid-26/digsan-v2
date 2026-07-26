@@ -2,14 +2,16 @@
 
 import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, TreePine, LogOut, ChevronDown, User } from 'lucide-react';
+import { LayoutDashboard, TreePine, LogOut, ChevronDown, User, Crown, Network } from 'lucide-react';
 import { getUser, clearAuth } from '@/lib/auth';
+import UpgradeSuperUserModal from './UpgradeSuperUserModal';
 
 interface AuthUser {
   id: string;
   email: string;
   name: string;
   avatar: string | null;
+  roles?: string[];
 }
 
 function getInitials(name: string) {
@@ -24,6 +26,7 @@ function getInitials(name: string) {
 export default function HeaderNav() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [open, setOpen] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -138,6 +141,25 @@ export default function HeaderNav() {
               <User size={15} className="text-slate-400" />
               Profil Saya
             </a>
+            {user.roles?.includes('super_user') && (
+              <a
+                href="/super-user/nodes"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/5"
+              >
+                <Network size={15} className="text-purple-500 dark:text-purple-400" />
+                Daftar Node Saya
+              </a>
+            )}
+            {!user.roles?.includes('super_user') && !user.roles?.includes('super_admin') && (
+              <button
+                onClick={() => { setOpen(false); setShowUpgrade(true); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-amber-500/10"
+              >
+                <Crown size={15} />
+                Upgrade ke Super User
+              </button>
+            )}
           </div>
 
           {/* Logout */}
@@ -152,6 +174,8 @@ export default function HeaderNav() {
           </div>
         </div>
       )}
+
+      <UpgradeSuperUserModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }

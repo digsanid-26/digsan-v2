@@ -2,9 +2,11 @@
 
 import { useParams } from 'next/navigation';
 import { useApi, useAuthApi } from '@/lib/hooks';
-import { TreePine, UserPlus, ArrowLeft, Users, Trash2 } from 'lucide-react';
+import { TreePine, UserPlus, ArrowLeft, Users, Trash2, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { getUser } from '@/lib/auth';
+import EarlyAccessModal from '@/app/components/EarlyAccessModal';
 
 export default function TreeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +17,8 @@ export default function TreeDetailPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ firstName: '', lastName: '', gender: 'MALE', birthDate: '' });
   const [adding, setAdding] = useState(false);
+  const [earlyAccessMember, setEarlyAccessMember] = useState<{ id: string; name: string } | null>(null);
+  const isSuperUser = getUser()?.roles?.includes('super_user') ?? false;
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,17 +184,39 @@ export default function TreeDetailPage() {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDeleteMember(m.id)}
-                  className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {isSuperUser && !m.userId && (
+                    <button
+                      onClick={() => setEarlyAccessMember({ id: m.id, name: `${m.firstName} ${m.lastName || ''}` })}
+                      className="p-1.5 text-blue-400 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                      title="Buat Early Access"
+                    >
+                      <KeyRound size={16} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDeleteMember(m.id)}
+                    className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {earlyAccessMember && (
+        <EarlyAccessModal
+          open={!!earlyAccessMember}
+          onClose={() => setEarlyAccessMember(null)}
+          treeId={id}
+          memberId={earlyAccessMember.id}
+          memberName={earlyAccessMember.name}
+          onSuccess={() => { setEarlyAccessMember(null); refetchMembers(); }}
+        />
+      )}
     </div>
   );
 }

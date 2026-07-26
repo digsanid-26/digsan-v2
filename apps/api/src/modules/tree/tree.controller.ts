@@ -17,6 +17,7 @@ import { SaveLayoutDto } from './dto/save-layout.dto';
 import { SetSlugDto } from './dto/set-slug.dto';
 import { RequestConsentDto, RespondConsentDto } from './dto/consent.dto';
 import { ClaimNodeDto } from './dto/claim-node.dto';
+import { CreateEarlyAccessDto } from './dto/early-access.dto';
 
 // ─── AUTHENTICATED TREE ENDPOINTS ─────────────────────────────
 
@@ -141,6 +142,26 @@ export class TreeController {
     return this.treeService.getPendingInvitations(userId);
   }
 
+  // ─── SUPER USER ENDPOINTS ───────────────────────────────────
+
+  @Get('super-user/nodes')
+  @ApiOperation({ summary: 'Get all nodes created by super_user (with full member info)' })
+  async getSuperUserNodes(@CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[]) {
+    return this.treeService.getSuperUserNodes(userId, roles);
+  }
+
+  @Post(':id/members/:memberId/early-access')
+  @ApiOperation({ summary: 'Super User creates email+password account for a family member node' })
+  async createEarlyAccess(
+    @Param('id') treeId: string,
+    @Param('memberId') memberId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
+    @Body() dto: CreateEarlyAccessDto,
+  ) {
+    return this.treeService.createEarlyAccess(treeId, memberId, userId, roles, dto.email, dto.password, dto.phone);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a family tree by ID (with members)' })
   async findOne(@Param('id') id: string, @CurrentUser('id') userId: string) {
@@ -149,14 +170,14 @@ export class TreeController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update a family tree' })
-  async update(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() dto: UpdateTreeDto) {
-    return this.treeService.update(id, userId, dto);
+  async update(@Param('id') id: string, @CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[], @Body() dto: UpdateTreeDto) {
+    return this.treeService.update(id, userId, dto, roles);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a family tree and all its members' })
-  async remove(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    return this.treeService.remove(id, userId);
+  async remove(@Param('id') id: string, @CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[]) {
+    return this.treeService.remove(id, userId, roles);
   }
 
   // ─── MEMBERS ────────────────────────────────────────────────
@@ -172,9 +193,10 @@ export class TreeController {
   async addMember(
     @Param('id') treeId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
     @Body() dto: CreateMemberDto,
   ) {
-    return this.treeService.addMember(treeId, userId, dto);
+    return this.treeService.addMember(treeId, userId, dto, roles);
   }
 
   @Get(':id/members/:memberId')
@@ -189,9 +211,10 @@ export class TreeController {
     @Param('id') treeId: string,
     @Param('memberId') memberId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
     @Body() dto: UpdateMemberDto,
   ) {
-    return this.treeService.updateMember(treeId, memberId, userId, dto);
+    return this.treeService.updateMember(treeId, memberId, userId, dto, roles);
   }
 
   @Delete(':id/members/:memberId')
@@ -200,8 +223,9 @@ export class TreeController {
     @Param('id') treeId: string,
     @Param('memberId') memberId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
   ) {
-    return this.treeService.removeMember(treeId, memberId, userId);
+    return this.treeService.removeMember(treeId, memberId, userId, roles);
   }
 
   // ─── CARD STYLE ─────────────────────────────────────────────
@@ -211,17 +235,18 @@ export class TreeController {
   async updateCardStyle(
     @Param('id') treeId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
     @Body() dto: UpdateCardStyleDto,
   ) {
-    return this.treeService.updateCardStyle(treeId, userId, dto);
+    return this.treeService.updateCardStyle(treeId, userId, dto, roles);
   }
 
   // ─── INVITATIONS ────────────────────────────────────────────
 
   @Get(':id/invitations')
   @ApiOperation({ summary: 'Get all invitations for a tree' })
-  async getInvitations(@Param('id') treeId: string, @CurrentUser('id') userId: string) {
-    return this.treeService.getInvitations(treeId, userId);
+  async getInvitations(@Param('id') treeId: string, @CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[]) {
+    return this.treeService.getInvitations(treeId, userId, roles);
   }
 
   @Post(':id/invitations')
@@ -229,9 +254,10 @@ export class TreeController {
   async createInvitation(
     @Param('id') treeId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
     @Body() dto: InviteMemberDto,
   ) {
-    return this.treeService.createInvitation(treeId, userId, dto);
+    return this.treeService.createInvitation(treeId, userId, dto, roles);
   }
 
   @Delete(':id/invitations/:invitationId')
@@ -240,8 +266,9 @@ export class TreeController {
     @Param('id') treeId: string,
     @Param('invitationId') invitationId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
   ) {
-    return this.treeService.cancelInvitation(treeId, invitationId, userId);
+    return this.treeService.cancelInvitation(treeId, invitationId, userId, roles);
   }
 
   @Post('invitations/:token/accept')
@@ -263,9 +290,10 @@ export class TreeController {
   async requestHubConnection(
     @Param('id') sourceTreeId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
     @Body() body: { targetTreeId: string; type: 'MARRIAGE' | 'SIBLING' | 'PARENT_CHILD' | 'EXTENDED' },
   ) {
-    return this.treeService.requestHubConnection(sourceTreeId, body.targetTreeId, userId, body.type);
+    return this.treeService.requestHubConnection(sourceTreeId, body.targetTreeId, userId, body.type, roles);
   }
 
   @Patch('connections/:connectionId')

@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/database/prisma.service';
 import { EmailService } from '../notification/email.service';
@@ -119,8 +120,8 @@ export class TreeService {
     return tree;
   }
 
-  async update(id: string, userId: string, dto: UpdateTreeDto) {
-    const tree = await this.ensureTreeOwner(id, userId);
+  async update(id: string, userId: string, dto: UpdateTreeDto, roles?: string[]) {
+    const tree = await this.ensureTreeOwner(id, userId, roles);
 
     return this.prisma.familyTree.update({
       where: { id },
@@ -133,8 +134,8 @@ export class TreeService {
     });
   }
 
-  async remove(id: string, userId: string) {
-    await this.ensureTreeOwner(id, userId);
+  async remove(id: string, userId: string, roles?: string[]) {
+    await this.ensureTreeOwner(id, userId, roles);
     await this.prisma.familyTree.delete({ where: { id } });
     return { message: 'Pohon keluarga berhasil dihapus' };
   }
@@ -818,8 +819,8 @@ export class TreeService {
     });
   }
 
-  async addMember(treeId: string, userId: string, dto: CreateMemberDto) {
-    await this.ensureTreeOwner(treeId, userId);
+  async addMember(treeId: string, userId: string, dto: CreateMemberDto, roles?: string[]) {
+    await this.ensureTreeOwner(treeId, userId, roles);
 
     // Validate parentId belongs to the same tree
     if (dto.parentId) {
@@ -889,8 +890,8 @@ export class TreeService {
     return member;
   }
 
-  async updateMember(treeId: string, memberId: string, userId: string, dto: UpdateMemberDto) {
-    await this.ensureTreeOwner(treeId, userId);
+  async updateMember(treeId: string, memberId: string, userId: string, dto: UpdateMemberDto, roles?: string[]) {
+    await this.ensureTreeOwner(treeId, userId, roles);
 
     const member = await this.prisma.familyMember.findFirst({
       where: { id: memberId, treeId },
@@ -988,8 +989,8 @@ export class TreeService {
     return updated;
   }
 
-  async removeMember(treeId: string, memberId: string, userId: string) {
-    await this.ensureTreeOwner(treeId, userId);
+  async removeMember(treeId: string, memberId: string, userId: string, roles?: string[]) {
+    await this.ensureTreeOwner(treeId, userId, roles);
 
     const member = await this.prisma.familyMember.findFirst({
       where: { id: memberId, treeId },
@@ -1021,8 +1022,8 @@ export class TreeService {
 
   // ─── CARD STYLE ─────────────────────────────────────────────
 
-  async updateCardStyle(treeId: string, userId: string, dto: UpdateCardStyleDto) {
-    await this.ensureTreeOwner(treeId, userId);
+  async updateCardStyle(treeId: string, userId: string, dto: UpdateCardStyleDto, roles?: string[]) {
+    await this.ensureTreeOwner(treeId, userId, roles);
 
     return this.prisma.cardStyle.upsert({
       where: { treeId },
@@ -1043,8 +1044,8 @@ export class TreeService {
     return this.createInvitation(tree.id, userId, dto);
   }
 
-  async createInvitation(treeId: string, userId: string, dto: InviteMemberDto) {
-    await this.ensureTreeOwner(treeId, userId);
+  async createInvitation(treeId: string, userId: string, dto: InviteMemberDto, roles?: string[]) {
+    await this.ensureTreeOwner(treeId, userId, roles);
 
     if (!dto.email && !dto.phone) {
       throw new BadRequestException('Email atau nomor telepon harus diisi');
@@ -1117,8 +1118,8 @@ export class TreeService {
     return { ...invitation, publicLinkToken };
   }
 
-  async getInvitations(treeId: string, userId: string) {
-    await this.ensureTreeOwner(treeId, userId);
+  async getInvitations(treeId: string, userId: string, roles?: string[]) {
+    await this.ensureTreeOwner(treeId, userId, roles);
 
     return this.prisma.treeInvitation.findMany({
       where: { treeId },
@@ -1179,8 +1180,8 @@ export class TreeService {
     return { message: 'Undangan diterima', member, treeId: tree.id, slug: identity.slug };
   }
 
-  async cancelInvitation(treeId: string, invitationId: string, userId: string) {
-    await this.ensureTreeOwner(treeId, userId);
+  async cancelInvitation(treeId: string, invitationId: string, userId: string, roles?: string[]) {
+    await this.ensureTreeOwner(treeId, userId, roles);
 
     const invitation = await this.prisma.treeInvitation.findFirst({
       where: { id: invitationId, treeId },
@@ -1201,8 +1202,9 @@ export class TreeService {
     targetTreeId: string,
     userId: string,
     type: 'MARRIAGE' | 'SIBLING' | 'PARENT_CHILD' | 'EXTENDED',
+    roles?: string[],
   ) {
-    await this.ensureTreeOwner(sourceTreeId, userId);
+    await this.ensureTreeOwner(sourceTreeId, userId, roles);
 
     if (sourceTreeId === targetTreeId) {
       throw new BadRequestException('Tidak bisa menghubungkan pohon ke dirinya sendiri');
@@ -1403,12 +1405,151 @@ export class TreeService {
     };
   }
 
-  // ─── HELPERS ────────────────────────────────────────────────
+  // ─── SUPER USER: EARLY ACCESS & NODE LIST ───────────────────
 
-  private async ensureTreeOwner(treeId: string, userId: string) {
+  /**
+   * Super User creates an email+password account for a family member node.
+   * The new user is auto-activated (super_user vouches) and linked to the member.
+   */
+  async createEarlyAccess(
+    treeId: string,
+    memberId: string,
+    userId: string,
+    roles: string[],
+    email: string,
+    password: string,
+    phone?: string,
+  ) {
+    if (!roles?.includes('super_user')) {
+      throw new ForbiddenException('Hanya super_user yang dapat membuat early access');
+    }
+
     const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId } });
     if (!tree) throw new NotFoundException('Pohon keluarga tidak ditemukan');
-    if (tree.userId !== userId) throw new ForbiddenException('Akses ditolak');
+
+    const member = await this.prisma.familyMember.findFirst({
+      where: { id: memberId, treeId },
+    });
+    if (!member) throw new NotFoundException('Anggota tidak ditemukan');
+
+    if (member.userId) {
+      throw new BadRequestException('Anggota ini sudah memiliki akun terhubung');
+    }
+
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new ConflictException('Email sudah terdaftar');
+    }
+
+    if (phone) {
+      const existingPhone = await this.prisma.user.findUnique({ where: { phone } });
+      if (existingPhone) {
+        throw new ConflictException('Nomor telepon sudah terdaftar');
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        email,
+        name: member.name,
+        passwordHash,
+        phone: phone || null,
+        status: 'ACTIVE',
+        emailVerified: new Date(),
+      },
+    });
+
+    // Assign default 'user' role
+    const userRole = await this.prisma.role.findUnique({ where: { name: 'user' } });
+    if (userRole) {
+      await this.prisma.userRole.create({
+        data: { userId: newUser.id, roleId: userRole.id },
+      });
+    }
+
+    // Link member to the new user
+    await this.prisma.familyMember.update({
+      where: { id: memberId },
+      data: {
+        userId: newUser.id,
+        email,
+        phone: phone || member.phone,
+        accountStatus: 'ACTIVE',
+      },
+    });
+
+    return {
+      message: 'Early access berhasil dibuat',
+      user: { id: newUser.id, email: newUser.email, name: newUser.name },
+    };
+  }
+
+  /**
+   * Super User gets a list of all nodes (family members) across trees they own,
+   * with full info: name, email, phone, account status.
+   */
+  async getSuperUserNodes(userId: string, roles: string[]) {
+    if (!roles?.includes('super_user')) {
+      throw new ForbiddenException('Hanya super_user yang dapat mengakses daftar ini');
+    }
+
+    const trees = await this.prisma.familyTree.findMany({
+      where: { userId },
+      select: { id: true, name: true, slug: true },
+    });
+
+    const treeIds = trees.map((t) => t.id);
+
+    const members = await this.prisma.familyMember.findMany({
+      where: { treeId: { in: treeIds } },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        accountStatus: true,
+        gender: true,
+        familyRole: true,
+        isCreator: true,
+        tree: { select: { id: true, name: true, slug: true } },
+        user: { select: { id: true, email: true, status: true, lastLoginAt: true } },
+      },
+      orderBy: [{ treeId: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return {
+      trees: trees.map((t) => ({
+        ...t,
+        memberCount: members.filter((m) => m.tree.id === t.id).length,
+        activeCount: members.filter((m) => m.tree.id === t.id && m.accountStatus === 'ACTIVE').length,
+      })),
+      members: members.map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email || m.user?.email || null,
+        phone: m.phone || null,
+        gender: m.gender,
+        familyRole: m.familyRole,
+        isCreator: m.isCreator,
+        accountStatus: m.accountStatus || (m.user ? m.user.status : 'NONE'),
+        treeName: m.tree.name,
+        treeSlug: m.tree.slug,
+        hasAccount: !!m.user,
+        lastLoginAt: m.user?.lastLoginAt || null,
+      })),
+    };
+  }
+
+  // ─── HELPERS ────────────────────────────────────────────────
+
+  private async ensureTreeOwner(treeId: string, userId: string, roles?: string[]) {
+    const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId } });
+    if (!tree) throw new NotFoundException('Pohon keluarga tidak ditemukan');
+    if (tree.userId !== userId && !roles?.includes('super_user')) {
+      throw new ForbiddenException('Akses ditolak');
+    }
     return tree;
   }
 
