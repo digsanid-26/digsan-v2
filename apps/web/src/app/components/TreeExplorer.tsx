@@ -1537,6 +1537,28 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
 
         <UserProfileModal open={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
 
+        {/* Badge Area — self only */}
+        {isSelf && (
+          <div className="rounded-xl border border-slate-200 dark:border-white/10 p-4">
+            <p className="text-sm font-semibold text-slate-700 dark:text-white/80 mb-1">Badge Anda</p>
+            <p className="text-xs text-slate-400 dark:text-white/40 mb-3 leading-snug">
+              Badge diperoleh dengan mengikuti atau mengaktifkan fitur-fitur keanggotaan, modul, dan usaha/program keluarga di Digsan.id
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30">
+                <Check size={11} /> Founder
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-white/30 border border-slate-200 dark:border-white/10">
+                <Users size={11} /> Connector
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-white/30 border border-slate-200 dark:border-white/10">
+                <Network size={11} /> Branch Builder
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 dark:text-white/25 mt-2">Selengkapnya segera hadir…</p>
+          </div>
+        )}
+
         {/* Family setup — guardian manages a member's own network.
             Deceased direct relative: unlocked. Living member: requires consent. */}
         {!isSelf && node.group === 'parent' && (() => {

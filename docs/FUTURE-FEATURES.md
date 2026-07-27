@@ -24,9 +24,11 @@
 
 
 ## Detail Anggota (Diri sendiri) Improvement
-Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut: 
-- [ ] Area Lengkapi Profil | style bordered, hightlight background | Di dalam area terdapat progress bar kecil dengan persentase kelengkapan, diikuti keterangan teks kecil : Melengkapi profil 100% bisa memberikan poin pengabdian sebesar 20 poin, diikuti tombol Lengkapi Profil
+Pada Sidebar Detil anggota (diri sendiri) di halaman /tree: 
+- [x] Area Lengkapi Profil | style bordered, hightlight background | Di dalam area terdapat progress bar kecil dengan persentase kelengkapan, diikuti keterangan teks kecil : Melengkapi profil 100% bisa memberikan poin pengabdian sebesar 20 poin, diikuti tombol Lengkapi Profil
 - [ ] Badge Area | Heading : Badge Anda | Badge diperoleh dengan mengikuti atau mengaktifkan fitur-fitur keanggotaan, modul, dan usaha/program keluarga di Digsan.id
+- [ ] Pada area Telah Terhubung. Telah terhubung dengan Family belum menunjukkan nama family yang benar. Di situ tertulis Keluarga;
+- [ ] Tombol update koneksi dari istri misalnya tidak menjangkau data anak-anak yang sudah diupdate di sisi Suami.
 
 ## Detail Anggota Keluarga (istri/suami, anak-anak, saudara, orang tua, dst)
 - [x] Sidebar Detil Profil, fungsi link tombol Undang Pemilik Identitas alihkan ke Modal Buat Undangan (gambar silsilah) sama seperti tombol Undang di tree, perbedaannya ada di Pesan Undangan terdapat nama terundang. Ganti metode undangan pada Modal Buat Metode undangan dari tombol (download, bagikan, Whatsapp, Telegram) menjadi dropdown field sebelum Judul. Tergantung metode undangan yang dipilih, munculkan field yang perlu diisi sebelum bisa mengklik tombol Kirim / Cetak / Salin Tautan : Whatsapp perlu mengisi nomor whatsapp (+62xxxx), telegram (nomor/id telegram), Email (alamat email). 
@@ -37,17 +39,19 @@ Pada Sidebar Detil anggota (diri sendiri) tambahkan beberapa area/tombol berikut
 
 ## Sistem Notifikasi
 - [x] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan dan dikonfigurasi di admin seiring perkembangan aplikasi (karena saat ini masih proses pembangunan);
-- [ ] Aktifkan Push notifikasi dan cek build whatsapp verifikasi dan invitation via whatsapp menggunakan fontee whatsapp gateway;
+- [ ] Aktifkan Push notifikasi dan cek build whatsapp verifikasi dan invitation via whatsapp menggunakan fonnte whatsapp gateway;
 
 ### Notifikasi Role
 #### Notifikasi untuk user
 - [ ] Notifikasi bel meminta konfirmasi jalinan keluarga dari user lain dengan tombol Konfirmasi. Isi Notifikasi : Anda dimasukkan sebagai (misal pasangan/istri, adik, kakak, anak, orangtua/ayah) oleh nama user (diikuti nama family);
-#### Notifikasi untuk user
+
+#### Notifikasi untuk super_user
 - [ ] Notifikasi klaim yang datang dari user terhadap node tree yang dikelolanya. Sediakan halaman Klaim untuk mencocokkan data serta menerima atau menolak klaim;
 
 ### Perbaikan notifikasi
 - [ ] Cek bubble notifikasi bel yang spertinya belum bekerja dengan baik. Di app.digsan.id/notifications terdapat notifikasi namun bubbe notifikasi bel tidak menunjukkannya.
-- [ ] Pada halaman app.digsan.id/notifications lengkapi data dengan: Dikirim pada (date)  /notifications, lalu oleh dengan label nama pengirim ber-link ke profil publik user pengirim permintaan, lalu action button: Read / Accept / Reject.
+- [ ] Cek halaman /notifications sepertinya belum support dark mode;
+
 
 
 ## Share, Like, Reaction, Comment System

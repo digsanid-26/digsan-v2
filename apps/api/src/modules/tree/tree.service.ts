@@ -302,11 +302,17 @@ export class TreeService {
       // User is a member of someone else's tree — return inviter's family info
       const inviterConfig = (tree.layoutConfig as any) ?? {};
       const sharedSlug = inviterConfig.sharedFamilySlug || identity.slug || '';
+      // Resolve the real family name: prefer mainFamilyName from config,
+      // then the tree name, then the owner's name, then a generic fallback
+      const ownerName = identity.owner?.name || '';
+      const familyName = inviterConfig.mainFamilyName
+        || (tree.name && tree.name !== 'Pohon Keluarga Saya' ? tree.name : null)
+        || (ownerName ? `Keluarga ${ownerName}` : 'Keluarga');
       connectedFamily = {
-        familyName: inviterConfig.mainFamilyName || tree.name || 'Keluarga',
+        familyName,
         slug: sharedSlug,
         ownerId: tree.userId,
-        ownerName: identity.owner?.name || '',
+        ownerName,
       };
     }
 
@@ -516,8 +522,11 @@ export class TreeService {
 
     // ─── Sync linked user's family tree to share inviter's family page ───
     const inviterConfig = (tree.layoutConfig as any) ?? {};
-    const inviterFamilyName = inviterConfig.mainFamilyName || tree.name || 'keluarga';
+    const inviterFamilyName = inviterConfig.mainFamilyName
+      || (tree.name && tree.name !== 'Pohon Keluarga Saya' ? tree.name : null)
+      || (linkedUser.name ? `Keluarga ${linkedUser.name}` : 'keluarga');
     const inviterSlug = identity.slug;
+    const inviterMembers = (tree.layoutMembers as Record<string, any>) ?? {};
 
     let linkedTreeSlug: string | null = null;
     try {
@@ -525,6 +534,7 @@ export class TreeService {
       const linkedTree = await this.getOrCreateDefaultTree(linkedUser.id);
 
       // Update linked user's tree config to match inviter's family name
+      // and copy inviter's layoutMembers so children/siblings data is synced
       const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
       const updatedLinkedConfig = {
         ...linkedConfig,
@@ -538,6 +548,7 @@ export class TreeService {
         where: { id: linkedTree.id },
         data: {
           layoutConfig: updatedLinkedConfig as any,
+          layoutMembers: inviterMembers as any,
           slug: null,
         },
       });
