@@ -50,7 +50,7 @@ export default function FamilyNodeEditPage() {
       setForm({
         name: node.name || '',
         description: node.description || '',
-        isPublic: node.isPublic,
+        isPublic: node.isPublic ?? false,
         coverImage: node.coverImage || '',
         familyImage: node.familyImage || '',
         familyBio: node.familyBio || '',
@@ -334,7 +334,7 @@ export default function FamilyNodeEditPage() {
       </section>
 
       {/* Member List */}
-      {data && data.members.length > 0 && (
+      {data && Array.isArray(data.members) && data.members.length > 0 && (
         <section className="mb-6 rounded-2xl border border-white/10 bg-white/[0.02] p-6">
           <h2 className="text-white font-semibold mb-4">Anggota Terdaftar</h2>
           <div className="space-y-2">
