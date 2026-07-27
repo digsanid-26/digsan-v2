@@ -15,7 +15,7 @@ import type { Region } from './InvitationStudio';
 import OnboardingModal from './OnboardingModal';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Edit,
+  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Edit, Trash2,
 } from 'lucide-react';
 import UserProfileModal from './UserProfileModal';
 
@@ -218,6 +218,7 @@ export default function TreeExplorer() {
   const dark = theme === 'dark';
 
   const [me, setMe] = useState<{ id: string; name: string; avatar: string | null } | null>(null);
+  const [isSuperUser, setIsSuperUser] = useState(false);
   const [identity, setIdentity] = useState<{ slug: string | null; username: string | null }>({ slug: null, username: null });
   const [isTreeOwner, setIsTreeOwner] = useState(true);
   const [connectedFamily, setConnectedFamily] = useState<ConnectedFamily | null>(null);
@@ -252,6 +253,7 @@ export default function TreeExplorer() {
     const uid = u?.id || 'guest';
     uidRef.current = uid;
     if (u) setMe({ id: uid, name: u.name, avatar: u.avatar });
+    setIsSuperUser(u?.roles?.includes('super_user') ?? false);
 
     let hadLocalConfig = false;
     try {
@@ -488,6 +490,106 @@ export default function TreeExplorer() {
     setPanel('member');
   };
 
+  // ─── Recursive circle add/delete (super_user) ───────────────
+  const BASE_RE = /^(self|spouse-\d+|parent-\d+|older-\d+|younger-\d+|child-\d+|gpP-\d+|gpM-\d+|ancP-\d+|ancM-\d+|uncle[PM][oy]-\d+)$/;
+  const isBaseNode = (id: string) => BASE_RE.test(id);
+  const genId = (group: Group) => `x-${group}-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+  /** Resolve a node's blood-parent id via the current relational graph. */
+  const parentIdOf = (nodeId: string): string | null => {
+    const g = configToGraph(config, members, me?.name || 'Anda');
+    return g[nodeId]?.parentId ?? null;
+  };
+
+  /** Whether a given "+" direction is available for a node. */
+  const canAddDir = (n: TNode, dir: 'top' | 'bottom' | 'left' | 'right'): boolean => {
+    if (!isSuperUser || n.role === 'group') return false;
+    if (dir === 'bottom') return true; // child — always
+    if (dir === 'left' || dir === 'right') {
+      if (n.id === 'self') return true; // config siblings
+      return !!parentIdOf(n.id);
+    }
+    // top (add parent) — only for explicit nodes with no parent yet
+    return !isBaseNode(n.id) && !parentIdOf(n.id);
+  };
+
+  const addRelative = (n: TNode, dir: 'top' | 'bottom' | 'left' | 'right') => {
+    if (!canAddDir(n, dir)) return;
+
+    // Adding to self maps onto the config counts so the collapsed view stays in sync.
+    if (n.id === 'self') {
+      if (dir === 'bottom') return saveConfig({ ...config, childCount: config.childCount + 1 });
+      if (dir === 'left') return saveConfig({ ...config, olderCount: config.olderCount + 1 });
+      if (dir === 'right') return saveConfig({ ...config, youngerCount: config.youngerCount + 1 });
+      return; // self already has parents
+    }
+
+    if (dir === 'bottom') {
+      const id = genId('child');
+      return saveMembers({ ...members, [id]: { name: 'Anggota Baru', gender: '', alive: true, photo: null, group: 'child', role: 'Keturunan', parentId: n.id } });
+    }
+    if (dir === 'left' || dir === 'right') {
+      const pid = parentIdOf(n.id);
+      if (!pid) return;
+      const group: Group = dir === 'left' ? 'kakak' : 'adik';
+      const id = genId(group);
+      return saveMembers({ ...members, [id]: { name: 'Anggota Baru', gender: '', alive: true, photo: null, group, role: dir === 'left' ? 'Saudara Tua' : 'Saudara Muda', parentId: pid } });
+    }
+    // top — add a parent above an explicit root node
+    const id = genId('parent');
+    return saveMembers({
+      ...members,
+      [id]: { name: 'Orang Tua', gender: '', alive: true, photo: null, group: 'parent', role: 'Orang Tua' },
+      [n.id]: { ...(members[n.id] ?? { name: n.name, gender: '', alive: true, photo: null }), parentId: id },
+    });
+  };
+
+  /** Delete a circle. Explicit nodes cascade-delete descendants; config nodes decrement their count. */
+  const deleteNode = (nodeId: string) => {
+    if (nodeId === 'self') return;
+
+    if (!isBaseNode(nodeId)) {
+      // Explicit node → remove it + all descendants + its spouse pointer.
+      const next: Members = { ...members };
+      const g = configToGraph(config, members, me?.name || 'Anda');
+      const toRemove = new Set<string>([nodeId]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const [id, m] of Object.entries(g)) {
+          if (!toRemove.has(id) && m.parentId && toRemove.has(m.parentId)) { toRemove.add(id); grew = true; }
+        }
+      }
+      for (const id of toRemove) delete next[id];
+      // Clear any dangling spouse references pointing at removed nodes.
+      for (const [id, m] of Object.entries(next)) {
+        if (m.spouseId && toRemove.has(m.spouseId)) next[id] = { ...m, spouseId: null };
+      }
+      saveMembers(next);
+      setPanel('none');
+      return;
+    }
+
+    // Base config node → decrement the matching count and reindex overrides.
+    const match = /^(spouse|child|older|younger)-(\d+)$/.exec(nodeId);
+    if (!match) { setPanel('none'); return; } // parents / grandparents / ancestors: not removable here
+    const [, prefix, idxStr] = match;
+    const index = parseInt(idxStr, 10);
+    const countKey = ({ spouse: 'spouseCount', child: 'childCount', older: 'olderCount', younger: 'youngerCount' } as const)[prefix as 'spouse' | 'child' | 'older' | 'younger'];
+    const count = config[countKey];
+    const next: Members = { ...members };
+    for (let i = index; i < count - 1; i++) {
+      if (next[`${prefix}-${i + 1}`]) next[`${prefix}-${i}`] = next[`${prefix}-${i + 1}`];
+      else delete next[`${prefix}-${i}`];
+    }
+    delete next[`${prefix}-${count - 1}`];
+    setMembers(next);
+    try { localStorage.setItem(`digsan_tree_mem_${uidRef.current}`, JSON.stringify(next)); } catch { /* ignore */ }
+    saveConfig({ ...config, [countKey]: Math.max(0, count - 1) });
+    pushLayout({ members: next });
+    setPanel('none');
+  };
+
   const strokeMarriage = dark ? 'rgba(147,197,253,0.55)' : 'rgba(37,99,235,0.45)';
   const strokeNormal = dark ? 'rgba(255,255,255,0.22)' : 'rgba(51,65,85,0.28)';
 
@@ -622,6 +724,43 @@ export default function TreeExplorer() {
                   )}
                 </button>
 
+                {/* Super-user controls: corner "+" adders + hover edit/delete */}
+                {!isGroup && isSuperUser && (() => {
+                  const cornerBtn = 'w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center shadow-md ring-2 ring-white dark:ring-[#05050f] transition-opacity opacity-0 group-hover:opacity-100';
+                  const dirs: { dir: 'top' | 'bottom' | 'left' | 'right'; pos: string; title: string }[] = [
+                    { dir: 'top', pos: 'left-1/2 top-0 -translate-x-1/2 -translate-y-1/2', title: 'Tambah orang tua' },
+                    { dir: 'bottom', pos: 'left-1/2 top-full -translate-x-1/2 -translate-y-1/2', title: 'Tambah anak' },
+                    { dir: 'left', pos: 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2', title: 'Tambah kakak' },
+                    { dir: 'right', pos: 'left-full top-1/2 -translate-x-1/2 -translate-y-1/2', title: 'Tambah adik' },
+                  ];
+                  return (
+                    <>
+                      {dirs.filter((x) => canAddDir(n, x.dir)).map((x) => (
+                        <button key={x.dir} data-node title={x.title}
+                          onClick={(e) => { e.stopPropagation(); addRelative(n, x.dir); }}
+                          className={`absolute z-30 ${x.pos} ${cornerBtn}`}>
+                          <Plus size={13} />
+                        </button>
+                      ))}
+                      {/* Edit + delete (hover) */}
+                      <div className="absolute z-30 left-full top-0 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button data-node title="Edit anggota"
+                          onClick={(e) => { e.stopPropagation(); clickNode(n); }}
+                          className="w-6 h-6 rounded-full bg-blue-500 hover:bg-blue-400 text-white flex items-center justify-center shadow-md ring-2 ring-white dark:ring-[#05050f]">
+                          <Edit size={12} />
+                        </button>
+                        {!isSelf && (
+                          <button data-node title="Hapus anggota"
+                            onClick={(e) => { e.stopPropagation(); if (confirm(`Hapus "${d?.name || n.name}" dari silsilah? Semua keturunannya juga akan dihapus.`)) deleteNode(n.id); }}
+                            className="w-6 h-6 rounded-full bg-rose-500 hover:bg-rose-400 text-white flex items-center justify-center shadow-md ring-2 ring-white dark:ring-[#05050f]">
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+
                 {/* Name + role label — shown on hover/selected for nodes whose photo hides the name */}
                 {!isGroup && d?.photo && (
                   <span
@@ -687,6 +826,8 @@ export default function TreeExplorer() {
               setPanel('none');
             }}
             onClose={() => setPanel('none')}
+            canDelete={isSuperUser && selected.id !== 'self'}
+            onDelete={() => deleteNode(selected.id)}
             onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}
       </div>
@@ -818,8 +959,9 @@ function SetupForm({ initial, isTreeOwner, connectedFamily, familySlug, onSave, 
 
 // ─── Member form ────────────────────────────────────────────
 
-function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultName, accountName, canEdit, connectedFamily, consent, onRequestConsent, onRevokeConsent, onSetSlug, onOpenInvite, onSave, onClose }: {
+function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultName, accountName, canEdit, canDelete, onDelete, connectedFamily, consent, onRequestConsent, onRevokeConsent, onSetSlug, onOpenInvite, onSave, onClose }: {
   dark: boolean; node: TNode; isSelf: boolean; familySlug?: string | null; ownerUsername?: string | null; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
+  canDelete?: boolean; onDelete?: () => void;
   connectedFamily?: ConnectedFamily | null;
   consent?: GuardianConsent;
   onRequestConsent: () => void; onRevokeConsent: (consentId: string) => void;
@@ -1469,13 +1611,20 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
       }
       </div>
 
-      <div className="p-5 border-t border-slate-200 dark:border-white/10">
+      <div className="p-5 border-t border-slate-200 dark:border-white/10 space-y-2">
         <button onClick={() => onSave(form)} disabled={!canEdit}
           className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
             canEdit ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed dark:bg-white/10 dark:text-white/40'
           }`}>
           <Check size={16} />Simpan
         </button>
+        {canDelete && (
+          <button
+            onClick={() => { if (confirm(`Hapus profil "${form.name || defaultName}" beserta seluruh keturunannya dari silsilah?`)) onDelete?.(); }}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 border border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-500/10">
+            <Trash2 size={16} />Hapus Profil
+          </button>
+        )}
       </div>
     </div>
   );

@@ -26,6 +26,8 @@ interface MemberNode {
   treeSlug: string | null;
   hasAccount: boolean;
   lastLoginAt: string | null;
+  source?: 'record' | 'canvas';
+  nodeId?: string | null;
 }
 
 interface NodesResponse {
@@ -182,9 +184,14 @@ export default function SuperUserNodesPage() {
                         <Crown size={12} className="text-amber-500" />
                       )}
                     </div>
-                    {m.familyRole && (
-                      <span className="text-xs text-slate-400 dark:text-white/40">{m.familyRole}</span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {m.familyRole && (
+                        <span className="text-xs text-slate-400 dark:text-white/40">{m.familyRole}</span>
+                      )}
+                      {m.source === 'canvas' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">bagan</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     {m.treeSlug ? (

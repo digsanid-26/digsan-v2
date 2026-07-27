@@ -6,9 +6,14 @@
 // fixed config-driven topology and is the basis for recursive expansion
 // and recursive guardianship.
 //
-// Phase 1 deliverable: types + converter from the current config/members
-// blob + recursive guardianship rule. Additive and non-breaking — the
-// live UI still uses the config-driven layout until Phase 2 wires this in.
+// The graph is seeded from the TreeConfig (self, spouse, parents, siblings,
+// children, grandparents, ancestors) and then merged with any explicitly
+// added circles held in the members blob (records carrying `group` +
+// `parentId`/`spouseId`). Because layout is driven purely by relations,
+// branches nest to unlimited depth — e.g. a nephew's grandchild, or a
+// cousin's descendants under an uncle.
+//
+// See `scripts/verify-layout.ts` for the layout regression checks.
 // ─────────────────────────────────────────────────────────────
 
 import type { TreeConfig, Members, TNode, Poly, Group as TGroup } from './treeTypes';
@@ -245,6 +250,33 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
   buildParentSiblings('parent-0', 'P');
   buildParentSiblings('parent-1', 'M');
 
+  // ─── Explicitly-added circles (recursive, graph-based) ───
+  // Any member override carrying an explicit `group` + relation fields is a
+  // circle added via the tree UI (super_user). These reference base ids or
+  // other explicit ids as parent/spouse, enabling unlimited recursive depth.
+  for (const [id, m] of Object.entries(members)) {
+    if (g[id]) continue;               // already part of the base graph
+    if (!m || !m.group) continue;      // only explicit records have a group
+    add({
+      id,
+      name: m.name || '',
+      gender: (m.gender as FGender) || '',
+      alive: m.alive !== false,
+      photo: m.photo ?? null,
+      verified: m.verified,
+      role: m.role || '',
+      group: m.group as FGroup,
+      parentId: m.parentId ?? null,
+      spouseId: m.spouseId ?? null,
+    });
+  }
+  // Ensure spouse links are symmetric for explicit couples.
+  for (const m of Object.values(g)) {
+    if (m.spouseId && g[m.spouseId] && !g[m.spouseId].spouseId) {
+      g[m.spouseId].spouseId = m.id;
+    }
+  }
+
   return g;
 }
 
@@ -256,8 +288,11 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
 // changing the layout code.
 
 const LAYOUT_ANCESTORS_Y0 = -580;
-const ROW_CHILD = 210, ROW_PARENT = -210, ROW_GP = -420;
-const GP_CENTER = 300;
+const ROW = 210, ROW_PARENT = -210, ROW_GP = -420;
+const WSLOT = 160;       // horizontal width reserved per person in a couple
+const SIB_GAP = 44;      // spacing between adjacent sibling subtrees
+const UNCLE_GAP = 90;    // extra spacing between the parents and uncle subtrees
+const MIN_GP_SPREAD = 260; // min outward offset of each grandparent couple from the parents' midpoint
 
 const spreadX = (count: number, gap: number, cx: number): number[] => {
   if (count <= 0) return [];
@@ -275,8 +310,25 @@ function connectDown(lines: Poly[], midX: number, parentY: number, childXs: numb
 }
 
 const idxOf = (id: string) => parseInt(id.split('-').pop() || '0', 10) || 0;
-const byIdx = (a: FMember, b: FMember) => idxOf(a.id) - idxOf(b.id);
 
+// Classify a child relative to its parent couple's centre so siblings render
+// in birth order: older/elder branches to the left, the anchor in the middle,
+// younger branches to the right.
+function childSide(m: FMember): -1 | 0 | 1 {
+  if (m.group === 'kakak') return -1;
+  if (m.group === 'adik') return 1;
+  if (m.group === 'uncle') return /o-\d+$/.test(m.id) ? -1 : 1;
+  return 0; // self, parent, child, spouse-in
+}
+
+/**
+ * Recursive relation-driven layout. Everything below (and including) the
+ * highest resolved parent couple is laid out as a tidy descendant tree, so
+ * unlimited depth (children → grandchildren → …) and per-node siblings all
+ * pack without overlap. Ancestors (grandparents + chains) and a parent's
+ * siblings (uncles/aunts, with their own recursive descendants) are attached
+ * above, mirroring the classic paternal-left / maternal-right genogram look.
+ */
 export function layoutGraph(g: FamilyGraph): { nodes: TNode[]; lines: Poly[] } {
   const nodes: TNode[] = [];
   const lines: Poly[] = [];
@@ -286,45 +338,94 @@ export function layoutGraph(g: FamilyGraph): { nodes: TNode[]; lines: Poly[] } {
   const push = (m: FMember, x: number, y: number) =>
     nodes.push({ id: m.id, name: m.name, role: m.role, x, y, group: m.group as TGroup });
 
-  const byGroup = (grp: FGroup) => Object.values(g).filter((m) => m.group === grp).sort(byIdx);
+  // ─── couple + children helpers ─────────────────────────────
+  const spouseOf = (m: FMember): FMember | undefined =>
+    (m.spouseId && g[m.spouseId]) ? g[m.spouseId] : undefined;
 
-  // Self + spouses (y = 0)
-  const spouses = Object.values(g).filter((m) => m.group === 'spouse' && m.spouseId === self.id).sort(byIdx);
-  const coupleXs = spreadX(1 + spouses.length, 160, 0);
-  const selfX = coupleXs[0];
-  push(self, selfX, 0);
-  spouses.forEach((s, i) => { push(s, coupleXs[i + 1], 0); lines.push({ points: [[selfX, 0], [coupleXs[i + 1], 0]], marriage: true }); });
-  const coupleMid = coupleXs.reduce((a, b) => a + b, 0) / coupleXs.length;
-  const leftEdge = Math.min(...coupleXs);
-  const rightEdge = Math.max(...coupleXs);
+  // A couple = the anchor person followed by their spouse (if any).
+  const coupleOf = (id: string): FMember[] => {
+    const m = g[id];
+    if (!m) return [];
+    const sp = spouseOf(m);
+    return sp ? [m, sp] : [m];
+  };
 
-  // Children (y = 210) — anyone whose parent is self (or self's spouse)
-  const children = Object.values(g).filter((m) => m.group === 'child' && (m.parentId === self.id || (self.spouseId && m.parentId === self.spouseId))).sort(byIdx);
-  const childXs = spreadX(children.length, 150, coupleMid);
-  children.forEach((c, i) => push(c, childXs[i], ROW_CHILD));
-  connectDown(lines, coupleMid, 0, childXs, ROW_CHILD);
+  // Direct children of the couple anchored at `id` (parentId points at the
+  // anchor or its spouse). Ordered elder-left → anchor → younger-right.
+  const orderedChildren = (id: string): FMember[] => {
+    const m = g[id];
+    if (!m) return [];
+    const spId = m.spouseId || undefined;
+    const kids = Object.values(g).filter(
+      (x) => x.parentId && (x.parentId === id || (spId && x.parentId === spId)),
+    );
+    const before = kids.filter((k) => childSide(k) < 0).sort((a, b) => idxOf(b.id) - idxOf(a.id));
+    const centre = kids.filter((k) => childSide(k) === 0).sort((a, b) => idxOf(a.id) - idxOf(b.id));
+    const after = kids.filter((k) => childSide(k) > 0).sort((a, b) => idxOf(a.id) - idxOf(b.id));
+    return [...before, ...centre, ...after];
+  };
 
-  // Siblings (y = 0) — share self's parent
-  const older = byGroup('kakak').filter((m) => m.parentId === self.parentId);
-  const younger = byGroup('adik').filter((m) => m.parentId === self.parentId);
-  const olderXs = older.map((m, i) => { const x = leftEdge - 150 * (i + 1); push(m, x, 0); return x; });
-  const youngerXs = younger.map((m, i) => { const x = rightEdge + 150 * (i + 1); push(m, x, 0); return x; });
+  // ─── recursive width measure + placement ───────────────────
+  const measured = new Map<string, number>();
+  const measure = (id: string): number => {
+    if (measured.has(id)) return measured.get(id)!;
+    measured.set(id, WSLOT); // guard against relation cycles
+    const coupleW = Math.max(1, coupleOf(id).length) * WSLOT;
+    const kids = orderedChildren(id);
+    let w = coupleW;
+    if (kids.length) {
+      let kidsW = kids.reduce((acc, k) => acc + measure(k.id), 0);
+      kidsW += (kids.length - 1) * SIB_GAP;
+      w = Math.max(coupleW, kidsW);
+    }
+    measured.set(id, w);
+    return w;
+  };
 
-  // Parents (y = -210)
-  const parents = byGroup('parent');
-  const parentXs = spreadX(parents.length, 160, 0);
-  parents.forEach((p, i) => push(p, parentXs[i], ROW_PARENT));
-  if (parents.length >= 2) lines.push({ points: [[parentXs[0], ROW_PARENT], [parentXs[parentXs.length - 1], ROW_PARENT]], marriage: true });
-  const parentMid = parentXs.length ? parentXs.reduce((a, b) => a + b, 0) / parentXs.length : 0;
-  if (parents.length > 0) connectDown(lines, parentMid, ROW_PARENT, [...olderXs, selfX, ...youngerXs], 0);
+  const placed = new Set<string>();
+  const place = (id: string, centerX: number, y: number) => {
+    if (placed.has(id)) return;
+    placed.add(id);
+    const couple = coupleOf(id);
+    const xs = spreadX(couple.length, WSLOT, centerX);
+    couple.forEach((p, i) => { placed.add(p.id); push(p, xs[i], y); });
+    if (couple.length >= 2) lines.push({ points: [[xs[0], y], [xs[xs.length - 1], y]], marriage: true });
+    const mid = xs.reduce((a, b) => a + b, 0) / xs.length;
 
-  // Grandparents + ancestor chains, resolved via relations.
-  const fatherId = self.parentId || undefined;
-  const father = fatherId ? g[fatherId] : undefined;
-  const motherId = father?.spouseId || undefined;
-  const fatherX = parentXs[0];
-  const motherX = parentXs[parentXs.length - 1];
+    const kids = orderedChildren(id);
+    if (!kids.length) return;
+    const widths = kids.map((k) => measure(k.id));
+    const total = widths.reduce((a, b) => a + b, 0) + (kids.length - 1) * SIB_GAP;
+    let cursor = centerX - total / 2;
+    const centres: number[] = [];
+    kids.forEach((k, i) => {
+      const kx = cursor + widths[i] / 2;
+      place(k.id, kx, y + ROW);
+      centres.push(kx);
+      cursor += widths[i] + SIB_GAP;
+    });
+    connectDown(lines, mid, y, centres, y + ROW);
+  };
 
+  // ─── choose the descendant root (parent couple, else self) ──
+  const father = self.parentId ? g[self.parentId] : undefined;   // parent-0
+  const mother = father ? spouseOf(father) : undefined;          // parent-1
+  const rootId = father ? father.id : self.id;
+  const rootY = father ? ROW_PARENT : 0;
+
+  place(rootId, 0, rootY);
+
+  // Normalise so "self" sits at x = 0 (keeps the view centred on the user).
+  const selfNode = nodes.find((n) => n.id === self.id);
+  const dx = selfNode ? -selfNode.x : 0;
+  if (dx) {
+    for (const n of nodes) n.x += dx;
+    for (const l of lines) l.points = l.points.map(([x, y]) => [x + dx, y]);
+  }
+
+  const xOf = (id: string) => nodes.find((n) => n.id === id)?.x;
+
+  // ─── ancestor chains above a grandparent couple ────────────
   const buildAncestorsChain = (rootGpId: string | undefined, centerX: number) => {
     if (!rootGpId || !g[rootGpId]) return;
     let cur: string | undefined = g[rootGpId].parentId || undefined;
@@ -340,32 +441,54 @@ export function layoutGraph(g: FamilyGraph): { nodes: TNode[]; lines: Poly[] } {
     }
   };
 
-  const buildGpSide = (rootParentX: number | undefined, gpRootId: string | undefined, centerX: number, dir: -1 | 1) => {
-    if (!gpRootId || !g[gpRootId]) return;
-    const gpNodes = [g[gpRootId]];
-    const sp = g[gpRootId].spouseId;
-    if (sp && g[sp]) gpNodes.push(g[sp]);
-    const xs = spreadX(gpNodes.length, 150, centerX);
-    gpNodes.forEach((gp, i) => push(gp, xs[i], ROW_GP));
-    if (gpNodes.length >= 2) lines.push({ points: [[xs[0], ROW_GP], [xs[xs.length - 1], ROW_GP]], marriage: true });
-    const mid = xs.reduce((a, b) => a + b, 0) / xs.length;
+  // ─── grandparents + uncles (recursive descendants) ─────────
+  // `dir` = -1 packs uncle subtrees to the left (paternal), +1 right (maternal).
+  const buildGpSide = (anchorParentId: string | undefined, gpRootId: string | undefined, dir: -1 | 1) => {
+    if (!gpRootId || !g[gpRootId] || !anchorParentId) return;
+    const anchorX = xOf(anchorParentId);
+    if (anchorX === undefined) return;
 
-    // The parent (anchor) + that parent's siblings (uncles/aunts) are all
-    // children of this grandparent couple, laid out on the parent row.
-    const childXs: number[] = [];
-    if (rootParentX !== undefined) childXs.push(rootParentX);
-    const uncles = Object.values(g).filter((m) => m.group === 'uncle' && m.parentId === gpRootId).sort((a, b) => a.id.localeCompare(b.id));
-    uncles.forEach((u, i) => {
-      const x = (rootParentX ?? centerX) + dir * 150 * (i + 1);
-      push(u, x, ROW_PARENT);
-      childXs.push(x);
+    // Uncles = the grandparents' other children (parent's siblings).
+    const uncles = Object.values(g)
+      .filter((m) => m.group === 'uncle' && (m.parentId === gpRootId || (g[gpRootId].spouseId && m.parentId === g[gpRootId].spouseId)))
+      .sort((a, b) => idxOf(a.id) - idxOf(b.id));
+
+    // Pack uncle subtrees outward, starting beyond everything already placed
+    // on the parent row and below. Using the live bounding box (rather than
+    // just the parent couple's own width) keeps deep cousin branches from
+    // colliding with the siblings' subtrees.
+    const occupied = nodes.filter((n) => n.y >= ROW_PARENT).map((n) => n.x);
+    let edge = occupied.length
+      ? (dir < 0 ? Math.min(...occupied) : Math.max(...occupied)) + dir * UNCLE_GAP
+      : anchorX + dir * UNCLE_GAP;
+    const uncleCentres: number[] = [];
+    uncles.forEach((u) => {
+      const w = measure(u.id);
+      const ux = edge + dir * (w / 2);
+      place(u.id, ux, ROW_PARENT);
+      uncleCentres.push(ux);
+      edge += dir * (w + UNCLE_GAP);
     });
-    if (childXs.length) connectDown(lines, mid, ROW_GP, childXs, ROW_PARENT);
-    buildAncestorsChain(gpRootId, centerX);
+
+    // Grandparent couple, centred over the parent + uncles cluster — but
+    // pushed outward enough that the paternal & maternal couples never collide.
+    const gpNodes = coupleOf(gpRootId);
+    const clusterXs = [anchorX, ...uncleCentres];
+    const rawCenter = clusterXs.reduce((a, b) => a + b, 0) / clusterXs.length;
+    const midPoint = (father && mother) ? ((xOf(father.id) ?? 0) + (xOf(mother.id) ?? 0)) / 2 : anchorX;
+    const gpCenter = dir < 0
+      ? Math.min(rawCenter, midPoint - MIN_GP_SPREAD)
+      : Math.max(rawCenter, midPoint + MIN_GP_SPREAD);
+    const gpXs = spreadX(gpNodes.length, WSLOT, gpCenter);
+    gpNodes.forEach((gp, i) => { push(gp, gpXs[i], ROW_GP); });
+    if (gpNodes.length >= 2) lines.push({ points: [[gpXs[0], ROW_GP], [gpXs[gpXs.length - 1], ROW_GP]], marriage: true });
+    const gpMid = gpXs.reduce((a, b) => a + b, 0) / gpXs.length;
+    connectDown(lines, gpMid, ROW_GP, [anchorX, ...uncleCentres], ROW_PARENT);
+    buildAncestorsChain(gpRootId, gpCenter);
   };
 
-  buildGpSide(fatherX, father?.parentId || undefined, -GP_CENTER, -1);
-  buildGpSide(motherX, motherId ? g[motherId]?.parentId || undefined : undefined, GP_CENTER, 1);
+  buildGpSide(father?.id, father?.parentId || undefined, -1);
+  buildGpSide(mother?.id, mother?.parentId || undefined, 1);
 
   return { nodes, lines };
 }

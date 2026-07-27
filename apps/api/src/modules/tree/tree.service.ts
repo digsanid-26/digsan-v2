@@ -1588,7 +1588,7 @@ export class TreeService {
 
     const trees = await this.prisma.familyTree.findMany({
       where: { userId },
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, layoutMembers: true },
     });
 
     const treeIds = trees.map((t) => t.id);
@@ -1610,26 +1610,95 @@ export class TreeService {
       orderBy: [{ treeId: 'asc' }, { createdAt: 'asc' }],
     });
 
+    const dbRows = members.map((m) => ({
+      id: m.id,
+      name: m.name,
+      email: m.email || m.user?.email || null,
+      phone: m.phone || null,
+      gender: m.gender,
+      familyRole: m.familyRole,
+      isCreator: m.isCreator,
+      accountStatus: m.accountStatus || (m.user ? m.user.status : 'NONE'),
+      treeName: m.tree.name,
+      treeSlug: m.tree.slug,
+      hasAccount: !!m.user,
+      lastLoginAt: m.user?.lastLoginAt || null,
+      source: 'record' as 'record' | 'canvas',
+      nodeId: null as string | null,
+    }));
+
+    // ─── Circles drawn on the explorer canvas (layoutMembers JSON) ───
+    // Every circle the super_user creates/edits in /tree is persisted here, so
+    // surface them in the same list even before a FamilyMember row exists.
+    const GROUP_LABEL: Record<string, string> = {
+      self: 'Diri Sendiri', spouse: 'Pasangan', parent: 'Orang Tua',
+      grandparent: 'Kakek/Nenek', ancestor: 'Leluhur', kakak: 'Kakak',
+      adik: 'Adik', child: 'Anak', uncle: 'Paman/Bibi',
+    };
+    const linkedUserIds = new Set<string>();
+    const layoutRows: typeof dbRows = [];
+    for (const t of trees) {
+      const layout = (t.layoutMembers as Record<string, any>) ?? {};
+      for (const [nodeId, raw] of Object.entries(layout)) {
+        const m = raw as any;
+        if (!m || typeof m !== 'object' || !m.name) continue;
+        if (m.linkedUserId) linkedUserIds.add(m.linkedUserId);
+        layoutRows.push({
+          id: `${t.id}:${nodeId}`,
+          name: m.name,
+          email: m.email || null,
+          phone: m.phone || null,
+          gender: m.gender === 'L' ? 'male' : m.gender === 'P' ? 'female' : null,
+          familyRole: m.role || GROUP_LABEL[m.group] || null,
+          isCreator: nodeId === 'self',
+          accountStatus: m.linkedUserId ? 'LINKED' : 'NONE',
+          treeName: t.name,
+          treeSlug: t.slug,
+          hasAccount: !!m.linkedUserId,
+          lastLoginAt: null,
+          source: 'canvas',
+          nodeId,
+        });
+      }
+    }
+
+    // Enrich linked circles with their real account status / last login.
+    if (linkedUserIds.size) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: [...linkedUserIds] } },
+        select: { id: true, email: true, status: true, lastLoginAt: true },
+      });
+      const byId = new Map(users.map((u) => [u.id, u]));
+      for (const t of trees) {
+        const layout = (t.layoutMembers as Record<string, any>) ?? {};
+        for (const [nodeId, raw] of Object.entries(layout)) {
+          const u = (raw as any)?.linkedUserId ? byId.get((raw as any).linkedUserId) : undefined;
+          if (!u) continue;
+          const row = layoutRows.find((r) => r.id === `${t.id}:${nodeId}`);
+          if (row) {
+            row.email = row.email || u.email;
+            row.accountStatus = u.status;
+            row.lastLoginAt = u.lastLoginAt;
+          }
+        }
+      }
+    }
+
+    // De-duplicate: a canvas circle whose name already exists as a DB record
+    // for the same tree is the same person.
+    const seen = new Set(dbRows.map((r) => `${r.treeName}|${r.name.toLowerCase()}`));
+    const canvasRows = layoutRows.filter((r) => !seen.has(`${r.treeName}|${r.name.toLowerCase()}`));
+    const allRows = [...dbRows, ...canvasRows];
+
     return {
       trees: trees.map((t) => ({
-        ...t,
-        memberCount: members.filter((m) => m.tree.id === t.id).length,
-        activeCount: members.filter((m) => m.tree.id === t.id && m.accountStatus === 'ACTIVE').length,
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        memberCount: allRows.filter((m) => m.treeName === t.name).length,
+        activeCount: allRows.filter((m) => m.treeName === t.name && m.accountStatus === 'ACTIVE').length,
       })),
-      members: members.map((m) => ({
-        id: m.id,
-        name: m.name,
-        email: m.email || m.user?.email || null,
-        phone: m.phone || null,
-        gender: m.gender,
-        familyRole: m.familyRole,
-        isCreator: m.isCreator,
-        accountStatus: m.accountStatus || (m.user ? m.user.status : 'NONE'),
-        treeName: m.tree.name,
-        treeSlug: m.tree.slug,
-        hasAccount: !!m.user,
-        lastLoginAt: m.user?.lastLoginAt || null,
-      })),
+      members: allRows,
     };
   }
 

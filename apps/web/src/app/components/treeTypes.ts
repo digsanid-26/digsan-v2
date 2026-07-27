@@ -28,7 +28,26 @@ export interface NodeFamilyConfig {
   childCount?: number;
 }
 
-export interface Member { name: string; gender: 'L' | 'P' | ''; alive: boolean; photo: string | null; verified?: boolean; familyConfig?: NodeFamilyConfig; email?: string; phone?: string; linkedUserId?: string | null; }
+export interface Member {
+  name: string;
+  gender: 'L' | 'P' | '';
+  alive: boolean;
+  photo: string | null;
+  verified?: boolean;
+  familyConfig?: NodeFamilyConfig;
+  email?: string;
+  phone?: string;
+  linkedUserId?: string | null;
+  // ─── Explicit graph relations (for recursively-added circles) ───
+  /** Blood parent node id (couple resolved via that parent's spouse). */
+  parentId?: string | null;
+  /** Marriage link node id. */
+  spouseId?: string | null;
+  /** Visual/relationship group. Present only on explicitly-added nodes. */
+  group?: Group;
+  /** Display role label for explicitly-added nodes. */
+  role?: string;
+}
 export type Members = Record<string, Member>;
 
 export const DEFAULT_CONFIG: TreeConfig = {
