@@ -130,6 +130,11 @@ export class TreeService {
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.isPublic !== undefined && { isPublic: dto.isPublic }),
         ...(dto.coverImage !== undefined && { coverImage: dto.coverImage }),
+        ...(dto.familyImage !== undefined && { familyImage: dto.familyImage }),
+        ...(dto.familyBio !== undefined && { familyBio: dto.familyBio }),
+        ...(dto.marriageDate !== undefined && { marriageDate: new Date(dto.marriageDate) }),
+        ...(dto.marriageStatus !== undefined && { marriageStatus: dto.marriageStatus }),
+        ...(dto.headName !== undefined && { headName: dto.headName }),
       },
     });
   }
@@ -138,6 +143,31 @@ export class TreeService {
     await this.ensureTreeOwner(id, userId, roles);
     await this.prisma.familyTree.delete({ where: { id } });
     return { message: 'Pohon keluarga berhasil dihapus' };
+  }
+
+  /** Get the Family Node profile (for the edit page). */
+  async getFamilyNode(id: string, userId: string, roles?: string[]) {
+    const tree = await this.ensureTreeOwner(id, userId, roles);
+    const members = await this.prisma.familyMember.findMany({
+      where: { treeId: id },
+      orderBy: [{ childOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    return {
+      id: tree.id,
+      name: tree.name,
+      slug: tree.slug,
+      description: tree.description,
+      isPublic: tree.isPublic,
+      coverImage: tree.coverImage,
+      familyImage: tree.familyImage,
+      familyBio: tree.familyBio,
+      marriageDate: tree.marriageDate,
+      marriageStatus: tree.marriageStatus,
+      headName: tree.headName,
+      config: tree.layoutConfig ?? null,
+      layoutMembers: tree.layoutMembers ?? null,
+      members,
+    };
   }
 
   // ─── LAYOUT (config-driven explorer sync) ───────────────────
@@ -548,6 +578,11 @@ export class TreeService {
       name: mainFamilyName?.trim() || tree.user?.name || tree.name,
       description: tree.description,
       coverImage: tree.coverImage,
+      familyImage: tree.familyImage,
+      familyBio: tree.familyBio,
+      marriageDate: tree.marriageDate,
+      marriageStatus: tree.marriageStatus,
+      headName: tree.headName,
       config: tree.layoutConfig ?? null,
       members: tree.layoutMembers ?? null,
       owner: tree.user,
@@ -595,23 +630,32 @@ export class TreeService {
 
     const user = await this.prisma.user.findUnique({
       where: { username },
-      select: { id: true, name: true, username: true, avatar: true, bio: true, createdAt: true, birthDate: true, birthPlace: true, education: true, occupation: true, hobbies: true },
+      select: { id: true, name: true, username: true, avatar: true, bio: true, status: true, createdAt: true, birthDate: true, birthPlace: true, education: true, occupation: true, hobbies: true },
     });
     if (!user) throw new NotFoundException('Profil tidak ditemukan');
 
     // Is this user the owner (self) of the family? Expose their layout member.
     const isOwner = user.id === tree.userId;
     const members = (await this.prisma.familyTree.findUnique({ where: { id: tree.id }, select: { layoutMembers: true } }))?.layoutMembers as any;
-    const selfMember = isOwner && members ? members['self'] ?? null : null;
+    // The owner is always the 'self' node; anyone else (e.g. an early-access
+    // member) is resolved by the link stored on their layout node.
+    const nodeId = isOwner ? 'self' : this.findLayoutNodeForUser(members, user.id);
+    const node = nodeId && members ? members[nodeId] ?? null : null;
+    if (!isOwner && !node) throw new NotFoundException('Profil tidak ditemukan di keluarga ini');
 
     return {
       family: { slug: tree.slug, name: (tree.layoutConfig as any)?.mainFamilyName || tree.name },
       profile: {
         name: user.name,
         username: user.username,
-        avatar: user.avatar || selfMember?.photo || null,
+        avatar: user.avatar || node?.photo || null,
         bio: user.bio,
         isOwner,
+        nodeId,
+        familyRole: node?.role || null,
+        gender: node?.gender || null,
+        alive: node?.alive !== false,
+        earlyAccess: user.status === 'EARLY_ACCESS',
         joinedAt: user.createdAt,
         birthDate: user.birthDate,
         birthPlace: user.birthPlace,
@@ -632,14 +676,29 @@ export class TreeService {
 
   /** Check if a user is a member (or owner) of a tree by slug. */
   async isTreeMember(slug: string, userId: string): Promise<boolean> {
-    const tree = await this.prisma.familyTree.findUnique({ where: { slug }, select: { id: true, userId: true } });
+    const tree = await this.prisma.familyTree.findUnique({
+      where: { slug },
+      select: { id: true, userId: true, layoutMembers: true },
+    });
     if (!tree) return false;
     if (tree.userId === userId) return true;
     const member = await this.prisma.familyMember.findFirst({
       where: { treeId: tree.id, userId },
       select: { id: true },
     });
-    return !!member;
+    if (member) return true;
+    // Early-access members are linked on the layout blob rather than via a
+    // FamilyMember row, so they'd otherwise be locked out of their own family.
+    return this.findLayoutNodeForUser(tree.layoutMembers, userId) !== null;
+  }
+
+  /** Find the layout node id a user is linked to, or null. */
+  private findLayoutNodeForUser(layoutMembers: unknown, userId: string): string | null {
+    const layout = (layoutMembers as Record<string, any>) ?? {};
+    for (const [nodeId, m] of Object.entries(layout)) {
+      if (m && typeof m === 'object' && (m.linkedUserId === userId || m.claimedByUserId === userId)) return nodeId;
+    }
+    return null;
   }
 
   /** Check if a user has super_user role. */
@@ -1459,10 +1518,15 @@ export class TreeService {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // A username is what makes /family/{slug}/{username} resolvable, so every
+    // early-access member gets one up front.
+    const username = await this.uniqueUsername(member.name);
+
     const newUser = await this.prisma.user.create({
       data: {
         email,
         name: member.name,
+        username,
         passwordHash,
         phone: phone || null,
         status: 'EARLY_ACCESS',
@@ -1489,7 +1553,8 @@ export class TreeService {
 
     return {
       message: 'Early access berhasil dibuat',
-      user: { id: newUser.id, email: newUser.email, name: newUser.name, status: newUser.status },
+      publicProfileUrl: tree.slug ? `/family/${tree.slug}/${newUser.username}` : null,
+      user: { id: newUser.id, email: newUser.email, name: newUser.name, username: newUser.username, status: newUser.status },
     };
   }
 
@@ -1539,10 +1604,15 @@ export class TreeService {
     const passwordHash = await bcrypt.hash(password, 12);
     const memberName = member.name || nodeId;
 
+    // A username is what makes /family/{slug}/{username} resolvable, so every
+    // early-access member gets one up front.
+    const username = await this.uniqueUsername(memberName);
+
     const newUser = await this.prisma.user.create({
       data: {
         email,
         name: memberName,
+        username,
         passwordHash,
         phone: phone || null,
         status: 'EARLY_ACCESS',
@@ -1557,10 +1627,13 @@ export class TreeService {
       });
     }
 
-    // Link layout member to the new user
+    // Link layout member to the new user. `earlyAccess` + `username` are what
+    // the public pages and the super_user login button key off.
     members[nodeId] = {
       ...member,
       linkedUserId: newUser.id,
+      earlyAccess: true,
+      username,
       email,
       phone: phone || member.phone || null,
     };
@@ -1573,7 +1646,8 @@ export class TreeService {
     return {
       message: 'Early access berhasil dibuat',
       nodeId,
-      user: { id: newUser.id, email: newUser.email, name: newUser.name, status: newUser.status },
+      publicProfileUrl: tree.slug ? `/family/${tree.slug}/${username}` : null,
+      user: { id: newUser.id, email: newUser.email, name: newUser.name, username, status: newUser.status },
     };
   }
 

@@ -73,6 +73,22 @@ export class AuthController {
     return this.authService.refreshToken(body.refreshToken);
   }
 
+  @Post('early-access/login-as')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard('jwt'))
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @ApiOperation({ summary: 'Super user signs in as an EARLY_ACCESS member of a family they manage' })
+  async loginAsEarlyAccess(
+    @Body() body: { nodeId: string; slug?: string },
+    @Req() req: Request,
+  ) {
+    const superUserId = (req.user as { id: string }).id;
+    return this.authService.loginAsEarlyAccessNode(superUserId, body.nodeId, body.slug, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
   @Post('logout')
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))

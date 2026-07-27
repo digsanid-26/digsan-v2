@@ -38,6 +38,10 @@ export interface Member {
   email?: string;
   phone?: string;
   linkedUserId?: string | null;
+  /** True when a super_user issued temporary early-access credentials here. */
+  earlyAccess?: boolean;
+  /** Username of the linked account — powers /family/{slug}/{username}. */
+  username?: string | null;
   // ─── Explicit graph relations (for recursively-added circles) ───
   /** Blood parent node id (couple resolved via that parent's spouse). */
   parentId?: string | null;

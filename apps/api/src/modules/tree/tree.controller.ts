@@ -150,6 +150,12 @@ export class TreeController {
     return this.treeService.getSuperUserNodes(userId, roles);
   }
 
+  @Get('family-node/:id')
+  @ApiOperation({ summary: 'Get Family Node profile data (for edit page)' })
+  async getFamilyNode(@Param('id') id: string, @CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[]) {
+    return this.treeService.getFamilyNode(id, userId, roles);
+  }
+
   @Post('early-access/:nodeId')
   @ApiOperation({ summary: 'Super User creates email+password early access for a layout node' })
   async createEarlyAccessForNode(

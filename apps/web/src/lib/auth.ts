@@ -83,6 +83,17 @@ export const auth = {
     request<AuthUser & { roles: string[] }>('/users/me', {
       headers: { Authorization: `Bearer ${accessToken}` },
     }),
+
+  /**
+   * super_user signs in as an EARLY_ACCESS member of a family they manage,
+   * so they can complete that person's general profile on their behalf.
+   */
+  loginAsEarlyAccess: (accessToken: string, nodeId: string, slug?: string) =>
+    request<LoginResponse & { nodeId: string; familySlug: string | null }>('/auth/early-access/login-as', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ nodeId, slug }),
+    }),
 };
 
 // ─── Token Storage ───────────────────────────────────────────

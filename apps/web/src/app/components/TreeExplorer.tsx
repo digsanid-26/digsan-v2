@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { getUser } from '@/lib/auth';
 import { treeApi } from '@/lib/tree';
 import type { GuardianConsent, ConnectedFamily } from '@/lib/tree';
@@ -15,7 +16,7 @@ import type { Region } from './InvitationStudio';
 import OnboardingModal from './OnboardingModal';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Edit, Trash2,
+  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Edit, Trash2, BadgeCheck,
 } from 'lucide-react';
 import UserProfileModal from './UserProfileModal';
 
@@ -219,7 +220,7 @@ export default function TreeExplorer() {
 
   const [me, setMe] = useState<{ id: string; name: string; avatar: string | null } | null>(null);
   const [isSuperUser, setIsSuperUser] = useState(false);
-  const [identity, setIdentity] = useState<{ slug: string | null; username: string | null }>({ slug: null, username: null });
+  const [identity, setIdentity] = useState<{ treeId: string | null; slug: string | null; username: string | null }>({ treeId: null, slug: null, username: null });
   const [isTreeOwner, setIsTreeOwner] = useState(true);
   const [connectedFamily, setConnectedFamily] = useState<ConnectedFamily | null>(null);
   const [config, setConfig] = useState<TreeConfig>(DEFAULT_CONFIG);
@@ -278,7 +279,7 @@ export default function TreeExplorer() {
         const remote = await treeApi.getLayout<Partial<TreeConfig>, Members>();
         if (cancelled) return;
 
-        setIdentity({ slug: remote.slug, username: remote.owner?.username ?? null });
+        setIdentity({ treeId: remote.treeId, slug: remote.slug, username: remote.owner?.username ?? null });
         setIsTreeOwner(remote.isTreeOwner !== false);
         setConnectedFamily(remote.connectedFamily ?? null);
 
@@ -332,7 +333,7 @@ export default function TreeExplorer() {
   useEffect(() => {
     if (panel === 'member' && selected?.id === 'self' && !identity.slug && uidRef.current !== 'guest') {
       treeApi.getLayout<Partial<TreeConfig>, Members>()
-        .then((res) => setIdentity({ slug: res.slug, username: res.owner?.username ?? null }))
+        .then((res) => setIdentity({ treeId: res.treeId, slug: res.slug, username: res.owner?.username ?? null }))
         .catch(() => { /* ignore */ });
     }
   }, [panel, selected, identity.slug]);
@@ -342,7 +343,7 @@ export default function TreeExplorer() {
     treeApi.saveLayout(payload)
       // The server generates/returns the family slug + owner username here, so
       // refresh identity to activate the public link without needing a reload.
-      .then((res) => setIdentity({ slug: res.slug, username: res.owner?.username ?? null }))
+      .then((res) => setIdentity({ treeId: res.treeId, slug: res.slug, username: res.owner?.username ?? null }))
       .catch(() => { /* keep local cache; will retry on next save */ });
   };
 
@@ -609,6 +610,16 @@ export default function TreeExplorer() {
             dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15">
           <Settings size={15} />Pengaturan
         </button>
+        {identity.treeId && (
+          <Link
+            href={`/family-node/${identity.treeId}`}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg whitespace-nowrap
+              bg-white text-slate-700 hover:bg-slate-50 border border-slate-200
+              dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15"
+          >
+            <Users size={15} />Family Node
+          </Link>
+        )}
         {config.configured && (
           <button onClick={() => { setStudioRegion(null); setStudioHighlight([]); setShowStudio(true); }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg whitespace-nowrap
@@ -814,7 +825,7 @@ export default function TreeExplorer() {
             onSetSlug={async (slug) => {
               try {
                 const res = await treeApi.setSlug(slug);
-                setIdentity({ slug: res.slug, username: res.owner?.username ?? null });
+                setIdentity({ treeId: identity.treeId, slug: res.slug, username: res.owner?.username ?? null });
               } catch (err) { console.error('setSlug failed:', err); }
             }}
             onOpenInvite={() => {
@@ -1583,6 +1594,35 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
                   onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, youngerCount: v } }))}
                 />
               </div>
+            </div>
+          );
+        })()}
+
+        {/* Family Node info — parent & sibling nodes have their own family node.
+            Shows a link to view/manage that person's family node. */}
+        {!isSelf && ['parent', 'kakak', 'adik'].includes(node.group) && (() => {
+          const nodeName = form.name || defaultName;
+          const groupLabel = node.group === 'parent' ? 'orang tua' : node.group === 'kakak' ? 'kakak' : 'adik';
+          return (
+            <div className="rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50/60 dark:bg-blue-500/10 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Users size={16} className="text-blue-600 dark:text-blue-400" />
+                <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Family Node {nodeName}</p>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-white/50 mb-3 leading-snug">
+                {groupLabel === 'orang tua'
+                  ? 'Orang tua Anda memiliki family node sendiri yang terhubung ke atas (family node kakek-nenek) dan ke samping (family node saudara orang tua).'
+                  : `${groupLabel.charAt(0).toUpperCase() + groupLabel.slice(1)} Anda memiliki family node sendiri yang dapat dikelola melalui akun mereka masing-masing.`}
+              </p>
+              {form.linkedUserId ? (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <BadgeCheck size={13} /> Akun terhubung — family node aktif
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400 dark:text-white/40">
+                  Family node akan aktif setelah anggota ini memiliki akun (verifikasi atau early access).
+                </p>
+              )}
             </div>
           );
         })()}

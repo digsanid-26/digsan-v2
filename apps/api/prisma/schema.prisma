@@ -218,6 +218,11 @@ model FamilyTree {
   description String?
   isPublic    Boolean  @default(false) @map("is_public")
   coverImage  String?  @map("cover_image")
+  familyImage String?  @map("family_image")
+  familyBio   String?  @map("family_bio")
+  marriageDate DateTime? @map("marriage_date")
+  marriageStatus String? @map("marriage_status")
+  headName    String?  @map("head_name")
   layoutConfig  Json?  @map("layout_config")
   layoutMembers Json?  @map("layout_members")
   createdAt   DateTime @default(now()) @map("created_at")

@@ -62,6 +62,46 @@ export interface GuardianConsent {
   respondedAt: string | null;
 }
 
+export interface FamilyNodeMember {
+  id: string;
+  name: string;
+  gender: string | null;
+  photo: string | null;
+  email: string | null;
+  phone: string | null;
+  familyRole: string | null;
+  accountStatus: string | null;
+}
+
+export interface FamilyNodeData {
+  id: string;
+  name: string;
+  slug: string | null;
+  description: string | null;
+  isPublic: boolean;
+  coverImage: string | null;
+  familyImage: string | null;
+  familyBio: string | null;
+  marriageDate: string | null;
+  marriageStatus: string | null;
+  headName: string | null;
+  config: unknown;
+  layoutMembers: unknown;
+  members: FamilyNodeMember[];
+}
+
+export interface UpdateFamilyNodePayload {
+  name: string;
+  description: string;
+  isPublic: boolean;
+  coverImage: string;
+  familyImage: string;
+  familyBio: string;
+  marriageDate: string;
+  marriageStatus: 'ONGOING' | 'DIVORCED' | 'WIDOWED' | 'NONE';
+  headName: string;
+}
+
 export const treeApi = {
   getLayout: <C = unknown, M = unknown>() =>
     authRequest<TreeLayout<C, M>>('/trees/layout'),
@@ -155,6 +195,16 @@ export const treeApi = {
       createdAt: string;
       tree: { id: string; name: string; slug: string | null; user: { id: string; name: string; avatar: string | null } };
     }[]>(`/trees/invitations/pending`),
+
+  // ─── Family Node profile ───────────────────────────────────
+  getFamilyNode: (treeId: string) =>
+    authRequest<FamilyNodeData>(`/trees/family-node/${encodeURIComponent(treeId)}`),
+
+  updateFamilyNode: (treeId: string, payload: Partial<UpdateFamilyNodePayload>) =>
+    authRequest<FamilyNodeData>(`/trees/${encodeURIComponent(treeId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
 };
 
 export interface TreeInvitation {
@@ -177,6 +227,11 @@ export interface PublicFamily<C = unknown, M = unknown> {
   name: string;
   description: string | null;
   coverImage: string | null;
+  familyImage: string | null;
+  familyBio: string | null;
+  marriageDate: string | null;
+  marriageStatus: string | null;
+  headName: string | null;
   config: C | null;
   members: M | null;
   owner: { name: string; username: string | null; avatar: string | null; bio: string | null } | null;

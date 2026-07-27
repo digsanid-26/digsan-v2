@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Users, ArrowRight, Loader2, X, KeyRound, BadgeCheck } from 'lucide-react';
+import { Users, ArrowRight, Loader2, X, KeyRound, BadgeCheck, LogIn } from 'lucide-react';
 import { publicTreeApi, treeApi, savePendingClaim } from '@/lib/tree';
 import type { PublicFamily } from '@/lib/tree';
-import { getTokens, getUser } from '@/lib/auth';
+import { auth, getTokens, getUser, saveTokens, saveUser } from '@/lib/auth';
 import type { TreeConfig, Members, TNode, Poly } from '@/app/components/treeTypes';
 import { DEFAULT_CONFIG } from '@/app/components/treeTypes';
 import PublicTreeCanvas from '@/app/components/PublicTreeCanvas';
@@ -54,6 +54,8 @@ export default function PublicFamilyPage() {
   const [eaLoading, setEaLoading] = useState(false);
   const [eaError, setEaError] = useState('');
   const [eaSuccess, setEaSuccess] = useState('');
+  const [eaLoginLoading, setEaLoginLoading] = useState(false);
+  const [eaLoginError, setEaLoginError] = useState('');
 
   // Deep link from an invitation: /family/{slug}?m={nodeId} focuses that member.
   // Also read public link token from ?t= query param.
@@ -137,7 +139,7 @@ export default function PublicFamilyPage() {
     setEaOpen(false);
   };
 
-  const closeModal = () => { setSelectedNode(null); setClaimError(null); setEaError(''); setEaSuccess(''); setEaOpen(false); };
+  const closeModal = () => { setSelectedNode(null); setClaimError(null); setEaError(''); setEaSuccess(''); setEaOpen(false); setEaLoginError(''); };
 
   const confirmClaim = async () => {
     if (!selectedNode) return;
@@ -180,11 +182,38 @@ export default function PublicFamilyPage() {
     }
   };
 
+  /**
+   * Sign in as this node's early-access account. The super_user's own session
+   * is replaced, so confirm first and send them straight to the profile form
+   * they came to fill in.
+   */
+  const handleLoginEarlyAccess = async () => {
+    if (!selectedNode) return;
+    const tokens = getTokens();
+    if (!tokens?.accessToken) { setEaLoginError('Sesi Anda berakhir, silakan masuk lagi'); return; }
+    if (!confirm('Anda akan keluar dari akun Anda dan masuk sebagai anggota ini untuk melengkapi profilnya. Lanjutkan?')) return;
+    setEaLoginError('');
+    setEaLoginLoading(true);
+    try {
+      const res = await auth.loginAsEarlyAccess(tokens.accessToken, selectedNode.id, slug);
+      saveTokens({ accessToken: res.accessToken, refreshToken: res.refreshToken });
+      saveUser(res.user);
+      router.push('/profile');
+    } catch (e: any) {
+      setEaLoginError(e.message || 'Gagal login early access');
+    } finally {
+      setEaLoginLoading(false);
+    }
+  };
+
   // Resolve member info for the selected node
   const selectedMember = selectedNode ? members[selectedNode.id] : null;
   const selectedResolved = selectedNode ? resolve(selectedNode.id, selectedNode.name) : null;
   const isVerifiedNode = selectedNode && selectedNode.id !== 'self' && (selectedMember?.verified || selectedMember?.linkedUserId);
   const isSelfNode = selectedNode?.id === 'self';
+  // A node the super_user issued temporary credentials for — they may sign in
+  // as this person to complete their profile.
+  const isEarlyAccessNode = !!(selectedMember?.earlyAccess && selectedMember?.linkedUserId);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#05050f' }}>
@@ -219,30 +248,83 @@ export default function PublicFamilyPage() {
         </div>
       ) : data ? (
         <main className="flex-1 flex flex-col">
-          {/* Family header */}
-          <section className="px-6 pt-8 pb-4 text-center max-w-2xl mx-auto">
-            <p className="text-blue-400/80 text-xs font-medium uppercase tracking-wider mb-2">Silsilah Keluarga</p>
-            <h1
-              className="text-3xl sm:text-4xl font-bold text-white mb-3 tracking-tight"
-              style={{ fontFamily: 'var(--font-space-grotesk, Space Grotesk, sans-serif)' }}
-            >
-              Pohon Keluarga {data.name}
-            </h1>
-            {data.description && <p className="text-white/50 text-sm leading-relaxed">{data.description}</p>}
-            {data.owner && (
-              <div className="mt-4 inline-flex items-center gap-2 text-white/60 text-sm">
-                {data.owner.avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={data.owner.avatar} alt={data.owner.name} referrerPolicy="no-referrer" className="w-6 h-6 rounded-full object-cover" />
-                ) : null}
-                <span>Dikelola oleh {data.owner.name}</span>
-                {data.owner.username && (
-                  <Link href={`/family/${slug}/${data.owner.username}`} className="inline-flex items-center gap-1 text-blue-400 hover:underline">
-                    Lihat profil <ArrowRight size={13} />
-                  </Link>
-                )}
+          {/* Family header — cover + family image + bio + marriage info */}
+          <section className="relative w-full">
+            {/* Cover image */}
+            {data.coverImage ? (
+              <div className="relative h-40 sm:h-56 w-full overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={data.coverImage} alt="Cover" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-[#05050f]" />
               </div>
+            ) : (
+              <div className="h-24 sm:h-32 w-full bg-gradient-to-b from-white/[0.03] to-transparent" />
             )}
+
+            {/* Family image + name + bio */}
+            <div className="max-w-2xl mx-auto px-6 -mt-12 sm:-mt-16 relative z-10 text-center">
+              {data.familyImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={data.familyImage}
+                  alt={data.name}
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover mx-auto border-4 border-[#05050f] shadow-xl mb-3"
+                />
+              ) : null}
+
+              <p className="text-blue-400/80 text-xs font-medium uppercase tracking-wider mb-2">Silsilah Keluarga</p>
+              <h1
+                className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight"
+                style={{ fontFamily: 'var(--font-space-grotesk, Space Grotesk, sans-serif)' }}
+              >
+                {data.name}
+              </h1>
+
+              {data.headName && (
+                <p className="text-white/50 text-sm mb-2">
+                  Kepala Keluarga: <span className="text-white/70 font-medium">{data.headName}</span>
+                </p>
+              )}
+
+              {data.familyBio && (
+                <p className="text-white/50 text-sm leading-relaxed mb-3 max-w-lg mx-auto">{data.familyBio}</p>
+              )}
+
+              {data.description && !data.familyBio && (
+                <p className="text-white/50 text-sm leading-relaxed mb-3">{data.description}</p>
+              )}
+
+              {/* Marriage info */}
+              {data.marriageStatus && data.marriageStatus !== 'NONE' && (
+                <div className="inline-flex items-center gap-3 text-xs text-white/40 mb-3">
+                  {data.marriageDate && (
+                    <span>
+                      Pernikahan: {new Date(data.marriageDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/60">
+                    {data.marriageStatus === 'ONGOING' ? 'Berlangsung' :
+                     data.marriageStatus === 'DIVORCED' ? 'Cerai Hidup' :
+                     data.marriageStatus === 'WIDOWED' ? 'Cerai Mati' : data.marriageStatus}
+                  </span>
+                </div>
+              )}
+
+              {data.owner && (
+                <div className="mt-2 inline-flex items-center gap-2 text-white/60 text-sm">
+                  {data.owner.avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={data.owner.avatar} alt={data.owner.name} referrerPolicy="no-referrer" className="w-6 h-6 rounded-full object-cover" />
+                  ) : null}
+                  <span>Dikelola oleh {data.owner.name}</span>
+                  {data.owner.username && (
+                    <Link href={`/family/${slug}/${data.owner.username}`} className="inline-flex items-center gap-1 text-blue-400 hover:underline">
+                      Lihat profil <ArrowRight size={13} />
+                    </Link>
+                  )}
+                </div>
+              )}
+            </div>
           </section>
 
           {/* Invited-member banner */}
@@ -373,6 +455,34 @@ export default function PublicFamilyPage() {
                     Lihat Profil Lengkap
                   </button>
                 )}
+
+                {/* Early-access members get their own public profile page */}
+                {!isSelfNode && selectedMember?.username && (
+                  <button
+                    onClick={() => router.push(`/family/${slug}/${selectedMember.username}`)}
+                    className="w-full py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                  >
+                    Lihat Profil Publik
+                  </button>
+                )}
+
+                {/* Sign in as this member to complete their profile — super_user only */}
+                {isSuperUser && isEarlyAccessNode && (
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    {eaLoginError && <p className="text-xs text-red-400 mb-2">{eaLoginError}</p>}
+                    <button
+                      onClick={handleLoginEarlyAccess}
+                      disabled={eaLoginLoading}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 text-black transition-colors"
+                    >
+                      <LogIn size={15} />
+                      {eaLoginLoading ? 'Masuk…' : 'Login Early Access'}
+                    </button>
+                    <p className="text-white/35 text-[11px] mt-2 leading-relaxed">
+                      Anda akan masuk sebagai anggota ini untuk melengkapi profilnya. Sesi Anda saat ini akan digantikan.
+                    </p>
+                  </div>
+                )}
               </>
             )}
 
@@ -414,7 +524,7 @@ export default function PublicFamilyPage() {
                     >
                       <div className="flex items-center gap-2">
                         <KeyRound size={16} className="text-amber-400" />
-                        <span className="text-sm font-medium text-amber-400">Login Early Access</span>
+                        <span className="text-sm font-medium text-amber-400">Buat Early Access</span>
                       </div>
                       <span className="text-amber-400 text-xs">{eaOpen ? '▲' : '▼'}</span>
                     </button>

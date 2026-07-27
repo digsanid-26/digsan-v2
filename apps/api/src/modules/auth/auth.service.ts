@@ -3,6 +3,8 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -468,6 +470,78 @@ export class AuthService {
         avatar: user.avatar,
         roles: userRoles.map((ur) => ur.role.name),
       },
+      ...tokens,
+    };
+  }
+
+  // ─── EARLY ACCESS IMPERSONATION ────────────────────────────
+
+  /**
+   * Lets a super_user sign in as one of the EARLY_ACCESS members they created,
+   * so they can fill in that person's general profile (babies, minors, the
+   * deceased) without that member ever verifying an account.
+   *
+   * Guarded on three fronts: the caller must hold super_user, must own the tree
+   * the node belongs to, and the target account must still be EARLY_ACCESS.
+   */
+  async loginAsEarlyAccessNode(
+    superUserId: string,
+    nodeId: string,
+    slug: string | undefined,
+    meta?: { ip?: string; userAgent?: string; device?: string },
+  ) {
+    const callerRoles = await this.prisma.userRole.findMany({
+      where: { userId: superUserId },
+      include: { role: { select: { name: true } } },
+    });
+    if (!callerRoles.some((ur) => ur.role.name === 'super_user')) {
+      throw new ForbiddenException('Hanya super_user yang dapat login early access');
+    }
+
+    const tree = slug
+      ? await this.prisma.familyTree.findUnique({ where: { slug } })
+      : await this.prisma.familyTree.findFirst({ where: { userId: superUserId }, orderBy: { createdAt: 'asc' } });
+    if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
+    if (tree.userId !== superUserId) {
+      throw new ForbiddenException('Anda bukan pengelola keluarga ini');
+    }
+
+    const node = ((tree.layoutMembers as Record<string, any>) ?? {})[nodeId];
+    if (!node?.linkedUserId) {
+      throw new BadRequestException('Node ini belum memiliki early access');
+    }
+
+    const target = await this.prisma.user.findUnique({ where: { id: node.linkedUserId } });
+    if (!target) throw new NotFoundException('Akun early access tidak ditemukan');
+    if (target.status !== 'EARLY_ACCESS') {
+      throw new ForbiddenException('Akun ini sudah aktif — login harus dilakukan pemiliknya sendiri');
+    }
+
+    const tokens = await this.generateTokens(target.id, target.email);
+    await this.storeRefreshToken(target.id, tokens.refreshToken);
+    await this.prisma.user.update({
+      where: { id: target.id },
+      data: { lastLoginAt: new Date() },
+    });
+    await this.logLogin(target.id, target.email, 'SUCCESS', `Early access via super_user ${superUserId}`, meta);
+
+    const targetRoles = await this.prisma.userRole.findMany({
+      where: { userId: target.id },
+      include: { role: { select: { name: true } } },
+    });
+
+    return {
+      user: {
+        id: target.id,
+        email: target.email,
+        name: target.name,
+        username: target.username,
+        avatar: target.avatar,
+        status: target.status,
+        roles: targetRoles.map((ur) => ur.role.name),
+      },
+      nodeId,
+      familySlug: tree.slug,
       ...tokens,
     };
   }
