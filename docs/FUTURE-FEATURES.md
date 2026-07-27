@@ -157,7 +157,7 @@ Mengatur perijinan dari member / anggota digsan.
 - [x] Email invitation telah berhasil terkirim ke alamat email tujuan. Namun ketika diklik tombol Terima Undangan dan membuka tab baru (format url halaman tersebut seperti https://app.digsan.id/invite/4c8e11fe43e41f991ca212ff8a5f0f7362e873e7cee07bb8e767bdf5b1f5c590) di halaman itu keterangannya : 404 This page could not be found.
 - [x] User terundang setelah login dihadapkan oleh tree yang masih kosong, padahal dirinya diminta untuk melengkapi tree yang sudah dibuat oleh suami/istri atau kerabatnya misalnya dalam satu kesatuan keluarga/family. Sehingga ketika dicek di Pengaturan Bagan, sudah ada nama Keluarga Utama atau kelompok keluarga besar di sana. Harusnya sudah ada bagan dari keluarga tersebut dan dirinya tinggal menverifikasi bahwa dirinya yang ada di lingkaran atau tree tersebut.
 - [x] Mungkinkah email invitation bisa menyertakan logo digsan.id di header invitationnya, kalau tidak salah di folder apps/web/public/logo-white.svg (sekarang tulisan Digsan) dan bersama pesan invitation disertakan avatar si pengirim (kiri avatar, kanan pesan);
-- [ ] Warna background header email invitation perlu dibuat dark (biru gelap) agar logo terlihat. Bila ada teks menyertainya buat menjadi warna putih.
+- [x] Warna background header email invitation perlu dibuat dark (biru gelap) agar logo terlihat. Bila ada teks menyertainya buat menjadi warna putih.
 
 ## Sistem Advertising
 Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan program, kegiatan, atau ajakan internal hingga disewakan secara komersial baik untuk internal anggota digsanid maupun eksternal seperti Adsense maupun lainnya;

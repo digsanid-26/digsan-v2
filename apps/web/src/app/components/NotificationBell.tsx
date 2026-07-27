@@ -33,8 +33,8 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
       const res = await fetch(`${API_URL}/notifications/unread-count`, {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
       });
-      const data = await res.json();
-      setUnread(data.unreadCount ?? 0);
+      const json = await res.json();
+      setUnread((json.data ?? json).unreadCount ?? 0);
     } catch {}
   }, []);
 
@@ -46,8 +46,8 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
       const res = await fetch(`${API_URL}/notifications?limit=8`, {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
       });
-      const data = await res.json();
-      setList(data.notifications ?? []);
+      const json = await res.json();
+      setList((json.data ?? json).notifications ?? []);
     } catch {}
     finally { setLoading(false); }
   }, []);
