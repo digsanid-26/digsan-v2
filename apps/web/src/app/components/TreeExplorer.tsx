@@ -341,17 +341,18 @@ export default function TreeExplorer() {
   }, []);
 
   // Determine which node represents the current user.
-  // For tree owners this is always 'self'. For connected users (e.g. wife),
-  // find the member whose linkedUserId matches the current user's id.
+  // For the original tree owner this is 'self'. But a connected user
+  // (e.g. wife) has their own tree (isTreeOwner=true) whose layout was
+  // synced from the inviter — their node is 'spouse-0', not 'self'.
+  // So always check layoutMembers for a linkedUserId match first.
   const selfNodeId = useMemo(() => {
-    if (isTreeOwner) return 'self';
     const uid = uidRef.current;
     if (!uid || uid === 'guest') return 'self';
     for (const [id, m] of Object.entries(members)) {
       if (m?.linkedUserId === uid) return id;
     }
     return 'self';
-  }, [isTreeOwner, members]);
+  }, [members]);
 
   // If the self panel is opened but we still lack a slug (e.g. the initial load
   // raced with auth or failed), fetch it so the public-link menu can activate.
