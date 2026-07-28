@@ -145,13 +145,96 @@ export class TreeService {
     return { message: 'Pohon keluarga berhasil dihapus' };
   }
 
+  /**
+   * Auto-detect the CORE family of a tree — the head, their spouse(s) and their
+   * children — from the config-driven layout JSON used by /tree.
+   *
+   * These are the "anggota tetap" of the Family Node: they always belong to the
+   * node and therefore share its single public family page. They are derived
+   * (not stored) so the Family Node stays in sync with /tree automatically.
+   */
+  private deriveCoreMembers(tree: any, ownerName: string) {
+    const config = (tree.layoutConfig as Record<string, any>) ?? {};
+    const layout = (tree.layoutMembers as Record<string, any>) ?? {};
+    const out: any[] = [];
+
+    const push = (nodeId: string, fallbackName: string, familyRole: string, order: number) => {
+      const m = layout[nodeId];
+      const name = m?.name || fallbackName;
+      if (!name) return;
+      out.push({
+        id: `layout:${nodeId}`,
+        nodeId,
+        treeId: tree.id,
+        userId: m?.linkedUserId ?? null,
+        name,
+        gender: m?.gender || null,
+        photo: m?.photo ?? null,
+        email: m?.email || null,
+        phone: m?.phone || null,
+        familyRole,
+        childOrder: order,
+        accountStatus: m?.linkedUserId ? 'ACTIVE' : m?.earlyAccess ? 'EARLY_ACCESS' : 'PASSIVE',
+        isCore: true,
+        source: 'layout',
+      });
+    };
+
+    // Head of the family (the tree owner)
+    push('self', ownerName || 'Kepala Keluarga', 'Kepala Keluarga', 0);
+
+    // Spouse(s)
+    const spouseCount = Number(config.spouseCount ?? 0);
+    for (let i = 0; i < spouseCount; i++) {
+      push(`spouse-${i}`, spouseCount > 1 ? `Pasangan ${i + 1}` : 'Pasangan', 'Pasangan', 1);
+    }
+
+    // Children from the config counts
+    const childCount = Number(config.childCount ?? 0);
+    for (let i = 0; i < childCount; i++) {
+      push(`child-${i}`, `Anak ${i + 1}`, 'Anak', 2 + i);
+    }
+
+    // Children added explicitly via the tree UI (recursive circles) that hang
+    // directly off the head or their spouse — still part of the core family.
+    const spouseIds = new Set(Array.from({ length: spouseCount }, (_, i) => `spouse-${i}`));
+    for (const [nodeId, m] of Object.entries(layout)) {
+      if (!m || m.group !== 'child') continue;
+      if (/^child-\d+$/.test(nodeId)) continue; // already covered by the counts
+      const parent = m.parentId;
+      if (parent === 'self' || (parent && spouseIds.has(parent))) {
+        push(nodeId, m.name || 'Anak', 'Anak', 2 + childCount + out.length);
+      }
+    }
+
+    return out;
+  }
+
   /** Get the Family Node profile (for the edit page). */
   async getFamilyNode(id: string, userId: string, roles?: string[]) {
     const tree = await this.ensureTreeOwner(id, userId, roles);
-    const members = await this.prisma.familyMember.findMany({
+    const stored = await this.prisma.familyMember.findMany({
       where: { treeId: id },
       orderBy: [{ childOrder: 'asc' }, { createdAt: 'asc' }],
     });
+
+    // Auto-detect the core family (suami/istri/anak-anak) from the layout JSON
+    // so the Family Node lists them without any manual grouping step.
+    const owner = await this.prisma.user.findUnique({
+      where: { id: tree.userId },
+      select: { name: true },
+    });
+    const core = this.deriveCoreMembers(tree, owner?.name || '');
+
+    // Merge: stored FamilyMember rows win over derived ones for the same person
+    // (matched on linked account, else on a normalised name).
+    const key = (m: any) => (m.userId ? `u:${m.userId}` : `n:${(m.name || '').trim().toLowerCase()}`);
+    const seen = new Set(stored.map(key));
+    const members = [
+      ...stored.map((m) => ({ ...m, isCore: false, source: 'record' })),
+      ...core.filter((m) => !seen.has(key(m))),
+    ];
+
     return {
       id: tree.id,
       name: tree.name,

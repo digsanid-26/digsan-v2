@@ -64,7 +64,8 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 
 ## Sistem navigasi dan halaman detil
 - [x] Membuat halaman Family | tree/nama-keluarga (misal tree/farisma-fam) : berisi keluarga kecil ayah, ibu, anak-anak saja dengan konten yang lebih lengkap dan personal (untuk dikembangkan lebih lanjut nanti);
-- [x] Membuat halaman profil personal | tree/nama-keluarga/nama-publik-anda (misal tree/farisma-fam/arisnwh) : Halaman profil pribadi untuk diri sendiri yang nantinya bisa dikembangkan lebih lanjut
+- [x] Membuat halaman profil personal | tree/nama-keluarga/nama-publik-anda (misal tree/farisma-fam/arisnwh) : Halaman profil pribadi untuk diri sendiri yang nantinya bisa dikembangkan lebih lanjut;
+- [ ] Perlu diperbaiki masalah sesion login yang terlalu singkat, dan ketika terlogout di halaman tertentu, ketika login tidak kembali ke halaman tadi/terakhir login.
 
 ## Pengembangan Aktivitas Status
 - [ ] Ubah mode dummy aktivitas lini masa ke real. Buat sistemnya dan jelajahi apa saja yang bisa dibangun untuk ditampilkan di lini masa aktivitas sebagai isi dari real aktivitas;
@@ -175,7 +176,12 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 ### Style Improvement
 - [ ] Lakukan perubahan layout terhadap header /family/nama-family sbb: Buat header menjadi dua kolom. Kolom pertama berisi Image Cover Family Node dengan bentuk bulat (kalau sekarang kotak), sementara kolom kedua berisi informasi-informasi teks dengan dibuat rata kiri. Tambahkan toggle Show hide di pojok kanan header yang bisa menyembunyikan header;
 
-## Sistem Ai Asisten / Helper
+## Sistem Ai 
+### Ai Watcher and Recommendater
+- [ ] Apa yang diperlukan agar aplikasi digsan.id memiliki fitur ai yang dapat menjalankan auto scan terhadap fitur-fitur yang sudah ada, perkembangan data, celah-celah keamanan yang muncul, akses-akses yang mencurigakan, serta hal lain yang berjalan di digsan.id?
+- [ ] Apa yang diperlukan agar aplikasi digsan.id memiliki fitur ai mampu memberikan saran perbaikan dan improvisasi terhadap fitur-fitur yang ada, menambal celah-celah keamanan yang muncul, serta mencegak akses-akses yang mencurigakan, dan saran atau masukan yang lain termasuk fitur baru kedepannya?
+
+### Asisten / Helper
 - [ ] Apa yang diperlukan agar digsan.id dapat memunculkan data analisis berbasis database yang dihimpun yang kemudian diikuti dengan aksi merekomendasikan hubungan antar tree yang belum terhubung misalnya keluarga si A direkomendasikan untuk menjalin koneksi dengan keluarga si B (juga sebaliknya) karena memiliki keterkaitan/kesamaan silsilah kakek / nenek atau paman atau buyut, atau lainnya?
 
 ## Digsan Profil

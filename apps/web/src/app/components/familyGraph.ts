@@ -137,7 +137,7 @@ const ANCESTOR_LABELS = ['Buyut', 'Canggah', 'Wareng', 'Udheg-udheg', 'Gantung S
  * the member-override blob. Reproduces the existing topology as explicit
  * relations so the recursive layout (Phase 2) can render it and extend it.
  */
-export function configToGraph(config: TreeConfig, members: Members, selfName: string): FamilyGraph {
+export function configToGraph(config: TreeConfig, members: Members, selfName: string, selfNodeId?: string): FamilyGraph {
   const g: FamilyGraph = {};
 
   const add = (m: FMember) => { g[m.id] = m; };
@@ -160,7 +160,7 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
   };
 
   // Self
-  add(merge('self', { name: selfName || 'Anda', role: 'Diri Sendiri', group: 'self', isSelf: true }));
+  add(merge('self', { name: selfName || 'Anda', role: 'Diri Sendiri', group: 'self', isSelf: !selfNodeId || selfNodeId === 'self' }));
 
   // Spouses (married to self)
   for (let i = 0; i < config.spouseCount; i++) {
@@ -274,6 +274,29 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
   for (const m of Object.values(g)) {
     if (m.spouseId && g[m.spouseId] && !g[m.spouseId].spouseId) {
       g[m.spouseId].spouseId = m.id;
+    }
+  }
+
+  // ─── Re-pivot: connected user sees the tree from their own node ───
+  // When a linked user (e.g. wife) logs in, selfNodeId points to their
+  // member node (e.g. 'spouse-0'). We mark that node as isSelf and give
+  // it the 'self' group, while demoting the original 'self' to a spouse.
+  if (selfNodeId && selfNodeId !== 'self' && g[selfNodeId]) {
+    g['self'].isSelf = false;
+    g['self'].group = 'spouse';
+    g['self'].role = 'Suami / Istri';
+    g[selfNodeId].isSelf = true;
+    g[selfNodeId].group = 'self';
+    g[selfNodeId].role = 'Diri Sendiri';
+    // Swap parentId: children should descend from the connected user
+    if (g['self'].parentId && !g[selfNodeId].parentId) {
+      g[selfNodeId].parentId = g['self'].parentId;
+    }
+    // The connected user's children have parentId === 'self'; reparent to the connected user
+    for (const m of Object.values(g)) {
+      if (m.parentId === 'self' && m.id !== selfNodeId) {
+        m.parentId = selfNodeId;
+      }
     }
   }
 

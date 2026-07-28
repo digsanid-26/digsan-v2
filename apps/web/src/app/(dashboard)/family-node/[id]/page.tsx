@@ -336,7 +336,11 @@ export default function FamilyNodeEditPage() {
       {/* Member List */}
       {data && Array.isArray(data.members) && data.members.length > 0 && (
         <section className="mb-6 rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-          <h2 className="text-white font-semibold mb-4">Anggota Terdaftar</h2>
+          <h2 className="text-white font-semibold mb-1">Anggota Terdaftar</h2>
+          <p className="text-xs text-white/40 mb-4">
+            Anggota inti (kepala keluarga, pasangan, dan anak-anak) terdeteksi otomatis dari silsilah
+            di /tree dan menjadi anggota tetap Family Node ini.
+          </p>
           <div className="space-y-2">
             {data.members.map((m) => (
               <div key={m.id} className="flex items-center gap-3 rounded-lg bg-white/5 px-3 py-2.5">
@@ -352,6 +356,11 @@ export default function FamilyNodeEditPage() {
                   <p className="text-sm text-white/80 truncate">{m.name}</p>
                   <p className="text-xs text-white/40">{m.familyRole || 'Anggota'}</p>
                 </div>
+                {m.isCore && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 shrink-0">
+                    Anggota Tetap
+                  </span>
+                )}
                 {m.accountStatus && (
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                     m.accountStatus === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300' :

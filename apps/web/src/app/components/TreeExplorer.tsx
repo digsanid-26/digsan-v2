@@ -124,14 +124,25 @@ function generateTree(cfg: TreeConfig): { nodes: TNode[]; lines: Poly[] } {
 
 // ─── Collapsed (homepage-like) generation ───────────────────
 
-function generateCollapsed(cfg: TreeConfig): { nodes: TNode[]; lines: Poly[] } {
+function generateCollapsed(cfg: TreeConfig, selfNodeId: string = 'self'): { nodes: TNode[]; lines: Poly[] } {
   const nodes: TNode[] = [];
   const lines: Poly[] = [];
   const coupleXs = spread(1 + cfg.spouseCount, 150, 0);
-  nodes.push({ id: 'self', name: 'Anda', role: 'Diri Sendiri', x: coupleXs[0], y: 0, group: 'self' });
+  // Find which couple slot the selfNodeId maps to
+  const selfSlot = selfNodeId === 'self' ? 0 : selfNodeId.startsWith('spouse-') ? parseInt(selfNodeId.split('-')[1], 10) + 1 : 0;
+  const selfX = coupleXs[selfSlot] ?? coupleXs[0];
+  nodes.push({ id: selfNodeId, name: 'Anda', role: 'Diri Sendiri', x: selfX, y: 0, group: 'self' });
+  // Add the other partner(s)
   for (let i = 0; i < cfg.spouseCount; i++) {
-    nodes.push({ id: `spouse-${i}`, name: cfg.spouseCount > 1 ? `Pasangan ${i + 1}` : 'Pasangan', role: 'Suami / Istri', x: coupleXs[i + 1], y: 0, group: 'spouse' });
-    lines.push({ points: [[coupleXs[0], 0], [coupleXs[i + 1], 0]], marriage: true });
+    const id = `spouse-${i}`;
+    if (id === selfNodeId) continue;
+    nodes.push({ id, name: cfg.spouseCount > 1 ? `Pasangan ${i + 1}` : 'Pasangan', role: 'Suami / Istri', x: coupleXs[i + 1], y: 0, group: 'spouse' });
+    lines.push({ points: [[selfX, 0], [coupleXs[i + 1], 0]], marriage: true });
+  }
+  // If self was a spouse, add the original 'self' as partner
+  if (selfNodeId !== 'self') {
+    nodes.push({ id: 'self', name: 'Pasangan', role: 'Suami / Istri', x: coupleXs[0], y: 0, group: 'spouse' });
+    lines.push({ points: [[selfX, 0], [coupleXs[0], 0]], marriage: true });
   }
   const bubbles: TNode[] = [];
   if (cfg.parentCount > 0) bubbles.push({ id: 'grp-ot', name: 'Orang Tua', role: 'group', x: 0, y: -235, group: 'parent', count: cfg.parentCount });
@@ -157,11 +168,12 @@ function canEditMember(
   nodeGroup: Group,
   members: Members,
   config: TreeConfig,
-  currentUserId: string
+  currentUserId: string,
+  selfNodeId: string = 'self'
 ): boolean {
   const m = members[nodeId];
   if (!m || m.alive) return true; // alive members can be edited
-  if (nodeId === 'self') return true; // self can always edit
+  if (nodeId === selfNodeId) return true; // self can always edit
 
   // Deceased members: check guardianship
   if (nodeGroup === 'parent') {
@@ -183,7 +195,7 @@ function canEditMember(
 
   if (nodeGroup === 'spouse') {
     // Deceased spouse: user or verified children can edit
-    if (currentUserId === 'self') return true; // user is the owner
+    if (currentUserId === selfNodeId) return true; // user is the owner
     for (let i = 0; i < config.childCount; i++) {
       const childId = `child-${i}`;
       const child = members[childId];
@@ -194,7 +206,7 @@ function canEditMember(
 
   if (nodeGroup === 'child') {
     // Deceased child: user (parent) or verified siblings can edit
-    if (currentUserId === 'self') return true; // user is the parent
+    if (currentUserId === selfNodeId) return true; // user is the parent
     // Check if current user is a verified sibling
     for (let i = 0; i < config.olderCount; i++) {
       const siblingId = `older-${i}`;
@@ -328,15 +340,28 @@ export default function TreeExplorer() {
     return () => { cancelled = true; };
   }, []);
 
+  // Determine which node represents the current user.
+  // For tree owners this is always 'self'. For connected users (e.g. wife),
+  // find the member whose linkedUserId matches the current user's id.
+  const selfNodeId = useMemo(() => {
+    if (isTreeOwner) return 'self';
+    const uid = uidRef.current;
+    if (!uid || uid === 'guest') return 'self';
+    for (const [id, m] of Object.entries(members)) {
+      if (m?.linkedUserId === uid) return id;
+    }
+    return 'self';
+  }, [isTreeOwner, members]);
+
   // If the self panel is opened but we still lack a slug (e.g. the initial load
   // raced with auth or failed), fetch it so the public-link menu can activate.
   useEffect(() => {
-    if (panel === 'member' && selected?.id === 'self' && !identity.slug && uidRef.current !== 'guest') {
+    if (panel === 'member' && selected?.id === selfNodeId && !identity.slug && uidRef.current !== 'guest') {
       treeApi.getLayout<Partial<TreeConfig>, Members>()
         .then((res) => setIdentity({ treeId: res.treeId, slug: res.slug, username: res.owner?.username ?? null }))
         .catch(() => { /* ignore */ });
     }
-  }, [panel, selected, identity.slug]);
+  }, [panel, selected, identity.slug, selfNodeId]);
 
   const pushLayout = (payload: { config?: TreeConfig; members?: Members }) => {
     if (uidRef.current === 'guest') return; // only sync for logged-in users
@@ -381,16 +406,17 @@ export default function TreeExplorer() {
       return { nodes: [{ id: 'self', name: 'Anda', role: 'Diri Sendiri', x: 0, y: 0, group: 'self' as Group }], lines: [] as Poly[] };
     }
     if (expanded) {
-      return layoutGraph(configToGraph(config, members, me?.name || 'Anda'));
+      return layoutGraph(configToGraph(config, members, me?.name || 'Anda', selfNodeId));
     }
-    return generateCollapsed(config);
-  }, [config, expanded, members, me]);
+    return generateCollapsed(config, selfNodeId);
+  }, [config, expanded, members, me, selfNodeId]);
 
   // Display helper (applies member overrides)
   const disp = (id: string, fallback: string) => {
     const m = members[id];
-    const name = id === 'self' ? (m?.name || me?.name || 'Anda') : (m?.name || fallback);
-    const photo = id === 'self' ? (m?.photo || me?.avatar || null) : (m?.photo || null);
+    const isMe = id === selfNodeId;
+    const name = isMe ? (m?.name || me?.name || 'Anda') : (m?.name || fallback);
+    const photo = isMe ? (m?.photo || me?.avatar || null) : (m?.photo || null);
     return { name, photo, alive: m?.alive !== false, gender: m?.gender || '' };
   };
 
@@ -498,7 +524,7 @@ export default function TreeExplorer() {
 
   /** Resolve a node's blood-parent id via the current relational graph. */
   const parentIdOf = (nodeId: string): string | null => {
-    const g = configToGraph(config, members, me?.name || 'Anda');
+    const g = configToGraph(config, members, me?.name || 'Anda', selfNodeId);
     return g[nodeId]?.parentId ?? null;
   };
 
@@ -507,7 +533,7 @@ export default function TreeExplorer() {
     if (!isSuperUser || n.role === 'group') return false;
     if (dir === 'bottom') return true; // child — always
     if (dir === 'left' || dir === 'right') {
-      if (n.id === 'self') return true; // config siblings
+      if (n.id === selfNodeId) return true; // config siblings
       return !!parentIdOf(n.id);
     }
     // top (add parent) — only for explicit nodes with no parent yet
@@ -518,7 +544,7 @@ export default function TreeExplorer() {
     if (!canAddDir(n, dir)) return;
 
     // Adding to self maps onto the config counts so the collapsed view stays in sync.
-    if (n.id === 'self') {
+    if (n.id === selfNodeId) {
       if (dir === 'bottom') return saveConfig({ ...config, childCount: config.childCount + 1 });
       if (dir === 'left') return saveConfig({ ...config, olderCount: config.olderCount + 1 });
       if (dir === 'right') return saveConfig({ ...config, youngerCount: config.youngerCount + 1 });
@@ -547,12 +573,12 @@ export default function TreeExplorer() {
 
   /** Delete a circle. Explicit nodes cascade-delete descendants; config nodes decrement their count. */
   const deleteNode = (nodeId: string) => {
-    if (nodeId === 'self') return;
+    if (nodeId === selfNodeId || nodeId === 'self') return;
 
     if (!isBaseNode(nodeId)) {
       // Explicit node → remove it + all descendants + its spouse pointer.
       const next: Members = { ...members };
-      const g = configToGraph(config, members, me?.name || 'Anda');
+      const g = configToGraph(config, members, me?.name || 'Anda', selfNodeId);
       const toRemove = new Set<string>([nodeId]);
       let grew = true;
       while (grew) {
@@ -697,7 +723,7 @@ export default function TreeExplorer() {
 
           {nodes.map((n) => {
             const st = STYLE[n.group];
-            const isSelf = n.id === 'self';
+            const isSelf = n.id === selfNodeId;
             const isGroup = n.role === 'group';
             const isSelected = panel === 'member' && selected?.id === n.id;
             const baseSize = isSelf && !expanded ? 150 : st.size;
@@ -814,10 +840,10 @@ export default function TreeExplorer() {
             onSave={(c) => { saveConfig({ ...c, configured: true }); setPanel('none'); setExpanded(false); }} />
         )}
         {panel === 'member' && selected && (
-          <MemberForm key={selected.id} dark={dark} node={selected} isSelf={selected.id === 'self'}
+          <MemberForm key={selected.id} dark={dark} node={selected} isSelf={selected.id === selfNodeId}
             familySlug={identity.slug} ownerUsername={identity.username}
             member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
-            canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest')}
+            canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest', selfNodeId)}
             connectedFamily={connectedFamily}
             consent={consentFor(selected.id)}
             onRequestConsent={() => requestConsent(selected.id)}
@@ -837,7 +863,7 @@ export default function TreeExplorer() {
               setPanel('none');
             }}
             onClose={() => setPanel('none')}
-            canDelete={isSuperUser && selected.id !== 'self'}
+            canDelete={isSuperUser && selected.id !== selfNodeId && selected.id !== 'self'}
             onDelete={() => deleteNode(selected.id)}
             onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
         )}
@@ -861,7 +887,7 @@ export default function TreeExplorer() {
           const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
           const base = `${origin}/family/${identity.slug}`;
           // Invited a specific member → deep-link to that person on the public tree.
-          if (inviteCtx?.nodeId && inviteCtx.nodeId !== 'self') return `${base}?m=${encodeURIComponent(inviteCtx.nodeId)}`;
+          if (inviteCtx?.nodeId && inviteCtx.nodeId !== selfNodeId) return `${base}?m=${encodeURIComponent(inviteCtx.nodeId)}`;
           // Owner / self share → link to the owner's public profile (nama-keluarga/nama-user).
           if (identity.username) return `${base}/${identity.username}`;
           return base;

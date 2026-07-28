@@ -71,6 +71,12 @@ export interface FamilyNodeMember {
   phone: string | null;
   familyRole: string | null;
   accountStatus: string | null;
+  /** Auto-detected core family (head / spouse / children) — permanent member. */
+  isCore?: boolean;
+  /** 'layout' when derived from the /tree layout, 'record' when a stored row. */
+  source?: 'layout' | 'record';
+  /** Layout node id when derived from /tree. */
+  nodeId?: string;
 }
 
 export interface FamilyNodeData {
