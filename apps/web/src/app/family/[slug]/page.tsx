@@ -11,6 +11,7 @@ import { auth, getTokens, getUser, saveTokens, saveUser } from '@/lib/auth';
 import type { TreeConfig, Members, TNode, Poly } from '@/app/components/treeTypes';
 import { DEFAULT_CONFIG } from '@/app/components/treeTypes';
 import PublicTreeCanvas from '@/app/components/PublicTreeCanvas';
+import FamilyNodeTreeCanvas, { type FamilyNodeItem, type FamilyNodeLink } from '@/app/components/FamilyNodeTreeCanvas';
 import AppHeader from '@/app/components/AppHeader';
 import { ThemeProvider } from '@/app/components/ThemeProvider';
 import { AuthProvider } from '@/components/providers/auth-provider';
@@ -44,6 +45,7 @@ export default function PublicFamilyPage() {
   const [claimError, setClaimError] = useState<string | null>(null);
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [viewMode, setViewMode] = useState<'member' | 'familynode'>('member');
 
   // Super user early access form
   const [isSuperUser, setIsSuperUser] = useState(false);
@@ -88,6 +90,99 @@ export default function PublicFamilyPage() {
     [data?.config],
   );
   const members: Members = useMemo(() => data?.members ?? {}, [data?.members]);
+
+  // ─── Family Node Tree data (L103) ───────────────────────────
+  const familyNodeTree = useMemo(() => {
+    if (!data?.config) return { nodes: [] as FamilyNodeItem[], links: [] as FamilyNodeLink[] };
+    const cfg = config;
+    const ms = members;
+    const fnNodes: FamilyNodeItem[] = [];
+    const fnLinks: FamilyNodeLink[] = [];
+
+    // Self family node (center)
+    fnNodes.push({
+      id: 'fn-self',
+      name: data.name || 'Keluarga Kami',
+      familyImage: data.familyImage,
+      slug: slug,
+      kind: 'self',
+      memberCount: cfg.childCount + 1 + cfg.spouseCount,
+      x: 0, y: 0,
+    });
+
+    // Parent family node (above)
+    if (cfg.parentCount > 0) {
+      const p0 = ms['parent-0'];
+      const p1 = ms['parent-1'];
+      const parentName = [p0?.name, p1?.name].filter(Boolean).join(' & ') || 'Keluarga Orang Tua';
+      fnNodes.push({
+        id: 'fn-parent',
+        name: `Keluarga ${parentName}`,
+        familyImage: null,
+        slug: null,
+        kind: 'parent',
+        x: 0, y: -280,
+      });
+      fnLinks.push({ from: 'fn-self', to: 'fn-parent' });
+    }
+
+    // Older siblings (left)
+    for (let i = 0; i < cfg.olderCount; i++) {
+      const k = ms[`kakak-${i}`];
+      const sibName = k?.name || `Kakak ${i + 1}`;
+      fnNodes.push({
+        id: `fn-kakak-${i}`,
+        name: `Keluarga ${sibName}`,
+        familyImage: k?.photo || null,
+        slug: null,
+        kind: 'sibling',
+        x: -240 * (i + 1), y: 0,
+      });
+      fnLinks.push({ from: 'fn-self', to: `fn-kakak-${i}` });
+    }
+
+    // Younger siblings (right)
+    for (let i = 0; i < cfg.youngerCount; i++) {
+      const a = ms[`adik-${i}`];
+      const sibName = a?.name || `Adik ${i + 1}`;
+      fnNodes.push({
+        id: `fn-adik-${i}`,
+        name: `Keluarga ${sibName}`,
+        familyImage: a?.photo || null,
+        slug: null,
+        kind: 'sibling',
+        x: 240 * (i + 1), y: 0,
+      });
+      fnLinks.push({ from: 'fn-self', to: `fn-adik-${i}` });
+    }
+
+    // Children with spouses (below)
+    const childNodes: FamilyNodeItem[] = [];
+    for (let i = 0; i < cfg.childCount; i++) {
+      const c = ms[`child-${i}`];
+      const hasSpouse = c?.spouseId || ms[`child-${i}-spouse`];
+      if (hasSpouse) {
+        const childName = c?.name || `Anak ${i + 1}`;
+        childNodes.push({
+          id: `fn-child-${i}`,
+          name: `Keluarga ${childName}`,
+          familyImage: c?.photo || null,
+          slug: null,
+          kind: 'child',
+          x: 0, y: 0, // positioned below
+        });
+      }
+    }
+    const childSpread = 220;
+    childNodes.forEach((n, idx) => {
+      n.x = (idx - (childNodes.length - 1) / 2) * childSpread;
+      n.y = 280;
+      fnNodes.push(n);
+      fnLinks.push({ from: 'fn-self', to: n.id });
+    });
+
+    return { nodes: fnNodes, links: fnLinks };
+  }, [data, config, members, slug]);
 
   const { nodes, lines } = useMemo(() => {
     if (!data?.config) return { nodes: [] as TNode[], lines: [] as Poly[] };
@@ -338,17 +433,27 @@ export default function PublicFamilyPage() {
 
           {/* Tree */}
           <section className="px-2 sm:px-6 pb-8">
-            {nodes.length ? (
+            {viewMode === 'familynode' ? (
+              <FamilyNodeTreeCanvas
+                nodes={familyNodeTree.nodes}
+                links={familyNodeTree.links}
+                onNodeClick={(fn) => {
+                  if (fn.slug && fn.slug !== slug) {
+                    router.push(`/family/${fn.slug}`);
+                  }
+                }}
+                onBack={() => setViewMode('member')}
+                className="w-full h-[70vh] min-h-[420px] max-h-[720px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
+              />
+            ) : nodes.length ? (
               <PublicTreeCanvas
                 nodes={nodes}
                 lines={lines}
                 resolve={resolve}
                 onNodeClick={onNodeClick}
                 onGroupClick={(n) => {
-                  // Keluarga Besar Tree view not yet built — will be implemented
-                  // after Family Mode layout (FUTURE-FEATURES.md L68)
                   if (n.id === 'grp-kb') {
-                    console.log('Keluarga Besar clicked — view not yet available');
+                    setViewMode('familynode');
                   }
                 }}
                 highlightId={highlightId ?? undefined}
@@ -360,7 +465,11 @@ export default function PublicFamilyPage() {
                 Silsilah belum disiapkan.
               </div>
             )}
-            {nodes.length ? (
+            {viewMode === 'familynode' ? (
+              <p className="text-center text-white/25 text-xs mt-2">
+                Klik lingkaran untuk membuka halaman keluarga. Klik "Mode Familymember" untuk kembali.
+              </p>
+            ) : nodes.length ? (
               <p className="text-center text-white/25 text-xs mt-2">
                 Geser untuk menjelajah, gulir/pinch untuk memperbesar. Lingkaran bergaris putus-putus belum diklaim.
               </p>
