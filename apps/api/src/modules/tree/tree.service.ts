@@ -123,6 +123,12 @@ export class TreeService {
   async update(id: string, userId: string, dto: UpdateTreeDto, roles?: string[]) {
     const tree = await this.ensureTreeOwner(id, userId, roles);
 
+    // Connected users (sharedFamilySlug set) cannot edit the family node.
+    const config = (tree.layoutConfig as any) ?? {};
+    if (config.sharedFamilySlug && !roles?.includes('super_user')) {
+      throw new ForbiddenException('Hanya kepala keluarga yang dapat mengedit Family Node');
+    }
+
     return this.prisma.familyTree.update({
       where: { id },
       data: {
@@ -213,18 +219,34 @@ export class TreeService {
   /** Get the Family Node profile (for the edit page). */
   async getFamilyNode(id: string, userId: string, roles?: string[]) {
     const tree = await this.ensureTreeOwner(id, userId, roles);
+
+    // Connected users (sharedFamilySlug set) see the inviter's family node
+    // as read-only. Fetch the inviter's tree for the real family node data.
+    const config = (tree.layoutConfig as any) ?? {};
+    const sharedSlug = config.sharedFamilySlug as string | undefined;
+    let canEdit = true;
+    let sourceTree = tree;
+
+    if (sharedSlug) {
+      canEdit = false;
+      const inviterTree = await this.prisma.familyTree.findFirst({
+        where: { slug: sharedSlug },
+      });
+      if (inviterTree) sourceTree = inviterTree;
+    }
+
     const stored = await this.prisma.familyMember.findMany({
-      where: { treeId: id },
+      where: { treeId: sourceTree.id },
       orderBy: [{ childOrder: 'asc' }, { createdAt: 'asc' }],
     });
 
     // Auto-detect the core family (suami/istri/anak-anak) from the layout JSON
     // so the Family Node lists them without any manual grouping step.
     const owner = await this.prisma.user.findUnique({
-      where: { id: tree.userId },
+      where: { id: sourceTree.userId },
       select: { name: true },
     });
-    const core = this.deriveCoreMembers(tree, owner?.name || '');
+    const core = this.deriveCoreMembers(sourceTree, owner?.name || '');
 
     // Merge: stored FamilyMember rows win over derived ones for the same person
     // (matched on linked account, else on a normalised name).
@@ -236,20 +258,21 @@ export class TreeService {
     ];
 
     return {
-      id: tree.id,
-      name: tree.name,
-      slug: tree.slug,
-      description: tree.description,
-      isPublic: tree.isPublic,
-      coverImage: tree.coverImage,
-      familyImage: tree.familyImage,
-      familyBio: tree.familyBio,
-      marriageDate: tree.marriageDate,
-      marriageStatus: tree.marriageStatus,
-      headName: tree.headName,
-      config: tree.layoutConfig ?? null,
-      layoutMembers: tree.layoutMembers ?? null,
+      id: sourceTree.id,
+      name: sourceTree.name,
+      slug: sourceTree.slug,
+      description: sourceTree.description,
+      isPublic: sourceTree.isPublic,
+      coverImage: sourceTree.coverImage,
+      familyImage: sourceTree.familyImage,
+      familyBio: sourceTree.familyBio,
+      marriageDate: sourceTree.marriageDate,
+      marriageStatus: sourceTree.marriageStatus,
+      headName: sourceTree.headName,
+      config: sourceTree.layoutConfig ?? null,
+      layoutMembers: sourceTree.layoutMembers ?? null,
       members,
+      canEdit,
     };
   }
 

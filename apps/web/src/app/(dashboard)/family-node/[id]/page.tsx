@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { treeApi, type FamilyNodeData, type UpdateFamilyNodePayload } from '@/lib/tree';
 import {
   ArrowLeft, Camera, Save, Loader2, Users, Heart,
-  Check, Image as ImageIcon,
+  Check, Image as ImageIcon, Lock,
 } from 'lucide-react';
 
 const MARRIAGE_STATUS_OPTIONS: { value: UpdateFamilyNodePayload['marriageStatus']; label: string }[] = [
@@ -40,6 +40,7 @@ export default function FamilyNodeEditPage() {
   const [slugInput, setSlugInput] = useState('');
   const [slugSaving, setSlugSaving] = useState(false);
   const [slugMsg, setSlugMsg] = useState('');
+  const canEdit = data?.canEdit !== false;
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -150,8 +151,15 @@ export default function FamilyNodeEditPage() {
         <ArrowLeft size={16} /> Kembali ke Tree
       </Link>
 
-      <h1 className="text-2xl font-bold text-white mb-1">Edit Family Node</h1>
-      <p className="text-white/40 text-sm mb-8">Kelola profil keluarga utama Anda</p>
+      <h1 className="text-2xl font-bold text-white mb-1">Family Node</h1>
+      <p className="text-white/40 text-sm mb-8">
+        {canEdit ? 'Kelola profil keluarga utama Anda' : 'Pratinjau profil keluarga (read-only)'}
+      </p>
+      {!canEdit && (
+        <div className="mb-6 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-300 flex items-center gap-2">
+          <Lock size={15} /> Hanya kepala keluarga yang dapat mengedit Family Node ini.
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-300">
@@ -174,7 +182,7 @@ export default function FamilyNodeEditPage() {
           <div>
             <label className="text-white/50 text-xs mb-2 block">Family Image</label>
             <div
-              onClick={() => handleImageUpload('familyImage')}
+              onClick={() => canEdit && handleImageUpload('familyImage')}
               className="relative w-full h-32 rounded-xl border border-white/10 bg-white/5 cursor-pointer hover:border-white/20 transition-colors overflow-hidden group"
             >
               {form.familyImage ? (
@@ -194,7 +202,7 @@ export default function FamilyNodeEditPage() {
           <div>
             <label className="text-white/50 text-xs mb-2 block">Cover Image</label>
             <div
-              onClick={() => handleImageUpload('coverImage')}
+              onClick={() => canEdit && handleImageUpload('coverImage')}
               className="relative w-full h-32 rounded-xl border border-white/10 bg-white/5 cursor-pointer hover:border-white/20 transition-colors overflow-hidden group"
             >
               {form.coverImage ? (
@@ -224,6 +232,7 @@ export default function FamilyNodeEditPage() {
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             className={inputCls}
             placeholder="Keluarga Besar Sutrisno"
+            disabled={!canEdit}
           />
         </div>
 
@@ -234,6 +243,7 @@ export default function FamilyNodeEditPage() {
             onChange={(e) => setForm((f) => ({ ...f, headName: e.target.value }))}
             className={inputCls}
             placeholder="Budi Sutrisno"
+            disabled={!canEdit}
           />
         </div>
 
@@ -244,6 +254,7 @@ export default function FamilyNodeEditPage() {
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             className={`${inputCls} min-h-[80px] resize-y`}
             placeholder="Silsilah keluarga dari kakek Sutrisno"
+            disabled={!canEdit}
           />
         </div>
 
@@ -254,6 +265,7 @@ export default function FamilyNodeEditPage() {
             onChange={(e) => setForm((f) => ({ ...f, familyBio: e.target.value }))}
             className={`${inputCls} min-h-[100px] resize-y`}
             placeholder="Cerita singkat tentang keluarga Anda"
+            disabled={!canEdit}
           />
         </div>
       </section>
@@ -272,6 +284,7 @@ export default function FamilyNodeEditPage() {
               value={form.marriageDate}
               onChange={(e) => setForm((f) => ({ ...f, marriageDate: e.target.value }))}
               className={inputCls}
+              disabled={!canEdit}
             />
           </div>
           <div>
@@ -280,6 +293,7 @@ export default function FamilyNodeEditPage() {
               value={form.marriageStatus}
               onChange={(e) => setForm((f) => ({ ...f, marriageStatus: e.target.value as UpdateFamilyNodePayload['marriageStatus'] }))}
               className={inputCls}
+              disabled={!canEdit}
             >
               {MARRIAGE_STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value} className="bg-[#0a0a16]">
@@ -303,10 +317,11 @@ export default function FamilyNodeEditPage() {
               onChange={(e) => setSlugInput(e.target.value)}
               className={inputCls}
               placeholder="keluarga-sutrisno"
+              disabled={!canEdit}
             />
             <button
               onClick={handleSaveSlug}
-              disabled={slugSaving}
+              disabled={slugSaving || !canEdit}
               className="px-4 py-2.5 rounded-lg text-sm font-medium bg-white/10 hover:bg-white/15 text-white transition-colors disabled:opacity-50 whitespace-nowrap"
             >
               {slugSaving ? 'Menyimpan…' : 'Simpan Slug'}
@@ -327,6 +342,7 @@ export default function FamilyNodeEditPage() {
               checked={form.isPublic}
               onChange={(e) => setForm((f) => ({ ...f, isPublic: e.target.checked }))}
               className="w-4 h-4 rounded accent-blue-500"
+              disabled={!canEdit}
             />
             <span className="text-sm text-white/70">Publik (dapat diakses oleh siapa pun dengan link)</span>
           </label>
@@ -377,6 +393,7 @@ export default function FamilyNodeEditPage() {
       )}
 
       {/* Save button */}
+      {canEdit && (
       <div className="sticky bottom-4 flex justify-end">
         <button
           onClick={handleSave}
@@ -387,6 +404,7 @@ export default function FamilyNodeEditPage() {
           {saving ? 'Menyimpan…' : 'Simpan Perubahan'}
         </button>
       </div>
+      )}
     </div>
   );
 }

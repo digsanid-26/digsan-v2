@@ -94,6 +94,8 @@ export interface FamilyNodeData {
   config: unknown;
   layoutMembers: unknown;
   members: FamilyNodeMember[];
+  /** False for connected users — read-only preview mode. */
+  canEdit?: boolean;
 }
 
 export interface UpdateFamilyNodePayload {
