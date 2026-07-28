@@ -288,16 +288,12 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
     g[selfNodeId].isSelf = true;
     g[selfNodeId].group = 'self';
     g[selfNodeId].role = 'Diri Sendiri';
-    // Swap parentId: children should descend from the connected user
-    if (g['self'].parentId && !g[selfNodeId].parentId) {
-      g[selfNodeId].parentId = g['self'].parentId;
-    }
-    // The connected user's children have parentId === 'self'; reparent to the connected user
-    for (const m of Object.values(g)) {
-      if (m.parentId === 'self' && m.id !== selfNodeId) {
-        m.parentId = selfNodeId;
-      }
-    }
+    // Do NOT copy parentId from the original self to the new self.
+    // The connected user (e.g. wife) has their own parents, not the
+    // inviter's parents. Since the wife hasn't configured her own
+    // parents yet, she simply sees no ancestors above her — correct.
+    // Children are found via orderedChildren() which checks both the
+    // anchor and its spouse, so no reparenting is needed either.
   }
 
   return g;
