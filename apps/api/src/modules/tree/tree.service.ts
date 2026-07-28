@@ -528,14 +528,29 @@ export class TreeService {
     const inviterSlug = identity.slug;
     const inviterMembers = (tree.layoutMembers as Record<string, any>) ?? {};
 
+    // Only sync the linked user's own node + their children to the linked tree.
+    // Do NOT copy the inviter's parents, siblings, or other relatives.
+    const spouseId = member.spouseId || null;
+    const syncedMembers: Record<string, any> = {};
+    for (const [id, m] of Object.entries(inviterMembers)) {
+      const isSelf = id === nodeId;
+      const isSpouse = id === spouseId;
+      const isChild = m?.parentId === nodeId || m?.parentId === spouseId;
+      if (isSelf || isSpouse || isChild) {
+        syncedMembers[id] = m;
+      }
+    }
+
     let linkedTreeSlug: string | null = null;
     try {
       // Find or create the linked user's own tree
       const linkedTree = await this.getOrCreateDefaultTree(linkedUser.id);
 
-      // Update linked user's tree config to match inviter's family name
-      // and copy inviter's layoutMembers so children/siblings data is synced
+      // Merge synced members into the linked user's existing layoutMembers
+      // (preserve any members the linked user may have added on their own)
       const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
+      const linkedMembers = (linkedTree.layoutMembers as Record<string, any>) ?? {};
+      const mergedMembers = { ...linkedMembers, ...syncedMembers };
       const updatedLinkedConfig = {
         ...linkedConfig,
         mainFamilyName: inviterFamilyName,
@@ -548,7 +563,7 @@ export class TreeService {
         where: { id: linkedTree.id },
         data: {
           layoutConfig: updatedLinkedConfig as any,
-          layoutMembers: inviterMembers as any,
+          layoutMembers: mergedMembers as any,
           slug: null,
         },
       });

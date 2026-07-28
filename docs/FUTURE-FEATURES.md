@@ -171,6 +171,9 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 - [ ] Banner Modal Left-Tree pada halaman app.digsan.id/tree dengan posisi top-left di bawah navigasi tree yang dapat diisi 3 Banner id ratio 1:1 tree-l-r1/1-01, tree-l-r1/1-02, tree-l-r1/1-03, atau dua banner id aspek rasio 1:2 tree-l-r1/2 dan aspek rasio 1:1 tree-l-1/1-01, atau 1 banner aspek rasio 1:3 tree-l-r1/3;  
 - [ ] Ubah spot banner yang tersedia menjadi select / dropdown agar tidak perlu mengisi manual;
 
+## Style Manager
+### Style Improvement
+- [ ] Lakukan perubahan layout terhadap header /family/nama-family sbb: Buat header menjadi dua kolom. Kolom pertama berisi Image Cover Family Node dengan bentuk bulat (kalau sekarang kotak), sementara kolom kedua berisi informasi-informasi teks dengan dibuat rata kiri. Tambahkan toggle Show hide di pojok kanan header yang bisa menyembunyikan header;
 
 ## Sistem Ai Asisten / Helper
 - [ ] Apa yang diperlukan agar digsan.id dapat memunculkan data analisis berbasis database yang dihimpun yang kemudian diikuti dengan aksi merekomendasikan hubungan antar tree yang belum terhubung misalnya keluarga si A direkomendasikan untuk menjalin koneksi dengan keluarga si B (juga sebaliknya) karena memiliki keterkaitan/kesamaan silsilah kakek / nenek atau paman atau buyut, atau lainnya?
