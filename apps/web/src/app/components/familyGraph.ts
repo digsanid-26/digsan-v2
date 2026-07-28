@@ -288,12 +288,24 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
     g[selfNodeId].isSelf = true;
     g[selfNodeId].group = 'self';
     g[selfNodeId].role = 'Diri Sendiri';
-    // Do NOT copy parentId from the original self to the new self.
-    // The connected user (e.g. wife) has their own parents, not the
-    // inviter's parents. Since the wife hasn't configured her own
-    // parents yet, she simply sees no ancestors above her — correct.
-    // Children are found via orderedChildren() which checks both the
-    // anchor and its spouse, so no reparenting is needed either.
+    // Transfer the parent link from the old self to the new self.
+    // The config-driven base graph sets parentId on 'self' (the tree
+    // owner). After re-pivot, the connected user (e.g. wife) becomes
+    // self and should inherit that parent link — those are HER parents
+    // from her own Pengaturan Bagan config. The old self (husband)
+    // must lose the link so he doesn't appear as a child of wife's
+    // parents.
+    if (g['self'].parentId && !g[selfNodeId].parentId) {
+      g[selfNodeId].parentId = g['self'].parentId;
+      g['self'].parentId = null;
+    }
+    // Children with parentId === 'self' (the old self / husband) should
+    // be reparented to the new self (wife) so they descend from her.
+    for (const m of Object.values(g)) {
+      if (m.parentId === 'self' && m.id !== selfNodeId) {
+        m.parentId = selfNodeId;
+      }
+    }
   }
 
   return g;
