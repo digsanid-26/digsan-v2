@@ -204,3 +204,25 @@ export class RedeemStatusDto {
   @IsString()
   note?: string;
 }
+
+// ─── MANUAL POINT DTO ──────────────────────────────────────────
+
+export class ManualPointDto {
+  @ApiProperty({ example: 'clxxxx...', description: 'User ID target' })
+  @IsString()
+  userId: string;
+
+  @ApiProperty({ example: 50, description: 'Jumlah poin (positif untuk menambah, negatif untuk mengurangi)' })
+  @Type(() => Number)
+  @IsInt()
+  amount: number;
+
+  @ApiProperty({ example: 'pengabdian', description: 'Tipe poin' })
+  @IsString()
+  type: string;
+
+  @ApiPropertyOptional({ example: 'Bonus dari admin' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}

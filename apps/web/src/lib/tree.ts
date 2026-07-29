@@ -1,4 +1,4 @@
-import { getTokens } from './auth';
+import { getTokens, saveTokens, clearAuth } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
@@ -20,6 +20,38 @@ export interface TreeLayout<C = unknown, M = unknown> {
   connectedFamily?: ConnectedFamily | null;
 }
 
+let refreshingPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (refreshingPromise) return refreshingPromise;
+  const tokens = getTokens();
+  if (!tokens?.refreshToken) return false;
+  refreshingPromise = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+      });
+      if (!res.ok) { clearAuth(); return false; }
+      const body = await res.json().catch(() => ({}));
+      const newTokens = (body as any).data ?? body;
+      if (newTokens?.accessToken && newTokens?.refreshToken) {
+        saveTokens({ accessToken: newTokens.accessToken, refreshToken: newTokens.refreshToken });
+        return true;
+      }
+      clearAuth();
+      return false;
+    } catch {
+      clearAuth();
+      return false;
+    } finally {
+      refreshingPromise = null;
+    }
+  })();
+  return refreshingPromise;
+}
+
 async function authRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const tokens = getTokens();
   if (!tokens?.accessToken) {
@@ -36,6 +68,31 @@ async function authRequest<T>(endpoint: string, options: RequestInit = {}): Prom
     },
   });
   const body = await res.json().catch(() => ({}));
+
+  // Auto-refresh on 401 and retry once
+  if (res.status === 401) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      const newTokens = getTokens();
+      const retryRes = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${newTokens!.accessToken}`,
+          ...options.headers,
+        },
+      });
+      const retryBody = await retryRes.json().catch(() => ({}));
+      if (!retryRes.ok) {
+        const err = new Error((retryBody as { message?: string }).message || `HTTP ${retryRes.status}`) as Error & { status: number };
+        err.status = retryRes.status;
+        throw err;
+      }
+      return ((retryBody as { data?: unknown }).data ?? retryBody) as T;
+    }
+    clearAuth();
+  }
+
   if (!res.ok) {
     const err = new Error((body as { message?: string }).message || `HTTP ${res.status}`) as Error & { status: number };
     err.status = res.status;
@@ -268,6 +325,25 @@ async function publicRequest<T>(endpoint: string, authToken?: string): Promise<T
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
   const res = await fetch(`${API_URL}${endpoint}`, { headers });
   const body = await res.json().catch(() => ({}));
+
+  // Auto-refresh on 401/403 if we sent an auth token (it may have expired)
+  if ((res.status === 401 || res.status === 403) && authToken) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      const newTokens = getTokens();
+      const retryRes = await fetch(`${API_URL}${endpoint}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${newTokens!.accessToken}`,
+        },
+      });
+      const retryBody = await retryRes.json().catch(() => ({}));
+      if (retryRes.ok) {
+        return ((retryBody as { data?: unknown }).data ?? retryBody) as T;
+      }
+    }
+  }
+
   if (!res.ok) {
     const err = new Error((body as { message?: string }).message || `HTTP ${res.status}`) as Error & { status: number };
     err.status = res.status;

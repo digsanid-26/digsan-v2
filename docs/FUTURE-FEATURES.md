@@ -25,10 +25,8 @@
 
 ## Detail Anggota (Diri sendiri) Improvement
 Pada Sidebar Detil anggota (diri sendiri) di halaman /tree: 
-- [x] Area Lengkapi Profil | style bordered, hightlight background | Di dalam area terdapat progress bar kecil dengan persentase kelengkapan, diikuti keterangan teks kecil : Melengkapi profil 100% bisa memberikan poin pengabdian sebesar 20 poin, diikuti tombol Lengkapi Profil
-- [ ] Badge Area | Heading : Badge Anda | Badge diperoleh dengan mengikuti atau mengaktifkan fitur-fitur keanggotaan, modul, dan usaha/program keluarga di Digsan.id
+- [ ] Area Lengkapi Profil | style bordered, hightlight background | Di dalam area terdapat progress bar kecil dengan persentase kelengkapan, diikuti keterangan teks kecil : Melengkapi profil 100% bisa memberikan poin pengabdian sebesar 20 poin, diikuti tombol Lengkapi Profil
 - [ ] Pada area Telah Terhubung. Telah terhubung dengan Family belum menunjukkan nama family yang benar. Di situ tertulis Keluarga;
-- [ ] Tombol update koneksi dari istri misalnya tidak menjangkau data anak-anak yang sudah diupdate di sisi Suami.
 
 ## Detail Anggota Keluarga (istri/suami, anak-anak, saudara, orang tua, dst)
 - [x] Sidebar Detil Profil, fungsi link tombol Undang Pemilik Identitas alihkan ke Modal Buat Undangan (gambar silsilah) sama seperti tombol Undang di tree, perbedaannya ada di Pesan Undangan terdapat nama terundang. Ganti metode undangan pada Modal Buat Metode undangan dari tombol (download, bagikan, Whatsapp, Telegram) menjadi dropdown field sebelum Judul. Tergantung metode undangan yang dipilih, munculkan field yang perlu diisi sebelum bisa mengklik tombol Kirim / Cetak / Salin Tautan : Whatsapp perlu mengisi nomor whatsapp (+62xxxx), telegram (nomor/id telegram), Email (alamat email). 
@@ -39,7 +37,7 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 
 ## Sistem Notifikasi
 - [x] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan dan dikonfigurasi di admin seiring perkembangan aplikasi (karena saat ini masih proses pembangunan);
-- [ ] Aktifkan Push notifikasi dan cek build whatsapp verifikasi dan invitation via whatsapp menggunakan fonnte whatsapp gateway;
+- [ ] Aktifkan Push notifikasi dan jajaki build whatsapp verifikasi dan invitation via whatsapp menggunakan fonnte whatsapp gateway;
 
 ### Notifikasi Role
 #### Notifikasi untuk user
@@ -49,8 +47,8 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 - [ ] Notifikasi klaim yang datang dari user terhadap node tree yang dikelolanya. Sediakan halaman Klaim untuk mencocokkan data serta menerima atau menolak klaim;
 
 ### Perbaikan notifikasi
-- [ ] Cek bubble notifikasi bel yang spertinya belum bekerja dengan baik. Di app.digsan.id/notifications terdapat notifikasi namun bubbe notifikasi bel tidak menunjukkannya.
-- [ ] Cek halaman /notifications sepertinya belum support dark mode;
+- [x] Cek bubble notifikasi bel yang spertinya belum bekerja dengan baik. Di app.digsan.id/notifications terdapat notifikasi namun bubbe notifikasi bel tidak menunjukkannya.
+- [x] Cek halaman /notifications sepertinya belum support dark mode;
 
 
 
@@ -65,7 +63,7 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 ## Sistem navigasi dan halaman detil
 - [x] Membuat halaman Family | tree/nama-keluarga (misal tree/farisma-fam) : berisi keluarga kecil ayah, ibu, anak-anak saja dengan konten yang lebih lengkap dan personal (untuk dikembangkan lebih lanjut nanti);
 - [x] Membuat halaman profil personal | tree/nama-keluarga/nama-publik-anda (misal tree/farisma-fam/arisnwh) : Halaman profil pribadi untuk diri sendiri yang nantinya bisa dikembangkan lebih lanjut;
-- [ ] Perlu diperbaiki masalah sesion login yang terlalu singkat, dan ketika terlogout di halaman tertentu, ketika login tidak kembali ke halaman tadi/terakhir login.
+- [x] Perlu diperbaiki masalah sesion login yang terlalu singkat dan ketika terlogout di halaman tertentu, login tidak kembali ke halaman tadi/terakhir login.
 
 ## Pengembangan Aktivitas Status
 - [ ] Ubah mode dummy aktivitas lini masa ke real. Buat sistemnya dan jelajahi apa saja yang bisa dibangun untuk ditampilkan di lini masa aktivitas sebagai isi dari real aktivitas;
@@ -78,8 +76,7 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 - [x] Poin pengabdian : Pengabdian dalam menyelesaikan task, pengabdian dalam mengembangkan jaringan / koneksi keluarga
 - [x] Poin aktivitas : Keaktifan dalam aplikasi, keaktifan dalam mengikuti kegiatan online / offline, keaktifan mengisi/mengupdate konten/status
 - [x] Poin produktivitas : Keaktifan dalam kegiatan bersifat ekonomis, keaktifan dalam mengikuti keanggotaan, keaktifan dalam wadah usaha/program bersama.
-- [ ] Bagaimanakah caranya menambah dan mengubah gamification role?
-- [ ] Buatkan metode mendistribusikan poin secara manual dari dashboard admin dari admin ke user tertentu (super admin).
+- [ ] Bagaimanakah caranya menambah dan mengubah gamification role di admin?
 
 ### Gamification Role
 - [ ] Login tiap hari sekali mendapatkan aktivitas poin 2;
@@ -99,9 +96,9 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 - [x] Perlu dipastikan baik di /tree maupun di publik family/nama-keluarga bahwa anggota keluarga utama (app.digsan.id/family/nama-family) hanya terdiri atas diri sendiri, pasangan (suami/istri), dan anak-anak, baik yang masih ada maupun yang sudah meninggal dunia, gabungan antar anggota utama ini kemudian kita sebut saja Family Node. User berstatus kepala keluarga atau role super_user dapat menambahkan pasangan dan anak-anaknya ke dalam Family Node yang dia buat tersebut dan seterusnya memiliki slug yang sama untuk mengakses public family tree mereka. Diluar itu seperti orang tua, saudara sendiri, saudara orang tua, maupun kakek-nenek/simbah, akan memiliki family node sendiri-sendiri yang bisa dibuat melalui akun mereka masing-masing (akun kepala keluarga atau role super_user), nama family node akan otomatis menggunakan nama kepala keluarga sebelum diedit oleh pengguna aktif di dalam family node tersebut;
 - [x] Dengan pengkondisian di atas, maka pada /tree ketika lingkaran/node tree ortu dan kakak / adik diklik akan memunculkan bagan baru yaitu Mode NodeFamily yang akan berisi jaringan yang disambung antar Family node. Ke atas akan terhubung dengan dua family node orang tua (orang tua Anda dan orang tua pasangan Anda). Ke Samping, karena ini masih di dalam lingkaran keluarga Anda maka yang dimunculkan adalah family node dari kakak dan adik Anda, baik yang masih ada maupun yang sudah meninggal dunia;
 - [x] Family Node perlu memiliki halaman edit yang lebih komprehensif (page family edit) dengan tambahan data (field baru) seperti Family Image dan Family Cover (fitur upload gambar) beserta field yang sebelumnya ada di Pengaturan Bagan (seperti nama family beserta edit slug, jumlah pasangan, jumlah anak), List anggota tergabung (dengan fitur bisa menambahkan, edit, mengurangi bagi role tertentu), lalu ada text area field untuk Family Bio, field tanggal pernikahan (tgl, bulan, tahun), Status Pernikahan (Tanpa Status, Berlangsung, Cerai hidup, Cerai mati) untuk nantinya membentuk profil family yang lebih lengkap (app.digsan.id/family/nama-family) yang terdiri atas header area, family content (termasuk bagan/public tree).
-- [ ] Kemudian masalah fitur editing desain halaman publik Family Node milik keluarga utama perlu diperbarui/diubah dan dibatasi akses pengaturannya hanya dimiliki oleh kepala keluarga/suami atau bila single parent (bercerai/janda) bisa wanita yang memiliki role super_user, sementara anggota keluarga yang lain hanya bisa melihat previewnya. Jadi satu keluarga utama (suami, istri, anak-anak) hanya bisa memiliki 1 family node;
-- [ ] Pada tree halaman publik family (/family/nama-family), sediakan fungsi klik pada lingkaran/node orang tua akan menampilkan model view baru yaitu Tree Family Node yang terdiri atas jaringan antara Family Node (dalam bentuk lingkaran). Gambar di dalam lingkaran dari Tree Family Node diambil dari image cover family node. Susunannya family node milik sendiri menonjol di tengah, ada garis dibuat bercabang dua ke atas menuju 2 family node orang tua dari kedua belah pihak, kiri family node orang tua suami, kanan family node orang tua istri. Jaringan ke samping kiri dari family node utama mengarah ke family node saudara-saudara suami, sementara ke kanan mengarah ke family node saudara-saudara istri. Ke bawah ke family node anak-anak yang sudah berkeluarga. 
-- [ ] Masing-masing lingkaran family node ketika dihover akan memunculkan lingkaran kecil anggota family node di dalamnya dalam posisi mengelilinginya mulai dari kiri Suami/Kepala Keluarga, diikuti Istri/Pasangan, diikuti oleh anak-anaknya (lebih dari 2 anak akan ada lingkaran dengan tanda + yang bisa diexpand). Bila lingkaran family node diklik akan membuka halaman publik detil family tersebut (family/nama-family)
+- [x] Kemudian masalah fitur editing desain halaman publik Family Node milik keluarga utama perlu diperbarui/diubah dan dibatasi akses pengaturannya hanya dimiliki oleh kepala keluarga/suami atau bila single parent (bercerai/janda) bisa wanita yang memiliki role super_user, sementara anggota keluarga yang lain hanya bisa melihat previewnya. Jadi satu keluarga utama (suami, istri, anak-anak) hanya bisa memiliki 1 family node;
+- [x] Pada tree halaman publik family (/family/nama-family), sediakan fungsi klik pada lingkaran/node orang tua akan menampilkan model view baru yaitu Tree Family Node yang terdiri atas jaringan antara Family Node (dalam bentuk lingkaran). Gambar di dalam lingkaran dari Tree Family Node diambil dari image cover family node. Susunannya family node milik sendiri menonjol di tengah, ada garis dibuat bercabang dua ke atas menuju 2 family node orang tua dari kedua belah pihak, kiri family node orang tua suami, kanan family node orang tua istri. Jaringan ke samping kiri dari family node utama mengarah ke family node saudara-saudara suami, sementara ke kanan mengarah ke family node saudara-saudara istri. Ke bawah ke family node anak-anak yang sudah berkeluarga. 
+- [x] Masing-masing lingkaran family node ketika dihover akan memunculkan lingkaran kecil anggota family node di dalamnya dalam posisi mengelilinginya mulai dari kiri Suami/Kepala Keluarga, diikuti Istri/Pasangan, diikuti oleh anak-anaknya (lebih dari 2 anak akan ada lingkaran dengan tanda + yang bisa diexpand). Bila lingkaran family node diklik akan membuka halaman publik detil family tersebut (family/nama-family)
 
 ### Familymember Improvement
 - [x] Tiap lingkaran familymember yang dibuat user / super_user akan otomatis ditambahkan ke dalam halaman Daftar Familymember user terkait. Untuk User tanpa role super_user tetap memiliki halaman ini namun tidak diijinkan mengaksesnya kecuali upgrade user rolenya;

@@ -267,6 +267,23 @@ async function main() {
     console.log(`  ✓ Badge: ${badgeData.name}`);
   }
 
+  // ─── POINT TYPES SEED ───────────────────────────────────────
+  const pointTypes = [
+    { name: 'pengabdian', label: 'Poin Pengabdian', description: 'Pengabdian dalam menyelesaikan task dan mengembangkan jaringan keluarga', icon: 'heart', color: '#eab308' },
+    { name: 'aktivitas', label: 'Poin Aktivitas', description: 'Keaktifan dalam aplikasi, kegiatan online/offline, dan mengupdate konten', icon: 'zap', color: '#3b82f6' },
+    { name: 'produktivitas', label: 'Poin Produktivitas', description: 'Keaktifan dalam kegiatan ekonomis, keanggotaan, dan usaha/program bersama', icon: 'trending-up', color: '#22c55e' },
+    { name: 'general', label: 'General Poin', description: 'Poin umum yang dapat didistribusikan ke tipe poin lain', icon: 'coins', color: '#a855f7' },
+  ];
+
+  for (const pt of pointTypes) {
+    await prisma.pointType.upsert({
+      where: { name: pt.name },
+      update: {},
+      create: pt,
+    });
+    console.log(`  ✓ PointType: ${pt.label}`);
+  }
+
   // ─── GAMI RULES SEED ────────────────────────────────────────
   const gamiRules = [
     {
@@ -293,6 +310,14 @@ async function main() {
       description: 'Mengembangkan jaringan berupa penambahan aktif user di jaringan',
       pointType: 'pengabdian',
       amount: 10,
+      isEnabled: true,
+    },
+    {
+      key: 'new_account',
+      label: 'Akun Baru Aktif',
+      description: 'Membuat akun baru (real user) dan mengaktifkannya mendapatkan general poin',
+      pointType: 'general',
+      amount: 100,
       isEnabled: true,
     },
   ];

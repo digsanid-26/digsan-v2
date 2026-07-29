@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { Prisma } from '@prisma/client';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class GamificationAdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationService,
+  ) {}
 
   // ─── POINT TYPES (Gami Konfigurasi) ──────────────────────────
 
@@ -236,6 +240,51 @@ export class GamificationAdminService {
         user: { select: { id: true, name: true, email: true } },
         reward: { select: { id: true, name: true, pointCost: true } },
       },
+    });
+  }
+
+  // ─── MANUAL POINT DISTRIBUTION ──────────────────────────────
+
+  async awardManualPoints(data: { userId: string; amount: number; type: string; reason?: string }) {
+    const user = await this.prisma.user.findUnique({ where: { id: data.userId } });
+    if (!user) throw new NotFoundException('User tidak ditemukan');
+
+    const point = await this.prisma.point.create({
+      data: {
+        userId: data.userId,
+        amount: data.amount,
+        type: data.type,
+        reason: data.reason || 'Manual point dari admin',
+        metadata: { source: 'admin_manual' },
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true, avatar: true } },
+      },
+    });
+
+    // Notify user
+    this.notifications.create({
+      userId: data.userId,
+      type: 'POINT_RECEIVED' as any,
+      title: 'Poin Diterima',
+      message: `Anda mendapat ${data.amount > 0 ? '+' : ''}${data.amount} poin ${data.type}${data.reason ? ` — ${data.reason}` : ''}.`,
+      data: { pointId: point.id, amount: data.amount, type: data.type, reason: data.reason },
+    }).catch(() => {});
+
+    return point;
+  }
+
+  async searchUsers(query: string) {
+    if (!query || query.length < 2) return [];
+    return this.prisma.user.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, name: true, email: true, avatar: true },
+      take: 10,
     });
   }
 }

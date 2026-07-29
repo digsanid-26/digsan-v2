@@ -233,6 +233,26 @@ export class TreeService {
         where: { slug: sharedSlug },
       });
       if (inviterTree) sourceTree = inviterTree;
+    } else if (tree.userId === userId) {
+      // Fallback for old data: check if this user is a linked member
+      // in someone else's tree (linked before sharedFamilySlug feature).
+      const inviterTree = await this.findInviterTree(userId);
+      if (inviterTree && inviterTree.id !== tree.id) {
+        canEdit = false;
+        sourceTree = inviterTree;
+        // Fix: backfill sharedFamilySlug so future requests skip the search
+        const inviterSlug = (inviterTree.layoutConfig as any)?.sharedFamilySlug
+          || (inviterTree.layoutConfig as any)?.slug
+          || inviterTree.slug;
+        if (inviterSlug) {
+          this.prisma.familyTree.update({
+            where: { id: tree.id },
+            data: {
+              layoutConfig: { ...config, sharedFamilySlug: inviterSlug } as any,
+            },
+          }).catch((err) => this.logger.error(`Failed to backfill sharedFamilySlug: ${err}`));
+        }
+      }
     }
 
     const stored = await this.prisma.familyMember.findMany({
@@ -277,6 +297,25 @@ export class TreeService {
   }
 
   // ─── LAYOUT (config-driven explorer sync) ───────────────────
+
+  /** Find a tree where the given user is a linked member (linkedUserId in layoutMembers).
+   *  Used as fallback for old data created before sharedFamilySlug feature. */
+  private async findInviterTree(userId: string) {
+    // Get all trees that are NOT owned by this user
+    const trees = await this.prisma.familyTree.findMany({
+      where: { userId: { not: userId } },
+    });
+
+    for (const t of trees) {
+      const members = (t.layoutMembers as Record<string, any>) ?? {};
+      for (const [, m] of Object.entries(members)) {
+        if ((m as any)?.linkedUserId === userId) {
+          return t;
+        }
+      }
+    }
+    return null;
+  }
 
   /** Returns the user's default tree (creating one if none exists). */
   private async getOrCreateDefaultTree(userId: string) {

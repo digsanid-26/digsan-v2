@@ -288,17 +288,23 @@ function ConfigTab() {
 
 function RulesTab() {
   const [rules, setRules] = useState<any[]>([]);
+  const [pointTypes, setPointTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ label: '', description: '', pointType: '', amount: 0, isEnabled: true, streakDays: null as number | null, bonusAmount: null as number | null });
+  const [isCreating, setIsCreating] = useState(false);
+  const [editForm, setEditForm] = useState({ key: '', label: '', description: '', pointType: '', amount: 0, isEnabled: true, streakDays: null as number | null, bonusAmount: null as number | null });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const loadRules = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await apiRequest('/admin/gamification/rules');
-      setRules(Array.isArray(data) ? data : []);
+      const [ruleData, ptData] = await Promise.all([
+        apiRequest('/admin/gamification/rules'),
+        apiRequest('/admin/gamification/point-types'),
+      ]);
+      setRules(Array.isArray(ruleData) ? ruleData : []);
+      setPointTypes(Array.isArray(ptData) ? ptData : []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -310,7 +316,9 @@ function RulesTab() {
 
   const startEdit = (rule: any) => {
     setEditing(rule);
+    setIsCreating(false);
     setEditForm({
+      key: rule.key || '',
       label: rule.label || '',
       description: rule.description || '',
       pointType: rule.pointType || '',
@@ -319,6 +327,12 @@ function RulesTab() {
       streakDays: rule.streakDays ?? null,
       bonusAmount: rule.bonusAmount ?? null,
     });
+  };
+
+  const startCreate = () => {
+    setEditing(null);
+    setIsCreating(true);
+    setEditForm({ key: '', label: '', description: '', pointType: pointTypes[0]?.name || '', amount: 0, isEnabled: true, streakDays: null, bonusAmount: null });
   };
 
   const saveRule = async () => {
@@ -339,6 +353,37 @@ function RulesTab() {
     }
   };
 
+  const createRule = async () => {
+    if (!editForm.key || !editForm.label || !editForm.pointType) {
+      setError('Key, label, dan tipe poin wajib diisi');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await apiRequest('/admin/gamification/rules', {
+        method: 'POST',
+        body: JSON.stringify(editForm),
+      });
+      setIsCreating(false);
+      loadRules();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteRule = async (rule: any) => {
+    if (!confirm(`Hapus aturan "${rule.label}"?`)) return;
+    try {
+      await apiRequest(`/admin/gamification/rules/${rule.id}`, { method: 'DELETE' });
+      loadRules();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const toggleEnabled = async (rule: any) => {
     try {
       await apiRequest(`/admin/gamification/rules/${rule.id}`, {
@@ -353,9 +398,22 @@ function RulesTab() {
 
   if (loading) return <div className="text-center py-8 text-slate-400">Memuat...</div>;
 
+  const showModal = editing || isCreating;
+  const modalTitle = isCreating ? 'Tambah Role Poin' : `Edit Role: ${editing?.label}`;
+  const modalSubmit = isCreating ? createRule : saveRule;
+
   return (
     <div className="space-y-4">
       {error && <div className="rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 px-4 py-2 text-sm text-rose-600 dark:text-rose-400">{error}</div>}
+
+      <div className="flex justify-end">
+        <button
+          onClick={startCreate}
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition"
+        >
+          <Plus size={16} /> Tambah Role
+        </button>
+      </div>
 
       <div className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
         <table className="w-full text-sm">
@@ -391,12 +449,18 @@ function RulesTab() {
                     <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${rule.isEnabled ? 'translate-x-4.5' : 'translate-x-0.5'}`} style={{ transform: rule.isEnabled ? 'translateX(18px)' : 'translateX(2px)' }} />
                   </button>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right whitespace-nowrap">
                   <button
                     onClick={() => startEdit(rule)}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline mr-3"
                   >
                     <Edit size={13} />Edit
+                  </button>
+                  <button
+                    onClick={() => deleteRule(rule)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-rose-500 dark:text-rose-400 hover:underline"
+                  >
+                    <Trash2 size={13} />Hapus
                   </button>
                 </td>
               </tr>
@@ -405,18 +469,29 @@ function RulesTab() {
         </table>
       </div>
 
-      {/* Edit Modal */}
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setEditing(null)}>
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setEditing(null); setIsCreating(false); }}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0a0e1a] border border-slate-200 dark:border-white/10 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Edit Role: {editing.label}</h3>
-              <button onClick={() => setEditing(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white"><X size={18} /></button>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{modalTitle}</h3>
+              <button onClick={() => { setEditing(null); setIsCreating(false); }} className="text-slate-400 hover:text-slate-900 dark:hover:text-white"><X size={18} /></button>
             </div>
 
             {error && <div className="text-sm text-rose-500">{error}</div>}
 
             <div className="space-y-3">
+              {isCreating && (
+                <div>
+                  <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Key (slug unik)</label>
+                  <input
+                    value={editForm.key}
+                    onChange={(e) => setEditForm({ ...editForm, key: e.target.value })}
+                    placeholder="contoh: daily_login"
+                    className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Label</label>
                 <input
@@ -436,11 +511,20 @@ function RulesTab() {
               </div>
               <div>
                 <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Tipe Poin</label>
-                <input
+                <select
                   value={editForm.pointType}
                   onChange={(e) => setEditForm({ ...editForm, pointType: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
-                />
+                >
+                  <option value="">— Pilih tipe —</option>
+                  {pointTypes.map((pt: any) => (
+                    <option key={pt.id} value={pt.name}>{pt.label}</option>
+                  ))}
+                  {/* Allow free-text for types not in PointType table */}
+                  {!pointTypes.some((pt: any) => pt.name === editForm.pointType) && editForm.pointType && (
+                    <option value={editForm.pointType}>{editForm.pointType}</option>
+                  )}
+                </select>
               </div>
               <div>
                 <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Jumlah Poin</label>
@@ -451,28 +535,26 @@ function RulesTab() {
                   className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
                 />
               </div>
-              {editing.key === 'streak_5_day' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Hari Streak</label>
-                    <input
-                      type="number"
-                      value={editForm.streakDays ?? ''}
-                      onChange={(e) => setEditForm({ ...editForm, streakDays: e.target.value ? parseInt(e.target.value) : null })}
-                      className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Bonus Poin</label>
-                    <input
-                      type="number"
-                      value={editForm.bonusAmount ?? ''}
-                      onChange={(e) => setEditForm({ ...editForm, bonusAmount: e.target.value ? parseInt(e.target.value) : null })}
-                      className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Hari Streak (opsional)</label>
+                  <input
+                    type="number"
+                    value={editForm.streakDays ?? ''}
+                    onChange={(e) => setEditForm({ ...editForm, streakDays: e.target.value ? parseInt(e.target.value) : null })}
+                    className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                  />
                 </div>
-              )}
+                <div>
+                  <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Bonus Poin (opsional)</label>
+                  <input
+                    type="number"
+                    value={editForm.bonusAmount ?? ''}
+                    onChange={(e) => setEditForm({ ...editForm, bonusAmount: e.target.value ? parseInt(e.target.value) : null })}
+                    className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                  />
+                </div>
+              </div>
               <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-white/70">
                 <input
                   type="checkbox"
@@ -486,14 +568,14 @@ function RulesTab() {
 
             <div className="flex gap-2 pt-2">
               <button
-                onClick={saveRule}
+                onClick={modalSubmit}
                 disabled={saving}
                 className="flex-1 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50"
               >
                 {saving ? 'Menyimpan...' : 'Simpan'}
               </button>
               <button
-                onClick={() => setEditing(null)}
+                onClick={() => { setEditing(null); setIsCreating(false); }}
                 className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-white/15 text-slate-600 dark:text-white/60 hover:bg-slate-50 dark:hover:bg-white/5"
               >
                 Batal
@@ -517,6 +599,13 @@ function StatsTab() {
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState('');
   const [selectedLog, setSelectedLog] = useState<any>(null);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [manualForm, setManualForm] = useState({ amount: 0, type: '', reason: '' });
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualError, setManualError] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -539,6 +628,37 @@ function StatsTab() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const searchUsers = useCallback(async (q: string) => {
+    if (q.length < 2) { setSearchResults([]); return; }
+    try {
+      const results = await apiRequest(`/admin/gamification/search-users?q=${encodeURIComponent(q)}`);
+      setSearchResults(Array.isArray(results) ? results : []);
+    } catch { setSearchResults([]); }
+  }, []);
+
+  const submitManualPoints = async () => {
+    if (!selectedUser) { setManualError('Pilih user terlebih dahulu'); return; }
+    if (!manualForm.amount || !manualForm.type) { setManualError('Jumlah dan tipe poin wajib diisi'); return; }
+    setManualSaving(true);
+    setManualError('');
+    try {
+      await apiRequest('/admin/gamification/manual-points', {
+        method: 'POST',
+        body: JSON.stringify({ userId: selectedUser.id, ...manualForm }),
+      });
+      setShowManualForm(false);
+      setSelectedUser(null);
+      setSearchQuery('');
+      setSearchResults([]);
+      setManualForm({ amount: 0, type: '', reason: '' });
+      fetchData();
+    } catch (err: any) {
+      setManualError(err.message);
+    } finally {
+      setManualSaving(false);
+    }
+  };
+
   if (loading && !stats) {
     return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
   }
@@ -551,6 +671,122 @@ function StatsTab() {
         <StatBox label="User dengan Poin" value={stats?.totalUsersWithPoints ?? 0} color="bg-blue-500" icon={List} />
         <StatBox label="Tipe Poin Aktif" value={stats?.pointTypeStats?.length ?? 0} color="bg-emerald-500" icon={BarChart3} />
       </div>
+
+      {/* Manual Point Distribution Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowManualForm(true)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition"
+        >
+          <Plus size={16} /> Distribusi Poin Manual
+        </button>
+      </div>
+
+      {/* Manual Point Modal */}
+      {showManualForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowManualForm(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0a0e1a] border border-slate-200 dark:border-white/10 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Distribusi Poin Manual</h3>
+              <button onClick={() => setShowManualForm(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white"><X size={18} /></button>
+            </div>
+
+            {manualError && <div className="text-sm text-rose-500">{manualError}</div>}
+
+            <div className="space-y-3">
+              {/* User Search */}
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Cari User (nama/email)</label>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setSelectedUser(null); searchUsers(e.target.value); }}
+                  placeholder="Ketik minimal 2 karakter..."
+                  className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                />
+                {searchResults.length > 0 && !selectedUser && (
+                  <div className="mt-1 border border-slate-200 dark:border-white/10 rounded-lg max-h-40 overflow-y-auto">
+                    {searchResults.map((u) => (
+                      <button
+                        key={u.id}
+                        onClick={() => { setSelectedUser(u); setSearchQuery(`${u.name} (${u.email})`); setSearchResults([]); }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-2"
+                      >
+                        {u.avatar ? <img src={u.avatar} alt="" className="w-6 h-6 rounded-full" /> : <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-xs text-blue-600">{u.name?.[0]}</div>}
+                        <div>
+                          <div className="text-sm text-slate-900 dark:text-white">{u.name}</div>
+                          <div className="text-xs text-slate-400">{u.email}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedUser && (
+                  <div className="mt-1 text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <Check size={12} /> Terpilih: {selectedUser.name}
+                  </div>
+                )}
+              </div>
+
+              {/* Point Type */}
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Tipe Poin</label>
+                <select
+                  value={manualForm.type}
+                  onChange={(e) => setManualForm({ ...manualForm, type: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                >
+                  <option value="">— Pilih tipe —</option>
+                  {stats?.pointTypeStats?.map((s: any) => <option key={s.type} value={s.type}>{s.type}</option>)}
+                  <option value="general">general</option>
+                  <option value="pengabdian">pengabdian</option>
+                  <option value="aktivitas">aktivitas</option>
+                  <option value="produktivitas">produktivitas</option>
+                </select>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Jumlah Poin (negatif = kurangi)</label>
+                <input
+                  type="number"
+                  value={manualForm.amount}
+                  onChange={(e) => setManualForm({ ...manualForm, amount: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                />
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Alasan (opsional)</label>
+                <input
+                  type="text"
+                  value={manualForm.reason}
+                  onChange={(e) => setManualForm({ ...manualForm, reason: e.target.value })}
+                  placeholder="Bonus dari admin..."
+                  className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={submitManualPoints}
+                disabled={manualSaving}
+                className="flex-1 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50"
+              >
+                {manualSaving ? 'Mengirim...' : 'Kirim Poin'}
+              </button>
+              <button
+                onClick={() => setShowManualForm(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-white/15 text-slate-600 dark:text-white/60 hover:bg-slate-50 dark:hover:bg-white/5"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Point Type Stats */}
       {stats?.pointTypeStats?.length > 0 && (

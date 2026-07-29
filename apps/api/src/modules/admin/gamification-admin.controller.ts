@@ -21,6 +21,7 @@ import {
   UpdateRewardDto,
   RedeemStatusDto,
   RedeemQueryDto,
+  ManualPointDto,
 } from './dto/gamification-admin.dto';
 
 @ApiTags('Admin / Gamification')
@@ -147,5 +148,19 @@ export class GamificationAdminController {
     @Body() dto: RedeemStatusDto,
   ) {
     return this.gamiAdminService.updateRedeemStatus(id, dto.status, dto.note);
+  }
+
+  // ─── MANUAL POINT DISTRIBUTION ──────────────────────────────
+
+  @Post('manual-points')
+  @ApiOperation({ summary: 'Award/deduct points to a specific user manually' })
+  async awardManualPoints(@Body() dto: ManualPointDto) {
+    return this.gamiAdminService.awardManualPoints(dto);
+  }
+
+  @Get('search-users')
+  @ApiOperation({ summary: 'Search users by name or email for manual point distribution' })
+  async searchUsers(@Query('q') q: string) {
+    return this.gamiAdminService.searchUsers(q || '');
   }
 }

@@ -3,6 +3,32 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { auth, getTokens, saveTokens, saveUser, getUser, clearAuth } from '@/lib/auth';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+
+async function tryRefreshToken(): Promise<boolean> {
+  const tokens = getTokens();
+  if (!tokens?.refreshToken) return false;
+  try {
+    const res = await fetch(`${API_URL}/auth/refresh-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+    });
+    if (!res.ok) { clearAuth(); return false; }
+    const body = await res.json().catch(() => ({}));
+    const newTokens = (body as any).data ?? body;
+    if (newTokens?.accessToken && newTokens?.refreshToken) {
+      saveTokens({ accessToken: newTokens.accessToken, refreshToken: newTokens.refreshToken });
+      return true;
+    }
+    clearAuth();
+    return false;
+  } catch {
+    clearAuth();
+    return false;
+  }
+}
+
 interface User {
   id: string;
   email: string;
@@ -44,6 +70,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       saveUser(profile);
     } catch (err: any) {
       if (err?.status === 401 || err?.status === 403) {
+        // Try refreshing the token before kicking the user out
+        const refreshed = await tryRefreshToken();
+        if (refreshed) {
+          try {
+            const newTokens = getTokens();
+            const profile = await auth.getProfile(newTokens!.accessToken);
+            setUser(profile);
+            saveUser(profile);
+            return;
+          } catch {
+            // fall through to clearAuth
+          }
+        }
         clearAuth();
         setUser(null);
       }
