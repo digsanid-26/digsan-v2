@@ -128,7 +128,7 @@ export class TreeService {
     // Connected users (sharedFamilySlug set) cannot edit the family node.
     const config = (tree.layoutConfig as any) ?? {};
     if (config.sharedFamilySlug && !roles?.includes('super_user')) {
-      throw new ForbiddenException('Hanya kepala keluarga yang dapat mengedit Family Node');
+      throw new ForbiddenException('Hanya super_user yang dapat mengedit Family Node');
     }
 
     return this.prisma.familyTree.update({
@@ -223,14 +223,15 @@ export class TreeService {
     const tree = await this.ensureTreeOwner(id, userId, roles);
 
     // Connected users (sharedFamilySlug set) see the inviter's family node
-    // as read-only. Fetch the inviter's tree for the real family node data.
+    // as read-only — unless they have super_user role.
     const config = (tree.layoutConfig as any) ?? {};
     const sharedSlug = config.sharedFamilySlug as string | undefined;
+    const isSuperUser = roles?.includes('super_user');
     let canEdit = true;
     let sourceTree = tree;
 
     if (sharedSlug) {
-      canEdit = false;
+      canEdit = isSuperUser;
       const inviterTree = await this.prisma.familyTree.findFirst({
         where: { slug: sharedSlug },
       });
@@ -240,7 +241,7 @@ export class TreeService {
       // in someone else's tree (linked before sharedFamilySlug feature).
       const inviterTree = await this.findInviterTree(userId);
       if (inviterTree && inviterTree.id !== tree.id) {
-        canEdit = false;
+        canEdit = isSuperUser;
         sourceTree = inviterTree;
         // Fix: backfill sharedFamilySlug so future requests skip the search
         const inviterSlug = (inviterTree.layoutConfig as any)?.sharedFamilySlug
