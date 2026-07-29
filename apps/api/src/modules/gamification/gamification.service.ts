@@ -261,19 +261,21 @@ export class GamificationService {
     // Send push notification
     this.notifications.sendPushSafe(userId, 'Poin Diterima', `Anda mendapat +${loginRule.amount} poin ${loginRule.pointType} dari login harian`).catch(() => {});
 
-    // Check streak bonus
-    const streakRule = await this.prisma.gamiRule.findUnique({ where: { key: 'streak_5_day' } });
-    if (streakRule && streakRule.isEnabled && streakRule.streakDays && streakRule.bonusAmount && streakRule.bonusAmount > 0) {
-      // Count consecutive days of login (including today)
-      const streakDays = await this.calculateLoginStreak(userId, loginRule.pointType);
-      if (streakDays >= streakRule.streakDays) {
-        // Check if streak bonus already awarded for this streak cycle
-        const streakBonusKey = `streak_bonus_${streakRule.streakDays}_${Math.floor(streakDays / streakRule.streakDays)}`;
+    // Check streak bonus — support multiple streak rules (streak_5_day, streak_30_day, etc.)
+    const streakRules = await this.prisma.gamiRule.findMany({
+      where: { key: { startsWith: 'streak_' }, isEnabled: true, streakDays: { not: null }, bonusAmount: { gt: 0 } },
+    });
+    const currentStreak = await this.calculateLoginStreak(userId, loginRule.pointType);
+
+    for (const streakRule of streakRules) {
+      if (streakRule.streakDays && currentStreak >= streakRule.streakDays) {
+        const streakBonusKey = `streak_bonus_${streakRule.streakDays}_${Math.floor(currentStreak / streakRule.streakDays)}`;
         const existingBonus = await this.prisma.point.findFirst({
           where: { userId, type: streakRule.pointType, metadata: { path: ['streakCycle'], equals: streakBonusKey } },
         });
         if (!existingBonus) {
-          await this.awardPoints(userId, streakRule.bonusAmount, streakRule.pointType, `Bonus ${streakRule.streakDays} hari berturut login`, { streakCycle: streakBonusKey, streakDays });
+          await this.awardPoints(userId, streakRule.bonusAmount!, streakRule.pointType, `Bonus ${streakRule.streakDays} hari berturut login`, { streakCycle: streakBonusKey, streakDays: currentStreak });
+          this.notifications.sendPushSafe(userId, 'Bonus Streak!', `Anda mendapat +${streakRule.bonusAmount} poin ${streakRule.pointType} dari ${streakRule.streakDays} hari berturut login`).catch(() => {});
         }
       }
     }
@@ -318,28 +320,49 @@ export class GamificationService {
   }
 
   async awardRegistrationPoints(userId: string) {
-    return this.awardPoints(userId, 50, 'registration', 'Welcome bonus');
+    return this.awardByRule(userId, 'new_account', 'Akun baru aktif');
   }
 
   async awardOrderCompletePoints(userId: string, orderId: string) {
-    return this.awardPoints(userId, 20, 'order_complete', 'Order completed', { orderId });
+    return this.awardByRule(userId, 'order_complete', 'Order completed', { orderId });
   }
 
   async awardReferralPoints(userId: string, referredUserId: string) {
-    return this.awardPoints(userId, 30, 'referral', 'Referral bonus', { referredUserId });
+    return this.awardByRule(userId, 'referral', 'Referral bonus', { referredUserId });
   }
 
   async awardTreeCreatedPoints(userId: string, treeId: string) {
-    return this.awardPoints(userId, 10, 'tree_created', 'Family tree created', { treeId });
+    return this.awardByRule(userId, 'tree_created', 'Family tree created', { treeId });
   }
 
   async awardReviewPoints(userId: string, reviewId: string) {
-    return this.awardPoints(userId, 10, 'review', 'Review submitted', { reviewId });
+    return this.awardByRule(userId, 'review', 'Review submitted', { reviewId });
   }
 
   async awardNetworkAddPoints(userId: string, newUserId: string) {
-    const rule = await this.prisma.gamiRule.findUnique({ where: { key: 'network_add' } });
-    if (!rule || !rule.isEnabled || rule.amount <= 0) return null;
-    return this.awardPoints(userId, rule.amount, rule.pointType, 'Penambahan jaringan keluarga', { newUserId });
+    return this.awardByRule(userId, 'network_add', 'Penambahan jaringan keluarga', { newUserId });
+  }
+
+  /** Generic rule-based point awarding.
+   *  Looks up GamiRule by key, checks isEnabled + amount > 0, then awards.
+   *  Falls back to hardcoded defaults if rule not found in DB. */
+  async awardByRule(userId: string, ruleKey: string, reason: string, metadata?: any) {
+    const rule = await this.prisma.gamiRule.findUnique({ where: { key: ruleKey } });
+    if (rule) {
+      if (!rule.isEnabled || rule.amount <= 0) return null;
+      return this.awardPoints(userId, rule.amount, rule.pointType, reason, metadata);
+    }
+    // Fallback defaults for rules not yet in DB
+    const fallbacks: Record<string, { amount: number; type: string }> = {
+      new_account: { amount: 100, type: 'general' },
+      order_complete: { amount: 20, type: 'produktivitas' },
+      referral: { amount: 30, type: 'pengabdian' },
+      tree_created: { amount: 10, type: 'produktivitas' },
+      review: { amount: 10, type: 'aktivitas' },
+      network_add: { amount: 5, type: 'pengabdian' },
+    };
+    const fb = fallbacks[ruleKey];
+    if (!fb) return null;
+    return this.awardPoints(userId, fb.amount, fb.type, reason, metadata);
   }
 }

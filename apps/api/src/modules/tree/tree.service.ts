@@ -19,6 +19,7 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { UpdateCardStyleDto } from './dto/card-style.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
+import { GamificationService } from '../gamification/gamification.service';
 
 @Injectable()
 export class TreeService {
@@ -29,6 +30,7 @@ export class TreeService {
     private email: EmailService,
     private config: ConfigService,
     private notifications: NotificationService,
+    private gamification: GamificationService,
   ) {}
 
   // ─── TREE CRUD ──────────────────────────────────────────────
@@ -715,6 +717,11 @@ export class TreeService {
 
       linkedTreeSlug = inviterSlug;
       this.logger.log(`Synced linked user ${linkedUser.id} tree: familyName="${inviterFamilyName}", sharedSlug="${inviterSlug}"`);
+
+      // Award network_add points to the inviter (tree owner)
+      this.gamification.awardNetworkAddPoints(tree.userId, linkedUser.id).catch((err) => {
+        this.logger.error(`Failed to award network_add points: ${err}`);
+      });
     } catch (err) {
       this.logger.error(`Failed to sync linked user's tree: ${err}`);
     }

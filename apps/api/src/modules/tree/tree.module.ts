@@ -3,9 +3,10 @@ import { TreeController, PublicTreeController, PublicFamilyController } from './
 import { TreeService } from './tree.service';
 import { NotificationModule } from '../notification/notification.module';
 import { AuthModule } from '../auth/auth.module';
+import { GamificationModule } from '../gamification/gamification.module';
 
 @Module({
-  imports: [NotificationModule, AuthModule],
+  imports: [NotificationModule, AuthModule, GamificationModule],
   controllers: [TreeController, PublicTreeController, PublicFamilyController],
   providers: [TreeService],
   exports: [TreeService],

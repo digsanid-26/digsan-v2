@@ -209,6 +209,11 @@ export class AuthService {
       }),
     ]);
 
+    // Award new_account points (non-blocking)
+    this.gamification.awardRegistrationPoints(verification.userId).catch((err) => {
+      this.logger.error(`Failed to award new_account points: ${err}`);
+    });
+
     return { message: 'Email berhasil diverifikasi' };
   }
 
@@ -441,6 +446,11 @@ export class AuthService {
             data: { userId: user.id, roleId: userRole.id },
           });
         }
+
+        // Award new_account points for Google signup
+        this.gamification.awardRegistrationPoints(user.id).catch((err) => {
+          this.logger.error(`Failed to award new_account points: ${err}`);
+        });
       }
     }
 

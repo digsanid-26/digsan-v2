@@ -286,6 +286,113 @@ function ConfigTab() {
 
 // ─── RULES TAB (Role Poin) ──────────────────────────────────────
 
+// ─── RULE KEY PRESETS ──────────────────────────────────────────
+// Predefined rule keys that map to backend events.
+// `wired: true` means the backend automatically triggers this rule.
+// `wired: false` means the rule exists in DB but needs backend code to trigger it.
+const RULE_KEY_PRESETS = [
+  {
+    key: 'daily_login',
+    label: 'Login Harian',
+    description: 'Login tiap hari sekali mendapatkan poin aktivitas',
+    pointType: 'aktivitas',
+    defaultAmount: 2,
+    streakDays: null,
+    bonusAmount: null,
+    wired: true,
+  },
+  {
+    key: 'streak_5_day',
+    label: 'Bonus 5 Hari Berturut',
+    description: 'Berturut-turut login 5 hari mendapatkan bonus poin aktivitas',
+    pointType: 'aktivitas',
+    defaultAmount: 0,
+    streakDays: 5,
+    bonusAmount: 10,
+    wired: true,
+  },
+  {
+    key: 'network_add',
+    label: 'Penambahan Jaringan',
+    description: 'Mengembangkan jaringan berupa penambahan aktif user di jaringan',
+    pointType: 'pengabdian',
+    defaultAmount: 5,
+    streakDays: null,
+    bonusAmount: null,
+    wired: true,
+  },
+  {
+    key: 'new_account',
+    label: 'Akun Baru Aktif',
+    description: 'Membuat akun baru dan mengaktifkannya mendapatkan general poin',
+    pointType: 'general',
+    defaultAmount: 100,
+    streakDays: null,
+    bonusAmount: null,
+    wired: true,
+  },
+  {
+    key: 'profile_complete',
+    label: 'Profil Lengkap',
+    description: 'Melengkapi data profil (foto, bio, telepon) mendapatkan poin aktivitas',
+    pointType: 'aktivitas',
+    defaultAmount: 5,
+    streakDays: null,
+    bonusAmount: null,
+    wired: false,
+  },
+  {
+    key: 'tree_created',
+    label: 'Membuat Family Tree',
+    description: 'Membuat pohon keluarga baru mendapatkan poin produktivitas',
+    pointType: 'produktivitas',
+    defaultAmount: 10,
+    streakDays: null,
+    bonusAmount: null,
+    wired: false,
+  },
+  {
+    key: 'family_node_created',
+    label: 'Membuat Family Node',
+    description: 'Mengatur family node (profil keluarga) mendapatkan poin produktivitas',
+    pointType: 'produktivitas',
+    defaultAmount: 15,
+    streakDays: null,
+    bonusAmount: null,
+    wired: false,
+  },
+  {
+    key: 'post_created',
+    label: 'Membuat Postingan',
+    description: 'Membuat cerita/status/postingan mendapatkan poin aktivitas',
+    pointType: 'aktivitas',
+    defaultAmount: 3,
+    streakDays: null,
+    bonusAmount: null,
+    wired: false,
+  },
+  {
+    key: 'referral',
+    label: 'Referral',
+    description: 'Mengajak orang lain mendaftar melalui referral mendapatkan poin pengabdian',
+    pointType: 'pengabdian',
+    defaultAmount: 30,
+    streakDays: null,
+    bonusAmount: null,
+    wired: false,
+  },
+  {
+    key: 'streak_30_day',
+    label: 'Bonus 30 Hari Berturut',
+    description: 'Berturut-turut login 30 hari mendapatkan bonus poin aktivitas besar',
+    pointType: 'aktivitas',
+    defaultAmount: 0,
+    streakDays: 30,
+    bonusAmount: 50,
+    wired: true,
+  },
+] as const;
+
 function RulesTab() {
   const [rules, setRules] = useState<any[]>([]);
   const [pointTypes, setPointTypes] = useState<any[]>([]);
@@ -484,12 +591,40 @@ function RulesTab() {
               {isCreating && (
                 <div>
                   <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Key (slug unik)</label>
-                  <input
+                  <select
                     value={editForm.key}
-                    onChange={(e) => setEditForm({ ...editForm, key: e.target.value })}
-                    placeholder="contoh: daily_login"
+                    onChange={(e) => {
+                      const selectedKey = e.target.value;
+                      const preset = RULE_KEY_PRESETS.find((p) => p.key === selectedKey);
+                      setEditForm({
+                        ...editForm,
+                        key: selectedKey,
+                        label: preset?.label || editForm.label,
+                        description: preset?.description || editForm.description,
+                        pointType: preset?.pointType || editForm.pointType,
+                        amount: preset?.defaultAmount ?? editForm.amount,
+                        streakDays: preset?.streakDays ?? editForm.streakDays,
+                        bonusAmount: preset?.bonusAmount ?? editForm.bonusAmount,
+                      });
+                    }}
                     className="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 text-slate-900 dark:text-white outline-none focus:border-blue-400"
-                  />
+                  >
+                    <option value="">— Pilih key —</option>
+                    {RULE_KEY_PRESETS.map((p) => (
+                      <option key={p.key} value={p.key}>{p.key} — {p.label}</option>
+                    ))}
+                    {/* Allow existing keys not in presets (for editing old data) */}
+                    {!RULE_KEY_PRESETS.some((p) => p.key === editForm.key) && editForm.key && (
+                      <option value={editForm.key}>{editForm.key} (custom)</option>
+                    )}
+                  </select>
+                  <p className="text-xs text-slate-400 dark:text-white/30 mt-1">
+                    {RULE_KEY_PRESETS.find((p) => p.key === editForm.key)?.wired
+                      ? '✓ Rule ini sudah terhubung ke sistem (otomatis berjalan)'
+                      : editForm.key
+                        ? '⚠ Rule ini belum terhubung ke sistem (perlu kode backend)'
+                        : 'Pilih key yang sesuai dengan event di sistem'}
+                  </p>
                 </div>
               )}
               <div>
