@@ -65,9 +65,9 @@ export class TreeController {
   }
 
   @Post('recover-slugs')
-  @ApiOperation({ summary: 'Recover slugs for trees that had them wiped (admin/super_user only)' })
+  @ApiOperation({ summary: 'Recover slugs for trees that had them wiped (admin only)' })
   async recoverSlugs(@CurrentUser('id') userId: string, @CurrentUser('roles') roles?: string[]) {
-    if (!roles?.includes('super_user')) throw new ForbiddenException('Akses ditolak');
+    if (!roles?.some((r) => ['super_user', 'admin', 'super_admin'].includes(r))) throw new ForbiddenException('Akses ditolak');
     return this.treeService.recoverSlugs();
   }
 
