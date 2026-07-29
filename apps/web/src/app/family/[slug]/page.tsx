@@ -11,7 +11,7 @@ import { auth, getTokens, getUser, saveTokens, saveUser } from '@/lib/auth';
 import type { TreeConfig, Members, TNode, Poly } from '@/app/components/treeTypes';
 import { DEFAULT_CONFIG } from '@/app/components/treeTypes';
 import PublicTreeCanvas from '@/app/components/PublicTreeCanvas';
-import FamilyNodeTreeCanvas, { type FamilyNodeItem, type FamilyNodeLink } from '@/app/components/FamilyNodeTreeCanvas';
+import FamilyNodeTreeCanvas, { type FamilyNodeItem, type FamilyNodeLink, type FamilyNodeMember } from '@/app/components/FamilyNodeTreeCanvas';
 import AppHeader from '@/app/components/AppHeader';
 import { ThemeProvider } from '@/app/components/ThemeProvider';
 import { AuthProvider } from '@/components/providers/auth-provider';
@@ -100,13 +100,25 @@ export default function PublicFamilyPage() {
     const fnLinks: FamilyNodeLink[] = [];
 
     // Self family node (center)
+    const selfMembers: FamilyNodeMember[] = [];
+    const selfM = ms['self'];
+    selfMembers.push({ name: selfM?.name || data.owner?.name || 'Kepala Keluarga', photo: selfM?.photo || data.owner?.avatar || null, role: 'head' });
+    for (let i = 0; i < cfg.spouseCount; i++) {
+      const sp = ms[`spouse-${i}`];
+      selfMembers.push({ name: sp?.name || 'Pasangan', photo: sp?.photo || null, role: 'spouse' });
+    }
+    for (let i = 0; i < cfg.childCount; i++) {
+      const c = ms[`child-${i}`];
+      selfMembers.push({ name: c?.name || `Anak ${i + 1}`, photo: c?.photo || null, role: 'child' });
+    }
     fnNodes.push({
       id: 'fn-self',
       name: data.name || 'Keluarga Kami',
       familyImage: data.familyImage,
       slug: slug,
       kind: 'self',
-      memberCount: cfg.childCount + 1 + cfg.spouseCount,
+      memberCount: selfMembers.length,
+      fnMembers: selfMembers,
       x: 0, y: 0,
     });
 
@@ -115,12 +127,16 @@ export default function PublicFamilyPage() {
       const p0 = ms['parent-0'];
       const p1 = ms['parent-1'];
       const parentName = [p0?.name, p1?.name].filter(Boolean).join(' & ') || 'Keluarga Orang Tua';
+      const parentMembers: FamilyNodeMember[] = [];
+      if (p0) parentMembers.push({ name: p0.name, photo: p0.photo || null, role: 'head' });
+      if (p1) parentMembers.push({ name: p1.name, photo: p1.photo || null, role: 'spouse' });
       fnNodes.push({
         id: 'fn-parent',
         name: `Keluarga ${parentName}`,
         familyImage: null,
         slug: null,
         kind: 'parent',
+        fnMembers: parentMembers.length > 0 ? parentMembers : undefined,
         x: 0, y: -280,
       });
       fnLinks.push({ from: 'fn-self', to: 'fn-parent' });
@@ -136,6 +152,7 @@ export default function PublicFamilyPage() {
         familyImage: k?.photo || null,
         slug: null,
         kind: 'sibling',
+        fnMembers: k ? [{ name: k.name, photo: k.photo || null, role: 'head' }] : undefined,
         x: -240 * (i + 1), y: 0,
       });
       fnLinks.push({ from: 'fn-self', to: `fn-kakak-${i}` });
@@ -151,6 +168,7 @@ export default function PublicFamilyPage() {
         familyImage: a?.photo || null,
         slug: null,
         kind: 'sibling',
+        fnMembers: a ? [{ name: a.name, photo: a.photo || null, role: 'head' }] : undefined,
         x: 240 * (i + 1), y: 0,
       });
       fnLinks.push({ from: 'fn-self', to: `fn-adik-${i}` });
@@ -163,13 +181,19 @@ export default function PublicFamilyPage() {
       const hasSpouse = c?.spouseId || ms[`child-${i}-spouse`];
       if (hasSpouse) {
         const childName = c?.name || `Anak ${i + 1}`;
+        const childMembers: FamilyNodeMember[] = [];
+        if (c) childMembers.push({ name: c.name, photo: c.photo || null, role: 'head' });
+        const spouseKey = c?.spouseId || `child-${i}-spouse`;
+        const cs = ms[spouseKey];
+        if (cs) childMembers.push({ name: cs.name, photo: cs.photo || null, role: 'spouse' });
         childNodes.push({
           id: `fn-child-${i}`,
           name: `Keluarga ${childName}`,
           familyImage: c?.photo || null,
           slug: null,
           kind: 'child',
-          x: 0, y: 0, // positioned below
+          fnMembers: childMembers.length > 0 ? childMembers : undefined,
+          x: 0, y: 0,
         });
       }
     }

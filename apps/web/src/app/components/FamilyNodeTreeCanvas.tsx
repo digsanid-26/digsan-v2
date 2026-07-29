@@ -3,6 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ZoomIn, ZoomOut, Maximize2, ArrowLeft, Users } from 'lucide-react';
 
+export interface FamilyNodeMember {
+  name: string;
+  photo: string | null;
+  role: 'head' | 'spouse' | 'child';
+}
+
 export interface FamilyNodeItem {
   id: string;
   name: string;
@@ -12,6 +18,8 @@ export interface FamilyNodeItem {
   kind: 'self' | 'parent' | 'sibling' | 'child';
   /** Optional member count to display. */
   memberCount?: number;
+  /** Members for hover preview (L104). */
+  fnMembers?: FamilyNodeMember[];
   x: number;
   y: number;
 }
@@ -214,7 +222,7 @@ export default function FamilyNodeTreeCanvas({ nodes, links, onNodeClick, onBack
                 {n.name.length > 22 ? `${n.name.slice(0, 21)}…` : n.name}
               </text>
               {/* Member count badge */}
-              {n.memberCount && n.memberCount > 0 && (
+              {n.memberCount && n.memberCount > 0 && !isHovered && (
                 <g transform={`translate(${r * 0.7}, ${r * 0.7})`}>
                   <circle r={12} fill="rgba(59,130,246,0.8)" />
                   <text textAnchor="middle" dominantBaseline="central" fill="white" fontSize={10} fontWeight={700}>
@@ -222,6 +230,70 @@ export default function FamilyNodeTreeCanvas({ nodes, links, onNodeClick, onBack
                   </text>
                 </g>
               )}
+
+              {/* L104: Orbiting member circles on hover */}
+              {isHovered && n.fnMembers && n.fnMembers.length > 0 && (() => {
+                const SMALL_R = 14;
+                const orbitR = r + 24;
+                // Cap: head + spouse + 2 children + 1 "plus" = 5 max
+                const MAX_SHOW = 5;
+                const visible = n.fnMembers.slice(0, MAX_SHOW);
+                const hasMore = n.fnMembers.length > MAX_SHOW;
+                const total = visible.length + (hasMore ? 1 : 0);
+                const startAngle = Math.PI; // left (180°)
+                const items: { x: number; y: number; m: FamilyNodeMember | null; isMore: boolean }[] = [];
+                for (let i = 0; i < visible.length; i++) {
+                  const angle = startAngle + (i * 2 * Math.PI / total);
+                  items.push({ x: orbitR * Math.cos(angle), y: orbitR * Math.sin(angle), m: visible[i], isMore: false });
+                }
+                if (hasMore) {
+                  const angle = startAngle + (visible.length * 2 * Math.PI / total);
+                  items.push({ x: orbitR * Math.cos(angle), y: orbitR * Math.sin(angle), m: null, isMore: true });
+                }
+                return (
+                  <>
+                    {items.map((item, idx) => (
+                      <g key={idx} transform={`translate(${item.x}, ${item.y})`}>
+                        {item.m?.photo ? (
+                          <>
+                            <clipPath id={`fnm-clip-${n.id}-${idx}`}>
+                              <circle r={SMALL_R - 1} />
+                            </clipPath>
+                            <circle r={SMALL_R} fill="#1a1a2e" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
+                            <image
+                              href={item.m.photo}
+                              x={-SMALL_R}
+                              y={-SMALL_R}
+                              width={SMALL_R * 2}
+                              height={SMALL_R * 2}
+                              clipPath={`url(#fnm-clip-${n.id}-${idx})`}
+                              preserveAspectRatio="xMidYMid slice"
+                            />
+                            <circle r={SMALL_R} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
+                          </>
+                        ) : item.isMore ? (
+                          <>
+                            <circle r={SMALL_R} fill="rgba(59,130,246,0.3)" stroke="rgba(59,130,246,0.5)" strokeWidth={1.5} />
+                            <text textAnchor="middle" dominantBaseline="central" fill="rgba(255,255,255,0.8)" fontSize={12} fontWeight={700}>+</text>
+                          </>
+                        ) : (
+                          <>
+                            <circle r={SMALL_R} fill="#151528" stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} />
+                            <text textAnchor="middle" dominantBaseline="central" fill="rgba(255,255,255,0.5)" fontSize={8} fontWeight={600}>
+                              {initials(item.m?.name || '?')}
+                            </text>
+                          </>
+                        )}
+                        {/* Role color dot */}
+                        {item.m && (
+                          <circle cx={SMALL_R * 0.7} cy={SMALL_R * 0.7} r={4}
+                            fill={item.m.role === 'head' ? '#facc15' : item.m.role === 'spouse' ? '#93c5fd' : '#86efac'} />
+                        )}
+                      </g>
+                    ))}
+                  </>
+                );
+              })()}
             </g>
           );
         })}
