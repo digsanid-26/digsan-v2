@@ -347,6 +347,23 @@ export class TreeService {
     return newTree;
   }
 
+  /** Like getOrCreateDefaultTree but ONLY returns trees owned by the user.
+   *  Never returns a tree the user is merely a member of.
+   *  Used when we need to modify the user's own tree (e.g. syncLinkedUser). */
+  private async getOrCreateOwnedTree(userId: string) {
+    const owned = await this.prisma.familyTree.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (owned) return owned;
+
+    const newTree = await this.prisma.familyTree.create({
+      data: { name: 'Pohon Keluarga Saya', userId },
+    });
+    await this.assignSuperUserRole(userId);
+    return newTree;
+  }
+
   /** Assign the super_user role to a user if they don't already have it. */
   private async assignSuperUserRole(userId: string) {
     const role = await this.prisma.role.findUnique({ where: { name: 'super_user' } });
@@ -436,6 +453,33 @@ export class TreeService {
     return { slug, owner };
   }
 
+  /** Recover slugs for trees that had them wiped by the syncLinkedUser bug.
+   *  Only recreates slugs for trees that:
+   *  - Have no slug
+   *  - Have no sharedFamilySlug (i.e. they're tree owners, not connected users)
+   *  Returns count of recovered slugs. */
+  async recoverSlugs(): Promise<{ recovered: number; details: { treeId: string; slug: string }[] }> {
+    const trees = await this.prisma.familyTree.findMany({
+      where: { slug: null },
+    });
+    const details: { treeId: string; slug: string }[] = [];
+    for (const tree of trees) {
+      const config = (tree.layoutConfig as any) ?? {};
+      if (config.sharedFamilySlug) continue; // Connected user, skip
+      try {
+        const familyName = config.mainFamilyName || tree.name || 'keluarga';
+        const desiredBase = `${familyName}-fam`;
+        const slug = await this.uniqueTreeSlug(desiredBase, tree.id);
+        await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
+        details.push({ treeId: tree.id, slug });
+        this.logger.log(`Recovered slug "${slug}" for tree ${tree.id}`);
+      } catch (err) {
+        this.logger.error(`Failed to recover slug for tree ${tree.id}: ${err}`);
+      }
+    }
+    return { recovered: details.length, details };
+  }
+
   /** Get the saved explorer layout (config + members) for the current user. */
   async getLayout(userId: string) {
     const tree = await this.getOrCreateDefaultTree(userId);
@@ -501,7 +545,7 @@ export class TreeService {
     for (const linkedUserId of linkedUserIds) {
       try {
         const linkedTree = await this.prisma.familyTree.findFirst({ where: { userId: linkedUserId } });
-        if (linkedTree) {
+        if (linkedTree && linkedTree.userId === linkedUserId) {
           const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
           await this.prisma.familyTree.update({
             where: { id: linkedTree.id },
@@ -601,13 +645,13 @@ export class TreeService {
         for (const linkedUserId of linkedUserIds) {
           try {
             const linkedTree = await this.prisma.familyTree.findFirst({ where: { userId: linkedUserId } });
-            if (linkedTree) {
+            if (linkedTree && linkedTree.userId === linkedUserId) {
               const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
               await this.prisma.familyTree.update({
                 where: { id: linkedTree.id },
                 data: {
                   layoutConfig: { ...linkedConfig, mainFamilyName: newFamilyName, sharedFamilySlug: identity.slug } as any,
-                  slug: null,
+                  ...(linkedTree.userId === linkedUserId && { slug: null }),
                 },
               });
               this.logger.log(`Propagated familyName="${newFamilyName}" slug="${identity.slug}" to linked user ${linkedUserId}'s tree`);
@@ -690,8 +734,8 @@ export class TreeService {
 
     let linkedTreeSlug: string | null = null;
     try {
-      // Find or create the linked user's own tree
-      const linkedTree = await this.getOrCreateDefaultTree(linkedUser.id);
+      // Find or create the linked user's OWN tree (never the inviter's)
+      const linkedTree = await this.getOrCreateOwnedTree(linkedUser.id);
 
       // Merge synced members into the linked user's existing layoutMembers
       // (preserve any members the linked user may have added on their own)
@@ -706,13 +750,17 @@ export class TreeService {
 
       // Set the linked user's slug to null — they share the inviter's family page
       // The inviter's slug is stored in sharedFamilySlug for reference
+      // SAFETY: only null the slug if this tree is truly owned by the linked user
+      const updateData: any = {
+        layoutConfig: updatedLinkedConfig as any,
+        layoutMembers: mergedMembers as any,
+      };
+      if (linkedTree.userId === linkedUser.id) {
+        updateData.slug = null;
+      }
       await this.prisma.familyTree.update({
         where: { id: linkedTree.id },
-        data: {
-          layoutConfig: updatedLinkedConfig as any,
-          layoutMembers: mergedMembers as any,
-          slug: null,
-        },
+        data: updateData,
       });
 
       linkedTreeSlug = inviterSlug;

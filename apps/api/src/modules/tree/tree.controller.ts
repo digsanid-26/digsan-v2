@@ -64,6 +64,13 @@ export class TreeController {
     return this.treeService.syncLinkedUser(userId, nodeId);
   }
 
+  @Post('recover-slugs')
+  @ApiOperation({ summary: 'Recover slugs for trees that had them wiped (admin/super_user only)' })
+  async recoverSlugs(@CurrentUser('id') userId: string, @CurrentUser('roles') roles?: string[]) {
+    if (!roles?.includes('super_user')) throw new ForbiddenException('Akses ditolak');
+    return this.treeService.recoverSlugs();
+  }
+
   @Put('slug')
   @ApiOperation({ summary: 'Manually create or update the family slug' })
   async setSlug(@CurrentUser('id') userId: string, @Body() dto: SetSlugDto) {
