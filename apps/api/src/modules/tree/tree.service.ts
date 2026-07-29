@@ -226,7 +226,7 @@ export class TreeService {
     // as read-only — unless they have super_user role.
     const config = (tree.layoutConfig as any) ?? {};
     const sharedSlug = config.sharedFamilySlug as string | undefined;
-    const isSuperUser = roles?.includes('super_user');
+    const isSuperUser = !!roles?.includes('super_user');
     let canEdit = true;
     let sourceTree = tree;
 
