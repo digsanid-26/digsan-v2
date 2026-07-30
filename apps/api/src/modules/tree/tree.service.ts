@@ -794,10 +794,50 @@ export class TreeService {
 
   /** Public family page data resolved by tree slug. */
   async getPublicFamily(slug: string) {
-    const tree = await this.prisma.familyTree.findUnique({
+    let tree = await this.prisma.familyTree.findUnique({
       where: { slug },
       include: { user: { select: { name: true, username: true, avatar: true, bio: true } } },
     });
+
+    // Fallback 1: try slug + "-fam" suffix (auto-generated slug pattern)
+    if (!tree && !slug.endsWith('-fam')) {
+      tree = await this.prisma.familyTree.findUnique({
+        where: { slug: `${slug}-fam` },
+        include: { user: { select: { name: true, username: true, avatar: true, bio: true } } },
+      });
+      if (tree) this.logger.log(`Resolved slug "${slug}" → "${tree.slug}" via -fam fallback`);
+    }
+
+    // Fallback 2: slug was wiped to null by the syncLinkedUser bug.
+    // Try to find a tree with null slug whose family name matches, then regenerate.
+    if (!tree) {
+      const candidates = await this.prisma.familyTree.findMany({
+        where: { slug: null },
+        include: { user: { select: { name: true, username: true, avatar: true, bio: true } } },
+      });
+      for (const t of candidates) {
+        const config = (t.layoutConfig as any) ?? {};
+        if (config.sharedFamilySlug) continue; // Connected user, skip
+        const familyName = (config.mainFamilyName as string) || t.name || '';
+        const desiredBase = `${familyName}-fam`;
+        // Match if the family name slugified equals the requested slug
+        // e.g. "Farisma" → "farisma" or "farisma-fam"
+        const slugified = familyName.toLowerCase().trim().replace(/\s+/g, '-');
+        if (slugified === slug || slugified === slug.replace(/-fam$/, '')) {
+          // Regenerate slug for this tree
+          try {
+            const newSlug = await this.uniqueTreeSlug(desiredBase, t.id);
+            await this.prisma.familyTree.update({ where: { id: t.id }, data: { slug: newSlug } });
+            this.logger.log(`Recovered slug "${newSlug}" for tree ${t.id} on public access (was null)`);
+            tree = { ...t, slug: newSlug };
+          } catch (err) {
+            this.logger.error(`Failed to recover slug for tree ${t.id}: ${err}`);
+          }
+          break;
+        }
+      }
+    }
+
     if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
     const mainFamilyName = (tree.layoutConfig as any)?.mainFamilyName as string | undefined;
     return {
@@ -827,7 +867,10 @@ export class TreeService {
       throw new BadRequestException('Bagian ini adalah pemilik silsilah, tidak bisa diklaim');
     }
 
-    const tree = await this.prisma.familyTree.findUnique({ where: { slug } });
+    let tree = await this.prisma.familyTree.findUnique({ where: { slug } });
+    if (!tree && !slug.endsWith('-fam')) {
+      tree = await this.prisma.familyTree.findUnique({ where: { slug: `${slug}-fam` } });
+    }
     if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
 
     const members = { ...((tree.layoutMembers as any) ?? {}) } as Record<string, any>;
@@ -849,10 +892,17 @@ export class TreeService {
 
   /** Public personal-profile page resolved by tree slug + username. */
   async getPublicProfile(slug: string, username: string) {
-    const tree = await this.prisma.familyTree.findUnique({
+    let tree = await this.prisma.familyTree.findUnique({
       where: { slug },
       select: { id: true, slug: true, name: true, layoutConfig: true, userId: true },
     });
+    // Fallback: try slug + "-fam"
+    if (!tree && !slug.endsWith('-fam')) {
+      tree = await this.prisma.familyTree.findUnique({
+        where: { slug: `${slug}-fam` },
+        select: { id: true, slug: true, name: true, layoutConfig: true, userId: true },
+      });
+    }
     if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
 
     const user = await this.prisma.user.findUnique({
@@ -897,16 +947,26 @@ export class TreeService {
 
   /** Check if a user is the owner of a tree by slug. */
   async isTreeOwner(slug: string, userId: string): Promise<boolean> {
-    const tree = await this.prisma.familyTree.findUnique({ where: { slug }, select: { userId: true } });
+    let tree = await this.prisma.familyTree.findUnique({ where: { slug }, select: { userId: true } });
+    if (!tree && !slug.endsWith('-fam')) {
+      tree = await this.prisma.familyTree.findUnique({ where: { slug: `${slug}-fam` }, select: { userId: true } });
+    }
     return tree?.userId === userId;
   }
 
   /** Check if a user is a member (or owner) of a tree by slug. */
   async isTreeMember(slug: string, userId: string): Promise<boolean> {
-    const tree = await this.prisma.familyTree.findUnique({
+    let tree = await this.prisma.familyTree.findUnique({
       where: { slug },
       select: { id: true, userId: true, layoutMembers: true },
     });
+    // Fallback: try slug + "-fam"
+    if (!tree && !slug.endsWith('-fam')) {
+      tree = await this.prisma.familyTree.findUnique({
+        where: { slug: `${slug}-fam` },
+        select: { id: true, userId: true, layoutMembers: true },
+      });
+    }
     if (!tree) return false;
     if (tree.userId === userId) return true;
     const member = await this.prisma.familyMember.findFirst({
@@ -948,7 +1008,10 @@ export class TreeService {
 
   /** Generate a time-limited token for a public family/profile page. */
   async generatePublicLinkToken(userId: string, slug: string, username?: string) {
-    const tree = await this.prisma.familyTree.findUnique({ where: { slug } });
+    let tree = await this.prisma.familyTree.findUnique({ where: { slug } });
+    if (!tree && !slug.endsWith('-fam')) {
+      tree = await this.prisma.familyTree.findUnique({ where: { slug: `${slug}-fam` } });
+    }
     if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
 
     // Only the tree owner can generate tokens for their family
@@ -972,7 +1035,10 @@ export class TreeService {
   async validatePublicLinkToken(token: string, slug: string, username?: string): Promise<boolean> {
     const record = await this.prisma.publicLinkToken.findUnique({ where: { token } });
     if (!record) throw new ForbiddenException('Token link publik tidak valid');
-    if (record.slug !== slug) throw new ForbiddenException('Token tidak sesuai untuk keluarga ini');
+    // Accept both exact slug and slug-fam variant (slug may have been regenerated)
+    if (record.slug !== slug && record.slug !== `${slug}-fam` && `${record.slug}-fam` !== slug) {
+      throw new ForbiddenException('Token tidak sesuai untuk keluarga ini');
+    }
     if (username && record.username && record.username !== username) {
       throw new ForbiddenException('Token tidak sesuai untuk profil ini');
     }
