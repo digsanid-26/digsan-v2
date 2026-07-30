@@ -150,4 +150,18 @@ export class AdminController {
   async deleteAppConfig(@Param('key') key: string) {
     return this.adminService.deleteAppConfig(key);
   }
+
+  // ─── USER TREE RESET & DELETE ──────────────────────────────
+
+  @Post('users/:id/reset-tree')
+  @ApiOperation({ summary: 'Delete all family trees for a user so they start fresh' })
+  async resetUserTree(@Param('id') id: string) {
+    return this.adminService.resetUserTree(id);
+  }
+
+  @Delete('users/:id')
+  @ApiOperation({ summary: 'Permanently delete a user account and all related data' })
+  async deleteUser(@Param('id') id: string) {
+    return this.adminService.deleteUser(id);
+  }
 }

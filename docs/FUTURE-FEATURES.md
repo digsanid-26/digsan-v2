@@ -19,7 +19,6 @@
   - **Wali bersama:** saudara Ayah yang masih hidup dan akunnya aktif juga memiliki akses edit yang sama atas jaringan almarhum.
   - Catatan teknis: layout saat ini masih config-driven (topologi tetap). Rencana bertahap: (1) spesifikasi + model data; (2) layout graf rekursif berbasis relasi `FamilyMember` (parentId/spouseId/children) menggantikan `generateTree`; (3) form setup per-almarhum yang membuat record `FamilyMember` sungguhan; (4) alur perizinan anggota hidup + guardianship bersama.
 
-- [ ] node/lingkaran profil yang telah memiliki tree akan memiliki icon tree (berupa lingkaran background hijau dengan icon tree putih) di ujung kanan atas menyentuh garis lingkaran profilnya;
 
 
 

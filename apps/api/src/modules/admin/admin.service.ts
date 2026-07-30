@@ -382,4 +382,68 @@ export class AdminService {
     await this.prisma.appConfig.delete({ where: { key } });
     return { message: `Config '${key}' dihapus` };
   }
+
+  // ─── USER TREE RESET & DELETE ──────────────────────────────
+
+  /** Delete all family trees (and cascaded members) for a user so they
+   *  start fresh.  Also clears username so it can be re-registered. */
+  async resetUserTree(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User tidak ditemukan');
+
+    const trees = await this.prisma.familyTree.findMany({
+      where: { userId },
+      select: { id: true, name: true, slug: true },
+    });
+
+    // Delete trees — Prisma cascades FamilyMember, CardStyle, HubConnections,
+    // TreeInvitations, GuardianConsents.
+    await this.prisma.familyTree.deleteMany({ where: { userId } });
+
+    // Clear username so ensureIdentity will regenerate it on next /tree visit
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { username: null },
+    });
+
+    return {
+      message: `Reset berhasil. ${trees.length} tree dihapus.`,
+      deletedTrees: trees,
+    };
+  }
+
+  /** Permanently delete a user account and all related data.
+   *  Prisma onDelete: Cascade handles FamilyTree → FamilyMember, CardStyle,
+   *  HubConnections, Invitations, Consents.
+   *  Other relations (Session, RefreshToken, Notifications, etc.) are
+   *  cleaned up explicitly. */
+  async deleteUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User tidak ditemukan');
+
+    // Clean up relations that don't cascade automatically
+    await this.prisma.session.deleteMany({ where: { userId } });
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    await this.prisma.verificationToken.deleteMany({ where: { userId } });
+    await this.prisma.loginHistory.deleteMany({ where: { userId } });
+    await this.prisma.notification.deleteMany({ where: { userId } });
+    await this.prisma.notificationPreference.deleteMany({ where: { userId } }).catch(() => {});
+    await this.prisma.userRole.deleteMany({ where: { userId } });
+    await this.prisma.point.deleteMany({ where: { userId } }).catch(() => {});
+    await this.prisma.userBadge.deleteMany({ where: { userId } }).catch(() => {});
+    await this.prisma.deviceToken.deleteMany({ where: { userId } }).catch(() => {});
+    await this.prisma.publicLinkToken.deleteMany({ where: { userId } }).catch(() => {});
+
+    // FamilyMember rows where this user is linked — set userId to null
+    // (the member record stays on the inviter's tree, just unlinked)
+    await this.prisma.familyMember.updateMany({
+      where: { userId },
+      data: { userId: null },
+    });
+
+    // Now delete the user — cascades to FamilyTree → everything else
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    return { message: `User '${user.name}' (${user.email}) berhasil dihapus permanen` };
+  }
 }

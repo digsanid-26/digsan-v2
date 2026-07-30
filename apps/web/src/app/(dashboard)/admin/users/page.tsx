@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useApi, useAuthApi } from '@/lib/hooks';
 import { useAuth } from '@/components/providers/auth-provider';
-import { Search, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Pencil, X, RotateCcw, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function AdminUsersPage() {
@@ -35,6 +35,8 @@ export default function AdminUsersPage() {
   const [editUser, setEditUser] = useState<any>(null);
   const [roleToggles, setRoleToggles] = useState<Record<string, boolean>>({});
   const [savingRole, setSavingRole] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const ADDON_ROLES = ['worker', 'admin', 'super_admin', 'super_user'];
 
@@ -239,12 +241,55 @@ export default function AdminUsersPage() {
                   Role saat ini: {(editUser.roles || []).join(', ') || 'user'}
                 </p>
               </div>
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-3 pt-2">
                 <button
                   onClick={() => handleStatusChange(editUser.id, editUser.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE')}
                   className="text-xs text-slate-500 hover:text-red-600"
                 >
                   {editUser.status === 'ACTIVE' ? 'Suspend' : 'Aktivkan'}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Reset tree untuk ${editUser.name}? Semua data tree dan family node akan dihapus. User akan mulai dari nol saat login berikutnya.`)) return;
+                    setResetting(true);
+                    try {
+                      const res = await request(`/admin/users/${editUser.id}/reset-tree`, { method: 'POST' });
+                      alert(res.message || 'Reset berhasil');
+                      refetch();
+                      closeEditModal();
+                    } catch (err: any) {
+                      alert(err.message || 'Gagal reset tree');
+                    } finally {
+                      setResetting(false);
+                    }
+                  }}
+                  disabled={resetting}
+                  className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 disabled:opacity-50"
+                >
+                  <RotateCcw size={12} className={resetting ? 'animate-spin' : ''} />
+                  {resetting ? 'Resetting...' : 'Reset Tree'}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`HAPUS PERMANEN user ${editUser.name} (${editUser.email})? Semua data tree, profil, poin, dan riwayat akan dihapus. Tidak bisa dibatalkan.`)) return;
+                    if (!confirm('Konfirmasi sekali lagi: Yakin hapus permanen?')) return;
+                    setDeleting(true);
+                    try {
+                      const res = await request(`/admin/users/${editUser.id}`, { method: 'DELETE' });
+                      alert(res.message || 'User dihapus');
+                      refetch();
+                      closeEditModal();
+                    } catch (err: any) {
+                      alert(err.message || 'Gagal hapus user');
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 disabled:opacity-50"
+                >
+                  <Trash2 size={12} />
+                  {deleting ? 'Deleting...' : 'Hapus Permanen'}
                 </button>
               </div>
             </div>
