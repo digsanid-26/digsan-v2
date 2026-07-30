@@ -415,20 +415,23 @@ export class TreeService {
     let slug = tree.slug;
     const familyName = (tree.layoutConfig?.mainFamilyName as string) || tree.name || 'keluarga';
     const desiredBase = `${familyName}-fam`;
+    const sharedFamilySlug = tree.layoutConfig?.sharedFamilySlug as string | undefined;
 
     if (!slug) {
-      // Always create a unique slug for this tree.
-      // sharedFamilySlug in config is only metadata for the "connected to" UI,
-      // not a replacement for the tree's own public slug.
-      try {
-        slug = await this.uniqueTreeSlug(desiredBase, tree.id);
-        await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
-        this.logger.log(`Created slug "${slug}" for tree ${tree.id} (base: "${desiredBase}")`);
-      } catch (err) {
-        this.logger.error(`Failed to create slug for tree ${tree.id}: ${err}`);
-        // Fall back to sharedFamilySlug if available, so layout doesn't break
-        const sharedFamilySlug = tree.layoutConfig?.sharedFamilySlug as string | undefined;
-        slug = sharedFamilySlug || null;
+      if (sharedFamilySlug) {
+        // This tree belongs to a connected user (linked to an inviter's family).
+        // Use the inviter's shared slug — one family = one public page.
+        slug = sharedFamilySlug;
+      } else {
+        // This is a standalone tree owner — create a unique slug.
+        try {
+          slug = await this.uniqueTreeSlug(desiredBase, tree.id);
+          await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
+          this.logger.log(`Created slug "${slug}" for tree ${tree.id} (base: "${desiredBase}")`);
+        } catch (err) {
+          this.logger.error(`Failed to create slug for tree ${tree.id}: ${err}`);
+          slug = null;
+        }
       }
     }
 
@@ -453,8 +456,8 @@ export class TreeService {
   }
 
   /** Recover slugs for trees that had them wiped by the syncLinkedUser bug.
-   *  Recreate slugs for all trees that have null slug, including those
-   *  with sharedFamilySlug (connected users still need their own public slug).
+   *  Only recreates slugs for standalone tree owners (no sharedFamilySlug).
+   *  Connected users intentionally have null slug — they share the inviter's slug.
    *  Returns count of recovered slugs. */
   async recoverSlugs(): Promise<{ recovered: number; details: { treeId: string; slug: string }[] }> {
     const trees = await this.prisma.familyTree.findMany({
@@ -463,13 +466,14 @@ export class TreeService {
     const details: { treeId: string; slug: string }[] = [];
     for (const tree of trees) {
       const config = (tree.layoutConfig as any) ?? {};
+      if (config.sharedFamilySlug) continue; // Connected user — shares inviter's slug, skip
       try {
         const familyName = config.mainFamilyName || tree.name || 'keluarga';
         const desiredBase = `${familyName}-fam`;
         const slug = await this.uniqueTreeSlug(desiredBase, tree.id);
         await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
         details.push({ treeId: tree.id, slug });
-        this.logger.log(`Recovered slug "${slug}" for tree ${tree.id}${config.sharedFamilySlug ? ' (has sharedFamilySlug, own slug restored)' : ''}`);
+        this.logger.log(`Recovered slug "${slug}" for tree ${tree.id}`);
       } catch (err) {
         this.logger.error(`Failed to recover slug for tree ${tree.id}: ${err}`);
       }
@@ -502,9 +506,8 @@ export class TreeService {
       };
     }
 
-    // For connected users who have their own tree (via getOrCreateOwnedTree
-    // in syncLinkedUser), their own slug is preserved. sharedFamilySlug in
-    // their config indicates they're connected to an inviter's family.
+    // For connected users (tree owners with sharedFamilySlug set by syncLinkedUser),
+    // resolve the inviter's family info for the "connected to" UI.
     if (isTreeOwner) {
       const config = (tree.layoutConfig as any) ?? {};
       if (config.sharedFamilySlug) {
@@ -573,9 +576,10 @@ export class TreeService {
             where: { id: linkedTree.id },
             data: {
               layoutConfig: { ...linkedConfig, sharedFamilySlug: slug } as any,
+              slug: null,
             },
           });
-          this.logger.log(`Propagated sharedFamilySlug "${slug}" to linked user ${linkedUserId}'s tree (own slug preserved)`);
+          this.logger.log(`Propagated slug "${slug}" to linked user ${linkedUserId}'s tree (slug nulled, shared slug set)`);
         }
       } catch (err) {
         this.logger.error(`Failed to propagate slug to linked user ${linkedUserId}: ${err}`);
@@ -760,24 +764,28 @@ export class TreeService {
       const linkedMembers = (linkedTree.layoutMembers as Record<string, any>) ?? {};
       const mergedMembers = { ...linkedMembers, ...syncedMembers };
 
-      // Store sharedFamilySlug for reference (e.g. "connected to" UI) but
-      // do NOT overwrite the linked user's own mainFamilyName or null their slug.
-      // The linked user keeps their own independent public family page.
+      // Store sharedFamilySlug and null the linked user's own slug so they
+      // share the inviter's public family page (one family = one slug).
+      // Do NOT overwrite the linked user's own mainFamilyName.
       const updatedLinkedConfig = {
         ...linkedConfig,
         sharedFamilySlug: inviterSlug || null,
       };
 
+      const updateData: any = {
+        layoutConfig: updatedLinkedConfig as any,
+        layoutMembers: mergedMembers as any,
+      };
+      if (linkedTree.userId === linkedUser.id) {
+        updateData.slug = null;
+      }
       await this.prisma.familyTree.update({
         where: { id: linkedTree.id },
-        data: {
-          layoutConfig: updatedLinkedConfig as any,
-          layoutMembers: mergedMembers as any,
-        },
+        data: updateData,
       });
 
       linkedTreeSlug = inviterSlug;
-      this.logger.log(`Synced linked user ${linkedUser.id} tree: sharedSlug="${inviterSlug}" (own slug preserved)`);
+      this.logger.log(`Synced linked user ${linkedUser.id} tree: sharedSlug="${inviterSlug}" (slug nulled)`);
 
       // Award network_add points to the inviter (tree owner)
       this.gamification.awardNetworkAddPoints(tree.userId, linkedUser.id).catch((err) => {
@@ -829,6 +837,7 @@ export class TreeService {
       });
       for (const t of candidates) {
         const config = (t.layoutConfig as any) ?? {};
+        if (config.sharedFamilySlug) continue; // Connected user — shares inviter's slug, skip
         const familyName = (config.mainFamilyName as string) || t.name || '';
         const desiredBase = `${familyName}-fam`;
         // Match if the family name slugified equals the requested slug
