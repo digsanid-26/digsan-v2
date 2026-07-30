@@ -456,8 +456,9 @@ export class TreeService {
   }
 
   /** Recover slugs for trees that had them wiped by the syncLinkedUser bug.
-   *  Only recreates slugs for standalone tree owners (no sharedFamilySlug).
-   *  Connected users intentionally have null slug — they share the inviter's slug.
+   *  Recreate slugs for trees with null slug. For trees with sharedFamilySlug,
+   *  check if the shared slug still exists — if not, the sharedFamilySlug is
+   *  stale (from the old syncLinkedUser bug) and is cleared before recovering.
    *  Returns count of recovered slugs. */
   async recoverSlugs(): Promise<{ recovered: number; details: { treeId: string; slug: string }[] }> {
     const trees = await this.prisma.familyTree.findMany({
@@ -466,7 +467,24 @@ export class TreeService {
     const details: { treeId: string; slug: string }[] = [];
     for (const tree of trees) {
       const config = (tree.layoutConfig as any) ?? {};
-      if (config.sharedFamilySlug) continue; // Connected user — shares inviter's slug, skip
+      if (config.sharedFamilySlug) {
+        // Check if the shared slug actually points to an existing tree.
+        // If it does, this is a legitimate connected user — skip.
+        // If it doesn't, the sharedFamilySlug is stale (from the old
+        // syncLinkedUser bug that nulled the inviter's own slug) — clear it
+        // and recover the slug.
+        const inviter = await this.prisma.familyTree.findUnique({
+          where: { slug: config.sharedFamilySlug },
+          select: { id: true },
+        }).catch(() => null);
+        if (inviter) continue; // Legitimate connected user
+        // Stale sharedFamilySlug — clear it
+        this.logger.log(`Clearing stale sharedFamilySlug "${config.sharedFamilySlug}" from tree ${tree.id} (no tree has that slug)`);
+        await this.prisma.familyTree.update({
+          where: { id: tree.id },
+          data: { layoutConfig: { ...config, sharedFamilySlug: null } as any },
+        });
+      }
       try {
         const familyName = config.mainFamilyName || tree.name || 'keluarga';
         const desiredBase = `${familyName}-fam`;
@@ -837,7 +855,20 @@ export class TreeService {
       });
       for (const t of candidates) {
         const config = (t.layoutConfig as any) ?? {};
-        if (config.sharedFamilySlug) continue; // Connected user — shares inviter's slug, skip
+        if (config.sharedFamilySlug) {
+          // Check if the shared slug points to an existing tree.
+          const inviter = await this.prisma.familyTree.findUnique({
+            where: { slug: config.sharedFamilySlug },
+            select: { id: true },
+          }).catch(() => null);
+          if (inviter) continue; // Legitimate connected user
+          // Stale sharedFamilySlug — clear it and try to recover
+          this.logger.log(`Clearing stale sharedFamilySlug "${config.sharedFamilySlug}" from tree ${t.id} during public access`);
+          await this.prisma.familyTree.update({
+            where: { id: t.id },
+            data: { layoutConfig: { ...config, sharedFamilySlug: null } as any },
+          });
+        }
         const familyName = (config.mainFamilyName as string) || t.name || '';
         const desiredBase = `${familyName}-fam`;
         // Match if the family name slugified equals the requested slug
