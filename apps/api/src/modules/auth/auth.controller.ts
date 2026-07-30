@@ -54,6 +54,13 @@ export class AuthController {
     return this.authService.resendVerificationEmail(body.email);
   }
 
+  @Post('resend-whatsapp-otp')
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @ApiOperation({ summary: 'Resend WhatsApp OTP' })
+  async resendWhatsappOtp(@Body() body: { userId: string }) {
+    return this.authService.resendWhatsappOtp(body.userId);
+  }
+
   @Post('forgot-password')
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @ApiOperation({ summary: 'Request password reset email' })

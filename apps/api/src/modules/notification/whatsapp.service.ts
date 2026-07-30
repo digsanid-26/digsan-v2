@@ -54,6 +54,12 @@ export class WhatsappService {
     return this.sendMessage(phone, message);
   }
 
+  async sendTreeInvitation(phone: string, inviterName: string, treeName: string, acceptUrl: string, message?: string) {
+    const personalMsg = message ? `\n\nPesan: "${message}"` : '';
+    const text = `Halo! 👋\n\n${inviterName} mengundang Anda untuk bergabung dalam silsilah keluarga *${treeName}* di Digsan.\n${personalMsg}\n\nKlik link berikut untuk menerima undangan:\n${acceptUrl}\n\nLink berlaku 7 hari.`;
+    return this.sendMessage(phone, text);
+  }
+
   generateOTP(length: number = 6): string {
     const digits = '0123456789';
     let otp = '';

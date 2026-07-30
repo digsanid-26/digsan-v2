@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/database/prisma.service';
 import { EmailService } from '../notification/email.service';
 import { NotificationService } from '../notification/notification.service';
+import { WhatsappService } from '../notification/whatsapp.service';
 import { slugify } from '../../common/utils/slug.util';
 import { CreateTreeDto } from './dto/create-tree.dto';
 import { UpdateTreeDto } from './dto/update-tree.dto';
@@ -31,6 +32,7 @@ export class TreeService {
     private config: ConfigService,
     private notifications: NotificationService,
     private gamification: GamificationService,
+    private whatsapp: WhatsappService,
   ) {}
 
   // ─── TREE CRUD ──────────────────────────────────────────────
@@ -494,8 +496,6 @@ export class TreeService {
       // User is a member of someone else's tree — return inviter's family info
       const inviterConfig = (tree.layoutConfig as any) ?? {};
       const sharedSlug = inviterConfig.sharedFamilySlug || identity.slug || '';
-      // Resolve the real family name: prefer mainFamilyName from config,
-      // then the tree name, then the owner's name, then a generic fallback
       const ownerName = identity.owner?.name || '';
       const familyName = inviterConfig.mainFamilyName
         || (tree.name && tree.name !== 'Pohon Keluarga Saya' ? tree.name : null)
@@ -506,6 +506,33 @@ export class TreeService {
         ownerId: tree.userId,
         ownerName,
       };
+    }
+
+    // For connected users who have their own tree (via getOrCreateOwnedTree
+    // in syncLinkedUser), their own slug is preserved. sharedFamilySlug in
+    // their config indicates they're connected to an inviter's family.
+    if (isTreeOwner) {
+      const config = (tree.layoutConfig as any) ?? {};
+      if (config.sharedFamilySlug) {
+        // This user is connected to another family — resolve inviter info
+        const inviterTree = await this.prisma.familyTree.findUnique({
+          where: { slug: config.sharedFamilySlug },
+          select: { name: true, userId: true, layoutConfig: true },
+        }).catch(() => null);
+        if (inviterTree) {
+          const inviterConfig = (inviterTree.layoutConfig as any) ?? {};
+          const inviterOwner = await this.prisma.user.findUnique({
+            where: { id: inviterTree.userId },
+            select: { name: true },
+          }).catch(() => null);
+          connectedFamily = {
+            familyName: inviterConfig.mainFamilyName || inviterTree.name || 'Keluarga',
+            slug: config.sharedFamilySlug,
+            ownerId: inviterTree.userId,
+            ownerName: inviterOwner?.name || '',
+          };
+        }
+      }
     }
 
     // For connected users, return the shared slug as the main slug
@@ -713,10 +740,6 @@ export class TreeService {
     const identity = await this.ensureIdentity(updated);
 
     // ─── Sync linked user's family tree to share inviter's family page ───
-    const inviterConfig = (tree.layoutConfig as any) ?? {};
-    const inviterFamilyName = inviterConfig.mainFamilyName
-      || (tree.name && tree.name !== 'Pohon Keluarga Saya' ? tree.name : null)
-      || (linkedUser.name ? `Keluarga ${linkedUser.name}` : 'keluarga');
     const inviterSlug = identity.slug;
     const inviterMembers = (tree.layoutMembers as Record<string, any>) ?? {};
 
@@ -743,29 +766,25 @@ export class TreeService {
       const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
       const linkedMembers = (linkedTree.layoutMembers as Record<string, any>) ?? {};
       const mergedMembers = { ...linkedMembers, ...syncedMembers };
+
+      // Store sharedFamilySlug for reference (e.g. "connected to" UI) but
+      // do NOT overwrite the linked user's own mainFamilyName or null their slug.
+      // The linked user keeps their own independent public family page.
       const updatedLinkedConfig = {
         ...linkedConfig,
-        mainFamilyName: inviterFamilyName,
         sharedFamilySlug: inviterSlug || null,
       };
 
-      // Set the linked user's slug to null — they share the inviter's family page
-      // The inviter's slug is stored in sharedFamilySlug for reference
-      // SAFETY: only null the slug if this tree is truly owned by the linked user
-      const updateData: any = {
-        layoutConfig: updatedLinkedConfig as any,
-        layoutMembers: mergedMembers as any,
-      };
-      if (linkedTree.userId === linkedUser.id) {
-        updateData.slug = null;
-      }
       await this.prisma.familyTree.update({
         where: { id: linkedTree.id },
-        data: updateData,
+        data: {
+          layoutConfig: updatedLinkedConfig as any,
+          layoutMembers: mergedMembers as any,
+        },
       });
 
       linkedTreeSlug = inviterSlug;
-      this.logger.log(`Synced linked user ${linkedUser.id} tree: familyName="${inviterFamilyName}", sharedSlug="${inviterSlug}"`);
+      this.logger.log(`Synced linked user ${linkedUser.id} tree: sharedSlug="${inviterSlug}" (own slug preserved)`);
 
       // Award network_add points to the inviter (tree owner)
       this.gamification.awardNetworkAddPoints(tree.userId, linkedUser.id).catch((err) => {
@@ -1459,21 +1478,42 @@ export class TreeService {
       }
     }
 
-    // Create in-app notification if the invitee has an account
-    if (dto.email) {
-      const invitee = await this.prisma.user.findFirst({ where: { email: { equals: dto.email, mode: 'insensitive' } } });
-      if (invitee) {
-        const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { name: true } });
-        const inviter = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-        this.notifications.create({
-          userId: invitee.id,
-          type: 'TREE_INVITATION' as any,
-          title: 'Undangan Silsilah Keluarga',
-          message: `${inviter?.name || 'Seseorang'} mengundang Anda ke silsilah "${tree?.name || 'Keluarga'}".`,
-          data: { invitationId: invitation.id, token, treeId },
-        }).catch(() => {});
-        this.notifications.sendPushSafe(invitee.id, 'Undangan Silsilah', `${inviter?.name || 'Seseorang'} mengundang Anda ke silsilah keluarga`).catch(() => {});
+    // Fire WhatsApp invitation (best-effort — WhatsappService logs when FONNTE_API_KEY is unset).
+    if (dto.phone) {
+      try {
+        const [treeRow, inviter] = await Promise.all([
+          this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { name: true } }),
+          this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+        ]);
+        const webUrl = this.config.get('WEB_URL', 'http://localhost:3000');
+        const acceptUrl = `${webUrl}/invite/${token}`;
+        this.whatsapp
+          .sendTreeInvitation(dto.phone, inviter?.name || 'Seseorang', treeRow?.name || 'Keluarga', acceptUrl, dto.message)
+          .catch((err) => this.logger.error(`Failed to send WA invitation: ${err}`));
+      } catch (err) {
+        this.logger.error(`Failed to prepare WA invitation: ${err}`);
       }
+    }
+
+    // Create in-app notification if the invitee has an account (by email or phone)
+    let invitee: { id: string } | null = null;
+    if (dto.email) {
+      invitee = await this.prisma.user.findFirst({ where: { email: { equals: dto.email, mode: 'insensitive' } } });
+    }
+    if (!invitee && dto.phone) {
+      invitee = await this.prisma.user.findFirst({ where: { phone: dto.phone } });
+    }
+    if (invitee) {
+      const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { name: true } });
+      const inviter = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+      this.notifications.create({
+        userId: invitee.id,
+        type: 'TREE_INVITATION' as any,
+        title: 'Undangan Silsilah Keluarga',
+        message: `${inviter?.name || 'Seseorang'} mengundang Anda ke silsilah "${tree?.name || 'Keluarga'}".`,
+        data: { invitationId: invitation.id, token, treeId },
+      }).catch(() => {});
+      this.notifications.sendPushSafe(invitee.id, 'Undangan Silsilah', `${inviter?.name || 'Seseorang'} mengundang Anda ke silsilah keluarga`).catch(() => {});
     }
 
     return { ...invitation, publicLinkToken };

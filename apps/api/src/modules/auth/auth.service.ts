@@ -288,6 +288,35 @@ export class AuthService {
     return { message: 'Jika email terdaftar, email verifikasi telah dikirim ulang.' };
   }
 
+  async resendWhatsappOtp(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User tidak ditemukan');
+    if (!user.phone) throw new BadRequestException('Nomor telepon belum diisi');
+    if (user.phoneVerified) throw new BadRequestException('WhatsApp sudah diverifikasi');
+
+    // Invalidate old OTP tokens
+    await this.prisma.verificationToken.updateMany({
+      where: { userId, type: 'WHATSAPP', used: false },
+      data: { used: true },
+    });
+
+    const otp = this.whatsappService.generateOTP(6);
+    await this.prisma.verificationToken.create({
+      data: {
+        userId,
+        token: otp,
+        type: 'WHATSAPP',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      },
+    });
+
+    this.whatsappService
+      .sendOTP(user.phone, otp, user.name)
+      .catch((err) => this.logger.error(`Failed to resend WA OTP: ${err.message}`));
+
+    return { message: 'Kode OTP WhatsApp telah dikirim ulang.' };
+  }
+
   // ─── FORGOT PASSWORD ──────────────────────────────────────
 
   async forgotPassword(email: string) {
