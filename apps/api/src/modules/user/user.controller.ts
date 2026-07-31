@@ -1,6 +1,6 @@
-import { Controller, Get, Put, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserService } from './user.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -11,6 +11,14 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search users by name, email, or username' })
+  @ApiQuery({ name: 'q', description: 'Search query' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max results (default 20)' })
+  async searchUsers(@Query('q') q: string, @Query('limit') limit?: string) {
+    return this.userService.searchUsers(q, limit ? parseInt(limit, 10) : 20);
+  }
 
   @Get('me')
   @ApiOperation({ summary: 'Get current user profile' })

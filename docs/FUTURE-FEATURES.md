@@ -36,7 +36,7 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 
 ## Sistem Notifikasi
 - [x] Cek apakah sudah ada sistem notifikasi dibangun? Rekomendasikan sistem notifikasi yang komprehensif dan lengkap (email, push, bell, alarm), bangun dengan sistem yang dapat dikembangkan dan dikonfigurasi di admin seiring perkembangan aplikasi (karena saat ini masih proses pembangunan);
-- [ ] Aktifkan Push notifikasi dan jajaki build whatsapp verifikasi dan invitation via whatsapp menggunakan fonnte whatsapp gateway;
+- [ ] Jajaki dan build whatsapp verifikasi dan aktifkan invitation via whatsapp menggunakan fonnte whatsapp gateway;
 
 ### Notifikasi Role
 #### Notifikasi untuk user
@@ -73,17 +73,17 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 ## Sistem Gamification
 - [x] Buatkan halaman Admin untuk mengatur Sistem Gamification seperti Gami Konfigurasi: tempat membuat tipe poin (default poin pengabdian, poin aktivitas, dan poin produktivitas), Gami Stat & Logs : tempat statistik poin masing-masing tipe, peringkat top 10 member masing-masing tipe, serta listing history poin didapat dari user, action, jumlah poin, waktu, dst yang dilengkapi filter dan view detail (modal);
 - [x] Gami Reward dan Redeem yang berisi pengaturan syarat dan hadiah yang diperoleh dari poin yang didapat oleh user, listing redeem request, dst;
-- [ ] General Poin : Poin yang didapatkan dari sistem yang bisa didistribusikan dengan syarat tertentu ke tipe poin lain seperti poin pengabdian, aktivitas, maupun produktivitas;
+- [x] General Poin : Poin yang didapatkan dari sistem yang bisa didistribusikan dengan syarat tertentu ke tipe poin lain seperti poin pengabdian, aktivitas, maupun produktivitas;
 - [x] Poin pengabdian : Pengabdian dalam menyelesaikan task, pengabdian dalam mengembangkan jaringan / koneksi keluarga
 - [x] Poin aktivitas : Keaktifan dalam aplikasi, keaktifan dalam mengikuti kegiatan online / offline, keaktifan mengisi/mengupdate konten/status
 - [x] Poin produktivitas : Keaktifan dalam kegiatan bersifat ekonomis, keaktifan dalam mengikuti keanggotaan, keaktifan dalam wadah usaha/program bersama.
-- [ ] Bagaimanakah caranya menambah dan mengubah gamification role di admin?
+- [x] Bagaimanakah caranya menambah dan mengubah gamification role di admin?
 
 ### Gamification Role
-- [ ] Login tiap hari sekali mendapatkan aktivitas poin 2;
-- [ ] Berturut-turun poin 5 hari mendapatkan bonus poin aktivitas 10 di luar poin login harian;
-- [ ] Membuat akun baru (real user) dan mengaktifkannya baik inisiatif sendiri maupun dari undangan/klaim mendapatkan 100 general poin. Tidak termasuk akun ;
-- [ ] Mengembangkan jaringan berupa penambahan aktif user di jaringan mendapatkan 10 poin pengabdian; 
+- [x] Login tiap hari sekali mendapatkan aktivitas poin 2;
+- [x] Berturut-turun poin 5 hari mendapatkan bonus poin aktivitas 10 di luar poin login harian;
+- [x] Membuat akun baru (real user) dan mengaktifkannya baik inisiatif sendiri maupun dari undangan/klaim mendapatkan 100 general poin. Tidak termasuk akun ;
+- [x] Mengembangkan jaringan berupa penambahan aktif user di jaringan mendapatkan 10 poin pengabdian; 
 
 ## Sistem Tree Keluarga / Family
 - [x] Sebelum bisa mengakses pengaturan bagan atau pertama kali seorang user login dan belum memiliki bagan atau tree, perlu ada intro dalam bentuk modal yang berisi step by step Mulai Membangun Silsilah. Modal muncul menutupi bagan tree dan navigasi lainnya tanpa tanda close (tidak bisa diclose) : 

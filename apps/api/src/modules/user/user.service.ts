@@ -198,4 +198,29 @@ export class UserService {
       notifiedAdmins: superAdmins.length,
     };
   }
+
+  async searchUsers(query: string, limit: number = 20) {
+    const q = query.trim();
+    if (!q) return { users: [] };
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+          { username: { contains: q, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        avatar: true,
+      },
+      take: limit,
+    });
+
+    return { users };
+  }
 }
