@@ -384,15 +384,15 @@ export default function PublicFamilyPage() {
             } shrink-0 overflow-hidden transition-all duration-300 border-r border-white/[0.06] bg-[#070712]`}
           >
             <div className="w-80 xl:w-96 h-full overflow-y-auto">
-              {/* Cover image */}
+              {/* Cover image — 2:1 aspect ratio */}
               {data.coverImage ? (
-                <div className="relative h-32 w-full overflow-hidden">
+                <div className="relative w-full overflow-hidden" style={{ aspectRatio: '2 / 1' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={data.coverImage} alt="Cover" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-[#070712]" />
                 </div>
               ) : (
-                <div className="h-16 w-full bg-gradient-to-b from-white/[0.03] to-transparent" />
+                <div className="w-full bg-gradient-to-b from-white/[0.03] to-transparent" style={{ aspectRatio: '2 / 1' }} />
               )}
 
               {/* Family info — left aligned, no family image */}
@@ -449,6 +449,20 @@ export default function PublicFamilyPage() {
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* CTA — Bagian dari keluarga ini? */}
+              <div className="px-5 pb-5 pt-2">
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left">
+                  <h2 className="text-white font-semibold text-sm mb-1">Bagian dari keluarga ini?</h2>
+                  <p className="text-white/45 text-xs mb-3 leading-relaxed">Gabung untuk melengkapi profil Anda dan menjaga silsilah tetap hidup.</p>
+                  <Link
+                    href="/register"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                  >
+                    Bergabung di digsan.id <ArrowRight size={13} />
+                  </Link>
+                </div>
               </div>
             </div>
           </aside>
@@ -507,20 +521,6 @@ export default function PublicFamilyPage() {
                   Geser untuk menjelajah, gulir/pinch untuk memperbesar. Lingkaran bergaris putus-putus belum diklaim.
                 </p>
               ) : null}
-            </section>
-
-            {/* CTA */}
-            <section className="px-6 pb-10 text-center">
-              <div className="max-w-md mx-auto rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                <h2 className="text-white font-semibold mb-1">Bagian dari keluarga ini?</h2>
-                <p className="text-white/45 text-sm mb-4">Gabung untuk melengkapi profil Anda dan menjaga silsilah tetap hidup.</p>
-                <Link
-                  href="/register"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-                >
-                  Bergabung di digsan.id <ArrowRight size={15} />
-                </Link>
-              </div>
             </section>
           </div>
         </main>
