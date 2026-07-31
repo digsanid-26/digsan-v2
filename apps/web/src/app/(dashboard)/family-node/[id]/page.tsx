@@ -91,7 +91,7 @@ export default function FamilyNodeEditPage() {
     setSlugSaving(true);
     setSlugMsg('');
     try {
-      await treeApi.setSlug(slugInput || undefined);
+      await treeApi.setSlugForTree(id, slugInput || undefined);
       setSlugMsg('Slug berhasil diperbarui');
       setTimeout(() => setSlugMsg(''), 3000);
       load();

@@ -198,6 +198,12 @@ export class TreeController {
     return this.treeService.update(id, userId, dto, roles);
   }
 
+  @Put(':id/slug')
+  @ApiOperation({ summary: 'Set slug on a specific family tree (Family Node page)' })
+  async setSlugForTree(@Param('id') id: string, @CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[], @Body() dto: SetSlugDto) {
+    return this.treeService.setSlugForTree(id, userId, dto.slug, roles);
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a family tree and all its members' })
   async remove(@Param('id') id: string, @CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[]) {

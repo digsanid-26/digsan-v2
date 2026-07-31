@@ -188,6 +188,12 @@ export const treeApi = {
       body: JSON.stringify({ slug }),
     }),
 
+  setSlugForTree: (treeId: string, slug?: string) =>
+    authRequest<{ slug: string; owner: { name: string; username: string | null; avatar: string | null } | null }>(`/trees/${encodeURIComponent(treeId)}/slug`, {
+      method: 'PUT',
+      body: JSON.stringify({ slug }),
+    }),
+
   // ─── Guardianship consent ───────────────────────────────────
   getConsents: () => authRequest<GuardianConsent[]>('/trees/consents'),
 

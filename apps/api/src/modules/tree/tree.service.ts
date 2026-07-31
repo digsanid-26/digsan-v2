@@ -620,6 +620,52 @@ export class TreeService {
     return { slug, owner: owner ? { name: owner.name, username, avatar: owner.avatar } : null };
   }
 
+  /** Set slug on a specific tree (for Family Node page). */
+  async setSlugForTree(treeId: string, userId: string, desiredSlug?: string, roles?: string[]) {
+    const tree = await this.ensureTreeOwner(treeId, userId, roles);
+
+    const config = (tree.layoutConfig as any) ?? {};
+    if (config.sharedFamilySlug && !roles?.includes('super_user')) {
+      throw new ForbiddenException('Hanya super_user yang dapat mengatur slug Family Node ini');
+    }
+
+    const familyName = config.mainFamilyName || tree.name || 'keluarga';
+    const base = desiredSlug?.trim() || `${familyName}-fam`;
+    const slug = await this.uniqueTreeSlug(base, tree.id);
+    await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
+    this.logger.log(`Slug set to "${slug}" for tree ${tree.id} (via Family Node page)`);
+
+    // Propagate to connected members
+    const membersData = (tree.layoutMembers as Record<string, any>) ?? {};
+    const linkedUserIds = new Set<string>();
+    for (const [, m] of Object.entries(membersData)) {
+      if ((m as any)?.linkedUserId) linkedUserIds.add((m as any).linkedUserId);
+    }
+    for (const linkedUserId of linkedUserIds) {
+      try {
+        const linkedTree = await this.prisma.familyTree.findFirst({ where: { userId: linkedUserId } });
+        if (linkedTree) {
+          const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
+          await this.prisma.familyTree.update({
+            where: { id: linkedTree.id },
+            data: {
+              layoutConfig: { ...linkedConfig, sharedFamilySlug: slug } as any,
+              slug: null,
+            },
+          });
+        }
+      } catch (err) {
+        this.logger.error(`Failed to propagate slug to linked user ${linkedUserId}: ${err}`);
+      }
+    }
+
+    const owner = await this.prisma.user.findUnique({
+      where: { id: tree.userId },
+      select: { id: true, name: true, username: true, avatar: true },
+    });
+    return { slug, owner: owner ? { name: owner.name, username: owner.username, avatar: owner.avatar } : null };
+  }
+
   /** Persist the explorer layout (config + members) for the current user. */
   async saveLayout(userId: string, config: unknown, members: unknown) {
     const tree = await this.getOrCreateDefaultTree(userId);
