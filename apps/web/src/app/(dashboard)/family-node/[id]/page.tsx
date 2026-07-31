@@ -70,12 +70,13 @@ export default function FamilyNodeEditPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleSave = async () => {
-    if (!id) return;
+    const treeId = data?.id || id;
+    if (!treeId) return;
     setSaving(true);
     setError(null);
     setSavedMsg('');
     try {
-      const updated = await treeApi.updateFamilyNode(id, form);
+      const updated = await treeApi.updateFamilyNode(treeId, form);
       setData(updated);
       setSavedMsg('Family Node berhasil diperbarui');
       setTimeout(() => setSavedMsg(''), 3000);
@@ -87,11 +88,12 @@ export default function FamilyNodeEditPage() {
   };
 
   const handleSaveSlug = async () => {
-    if (!id) return;
+    const treeId = data?.id || id;
+    if (!treeId) return;
     setSlugSaving(true);
     setSlugMsg('');
     try {
-      await treeApi.setSlugForTree(id, slugInput || undefined);
+      await treeApi.setSlugForTree(treeId, slugInput || undefined);
       setSlugMsg('Slug berhasil diperbarui');
       setTimeout(() => setSlugMsg(''), 3000);
       load();
