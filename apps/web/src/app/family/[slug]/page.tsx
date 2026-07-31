@@ -491,7 +491,7 @@ export default function PublicFamilyPage() {
                     }
                   }}
                   onBack={() => setViewMode('member')}
-                  className="w-full h-[70vh] min-h-[420px] max-h-[720px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
+                  className="w-full h-[85vh] min-h-[480px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
                 />
               ) : nodes.length ? (
                 <PublicTreeCanvas
@@ -506,10 +506,10 @@ export default function PublicFamilyPage() {
                   }}
                   highlightId={highlightId ?? undefined}
                   focusId="self"
-                  className="w-full h-[70vh] min-h-[420px] max-h-[720px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
+                  className="w-full h-[85vh] min-h-[480px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
                 />
               ) : (
-                <div className="h-[420px] flex items-center justify-center text-white/40 text-sm">
+                <div className="h-[480px] flex items-center justify-center text-white/40 text-sm">
                   Silsilah belum disiapkan.
                 </div>
               )}
