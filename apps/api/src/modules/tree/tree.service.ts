@@ -1020,7 +1020,7 @@ export class TreeService {
     return {
       family: { slug: tree.slug, name: (tree.layoutConfig as any)?.mainFamilyName || tree.name },
       profile: {
-        name: user.name,
+        name: node?.publicName || user.name,
         username: user.username,
         avatar: user.avatar || node?.photo || null,
         bio: user.bio,

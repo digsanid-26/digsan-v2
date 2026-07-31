@@ -12,6 +12,8 @@ interface ResolvedMember {
   gender?: string;
   /** Whether this slot is linked to a real, claimed account. */
   verified?: boolean;
+  /** Custom status label that overrides the auto-generated role label. */
+  statusLabel?: string | null;
 }
 
 interface Props {
@@ -242,7 +244,7 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                 </text>
               )}
               {/* Spouse role label */}
-              {!isGroup && n.group === 'spouse' && d?.gender && (
+              {!isGroup && n.group === 'spouse' && (
                 <text
                   y={r + 34}
                   textAnchor="middle"
@@ -250,11 +252,11 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                   fontSize={11}
                   fontWeight={400}
                 >
-                  {d.gender === 'P' ? 'Istri' : 'Suami'}
+                  {d?.statusLabel || (d?.gender === 'P' ? 'Istri' : 'Suami')}
                 </text>
               )}
-              {/* Kepala Keluarga label for the male in the couple (self or spouse) */}
-              {!isGroup && d?.gender === 'L' && (n.group === 'self' || n.group === 'spouse') && (
+              {/* Kepala Keluarga label for the male in the couple (self or spouse) — skip if custom statusLabel is set */}
+              {!isGroup && d?.gender === 'L' && (n.group === 'self' || n.group === 'spouse') && !d?.statusLabel && (
                 <text
                   y={r + (n.group === 'spouse' ? 50 : 34)}
                   textAnchor="middle"
@@ -265,10 +267,23 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                   Kepala Keluarga
                 </text>
               )}
-              {/* Child label: Anak{n}{gender} */}
+              {/* Child label: Anak{n}{gender} or custom statusLabel */}
               {!isGroup && n.group === 'child' && d?.name && (() => {
+                if (d?.statusLabel) {
+                  return (
+                    <text
+                      y={r + 34}
+                      textAnchor="middle"
+                      fill="rgba(255,255,255,0.5)"
+                      fontSize={11}
+                      fontWeight={400}
+                    >
+                      {d.statusLabel}
+                    </text>
+                  );
+                }
                 const childIdx = parseInt(n.id.replace('child-', ''), 10) + 1;
-                const genderLabel = d.gender === 'L' ? 'pa' : d.gender === 'P' ? 'pi' : '';
+                const genderLabel = d?.gender === 'L' ? 'pa' : d?.gender === 'P' ? 'pi' : '';
                 return (
                   <text
                     y={r + 34}

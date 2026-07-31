@@ -1017,6 +1017,8 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
     email: member?.email || '',
     phone: member?.phone || '',
     linkedUserId: member?.linkedUserId || null,
+    publicName: member?.publicName || '',
+    statusLabel: member?.statusLabel || '',
   });
   const fileRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
@@ -1224,6 +1226,21 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
           <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nama Lengkap</label>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={defaultName}
             disabled={!canEdit} className={`${inputCls} ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} />
+          {/* Public name & status label */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nama Publik</label>
+              <input value={form.publicName || ''} onChange={(e) => setForm({ ...form, publicName: e.target.value })} placeholder="(opsional)"
+                disabled={!canEdit} className={`${inputCls} ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Label Status</label>
+ <input value={form.statusLabel || ''} onChange={(e) => setForm({ ...form, statusLabel: e.target.value })} placeholder="(opsional)"
+                disabled={!canEdit} className={`${inputCls} ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} />
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-400 dark:text-white/30 -mt-1">Nama Publik menggantikan nama di halaman publik. Label Status menggantikan label peran di pohon keluarga publik.</p>
+
           {/* Link to Family Node page for slug/URL editing */}
           {isSelf && treeId && (
             <div className="mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2.5 text-xs">

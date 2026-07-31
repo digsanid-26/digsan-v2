@@ -51,6 +51,10 @@ export interface Member {
   group?: Group;
   /** Display role label for explicitly-added nodes. */
   role?: string;
+  /** Public display name — overrides name on public family/profile pages. */
+  publicName?: string | null;
+  /** Custom status label — overrides the auto-generated role label (Suami, Istri, Anak 1pa, etc.) on public tree. */
+  statusLabel?: string | null;
 }
 export type Members = Record<string, Member>;
 

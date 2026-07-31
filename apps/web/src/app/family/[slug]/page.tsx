@@ -103,14 +103,14 @@ export default function PublicFamilyPage() {
     // Self family node (center)
     const selfMembers: FamilyNodeMember[] = [];
     const selfM = ms['self'];
-    selfMembers.push({ name: selfM?.name || data.owner?.name || 'Kepala Keluarga', photo: selfM?.photo || data.owner?.avatar || null, role: 'head' });
+    selfMembers.push({ name: selfM?.publicName || selfM?.name || data.owner?.name || 'Kepala Keluarga', photo: selfM?.photo || data.owner?.avatar || null, role: 'head' });
     for (let i = 0; i < cfg.spouseCount; i++) {
       const sp = ms[`spouse-${i}`];
-      selfMembers.push({ name: sp?.name || 'Pasangan', photo: sp?.photo || null, role: 'spouse' });
+      selfMembers.push({ name: sp?.publicName || sp?.name || 'Pasangan', photo: sp?.photo || null, role: 'spouse' });
     }
     for (let i = 0; i < cfg.childCount; i++) {
       const c = ms[`child-${i}`];
-      selfMembers.push({ name: c?.name || `Anak ${i + 1}`, photo: c?.photo || null, role: 'child' });
+      selfMembers.push({ name: c?.publicName || c?.name || `Anak ${i + 1}`, photo: c?.photo || null, role: 'child' });
     }
     fnNodes.push({
       id: 'fn-self',
@@ -127,10 +127,10 @@ export default function PublicFamilyPage() {
     if (cfg.parentCount > 0) {
       const p0 = ms['parent-0'];
       const p1 = ms['parent-1'];
-      const parentName = [p0?.name, p1?.name].filter(Boolean).join(' & ') || 'Keluarga Orang Tua';
+      const parentName = [p0?.publicName || p0?.name, p1?.publicName || p1?.name].filter(Boolean).join(' & ') || 'Keluarga Orang Tua';
       const parentMembers: FamilyNodeMember[] = [];
-      if (p0) parentMembers.push({ name: p0.name, photo: p0.photo || null, role: 'head' });
-      if (p1) parentMembers.push({ name: p1.name, photo: p1.photo || null, role: 'spouse' });
+      if (p0) parentMembers.push({ name: p0.publicName || p0.name, photo: p0.photo || null, role: 'head' });
+      if (p1) parentMembers.push({ name: p1.publicName || p1.name, photo: p1.photo || null, role: 'spouse' });
       fnNodes.push({
         id: 'fn-parent',
         name: `Keluarga ${parentName}`,
@@ -146,14 +146,14 @@ export default function PublicFamilyPage() {
     // Older siblings (left)
     for (let i = 0; i < cfg.olderCount; i++) {
       const k = ms[`kakak-${i}`];
-      const sibName = k?.name || `Kakak ${i + 1}`;
+      const sibName = k?.publicName || k?.name || `Kakak ${i + 1}`;
       fnNodes.push({
         id: `fn-kakak-${i}`,
         name: `Keluarga ${sibName}`,
         familyImage: k?.photo || null,
         slug: null,
         kind: 'sibling',
-        fnMembers: k ? [{ name: k.name, photo: k.photo || null, role: 'head' }] : undefined,
+        fnMembers: k ? [{ name: k.publicName || k.name, photo: k.photo || null, role: 'head' }] : undefined,
         x: -240 * (i + 1), y: 0,
       });
       fnLinks.push({ from: 'fn-self', to: `fn-kakak-${i}` });
@@ -162,14 +162,14 @@ export default function PublicFamilyPage() {
     // Younger siblings (right)
     for (let i = 0; i < cfg.youngerCount; i++) {
       const a = ms[`adik-${i}`];
-      const sibName = a?.name || `Adik ${i + 1}`;
+      const sibName = a?.publicName || a?.name || `Adik ${i + 1}`;
       fnNodes.push({
         id: `fn-adik-${i}`,
         name: `Keluarga ${sibName}`,
         familyImage: a?.photo || null,
         slug: null,
         kind: 'sibling',
-        fnMembers: a ? [{ name: a.name, photo: a.photo || null, role: 'head' }] : undefined,
+        fnMembers: a ? [{ name: a.publicName || a.name, photo: a.photo || null, role: 'head' }] : undefined,
         x: 240 * (i + 1), y: 0,
       });
       fnLinks.push({ from: 'fn-self', to: `fn-adik-${i}` });
@@ -181,12 +181,12 @@ export default function PublicFamilyPage() {
       const c = ms[`child-${i}`];
       const hasSpouse = c?.spouseId || ms[`child-${i}-spouse`];
       if (hasSpouse) {
-        const childName = c?.name || `Anak ${i + 1}`;
+        const childName = c?.publicName || c?.name || `Anak ${i + 1}`;
         const childMembers: FamilyNodeMember[] = [];
-        if (c) childMembers.push({ name: c.name, photo: c.photo || null, role: 'head' });
+        if (c) childMembers.push({ name: c.publicName || c.name, photo: c.photo || null, role: 'head' });
         const spouseKey = c?.spouseId || `child-${i}-spouse`;
         const cs = ms[spouseKey];
-        if (cs) childMembers.push({ name: cs.name, photo: cs.photo || null, role: 'spouse' });
+        if (cs) childMembers.push({ name: cs.publicName || cs.name, photo: cs.photo || null, role: 'spouse' });
         childNodes.push({
           id: `fn-child-${i}`,
           name: `Keluarga ${childName}`,
@@ -240,9 +240,10 @@ export default function PublicFamilyPage() {
 
   const resolve = (id: string, fallback: string) => {
     const m = members[id];
-    const name = id === 'self' ? (m?.name || data?.owner?.name || 'Anda') : (m?.name || fallback);
+    const rawName = id === 'self' ? (m?.name || data?.owner?.name || 'Anda') : (m?.name || fallback);
+    const name = m?.publicName || rawName;
     const photo = id === 'self' ? (m?.photo || data?.owner?.avatar || null) : (m?.photo || null);
-    return { name, photo, alive: m?.alive !== false, gender: m?.gender || '', verified: id === 'self' ? true : m?.verified };
+    return { name, photo, alive: m?.alive !== false, gender: m?.gender || '', verified: id === 'self' ? true : m?.verified, statusLabel: m?.statusLabel || null };
   };
 
   const onNodeClick = (node: TNode) => {
@@ -567,7 +568,7 @@ export default function PublicFamilyPage() {
                   </div>
                 )}
                 <h3 className="text-white font-semibold text-lg mb-1">{selectedResolved.name}</h3>
-                <p className="text-white/40 text-xs mb-3">{selectedNode.role}</p>
+                <p className="text-white/40 text-xs mb-3">{selectedResolved.statusLabel || selectedNode.role}</p>
                 <div className="grid grid-cols-2 gap-2 text-left mb-4">
                   <div className="rounded-lg bg-white/5 px-3 py-2">
                     <p className="text-white/30 text-[10px] uppercase">Jenis Kelamin</p>
