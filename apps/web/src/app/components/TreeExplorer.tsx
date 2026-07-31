@@ -842,7 +842,7 @@ export default function TreeExplorer() {
         )}
         {panel === 'member' && selected && (
           <MemberForm key={selected.id} dark={dark} node={selected} isSelf={selected.id === selfNodeId}
-            familySlug={identity.slug} ownerUsername={identity.username}
+            familySlug={identity.slug} ownerUsername={identity.username} treeId={identity.treeId}
             member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
             canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest', selfNodeId)}
             connectedFamily={connectedFamily}
@@ -997,8 +997,8 @@ function SetupForm({ initial, isTreeOwner, connectedFamily, familySlug, onSave, 
 
 // ─── Member form ────────────────────────────────────────────
 
-function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultName, accountName, canEdit, canDelete, onDelete, connectedFamily, consent, onRequestConsent, onRevokeConsent, onSetSlug, onOpenInvite, onSave, onClose }: {
-  dark: boolean; node: TNode; isSelf: boolean; familySlug?: string | null; ownerUsername?: string | null; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
+function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, defaultName, accountName, canEdit, canDelete, onDelete, connectedFamily, consent, onRequestConsent, onRevokeConsent, onSetSlug, onOpenInvite, onSave, onClose }: {
+  dark: boolean; node: TNode; isSelf: boolean; familySlug?: string | null; ownerUsername?: string | null; treeId?: string | null; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
   canDelete?: boolean; onDelete?: () => void;
   connectedFamily?: ConnectedFamily | null;
   consent?: GuardianConsent;
@@ -1225,9 +1225,9 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={defaultName}
             disabled={!canEdit} className={`${inputCls} ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} />
           {/* Link to Family Node page for slug/URL editing */}
-          {isSelf && identity.treeId && (
+          {isSelf && treeId && (
             <div className="mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2.5 text-xs">
-              <a href={`/family-node/${identity.treeId}`} target="_blank" rel="noopener noreferrer"
+              <a href={`/family-node/${treeId}`} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:underline">
                 <Link2 size={12} /> Kelola URL & Visibilitas di Family Node
               </a>
