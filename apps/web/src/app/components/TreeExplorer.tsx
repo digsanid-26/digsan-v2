@@ -1020,10 +1020,6 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
   });
   const fileRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
-  const [slugEditing, setSlugEditing] = useState(false);
-  const [slugInput, setSlugInput] = useState('');
-  const [slugLoading, setSlugLoading] = useState(false);
-  const [slugError, setSlugError] = useState('');
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   // User search for identity matching
@@ -1228,85 +1224,13 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, member, defaultNa
           <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Nama Lengkap</label>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={defaultName}
             disabled={!canEdit} className={`${inputCls} ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`} />
-          {/* Slug / public link info */}
-          {isSelf && (
-            <div className="mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2.5 text-xs space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50 min-w-0">
-                  <Link2 size={12} className="shrink-0" />
-                  <span className="shrink-0">Family Slug:</span>
-                  {slugEditing ? (
-                    <input
-                      value={slugInput}
-                      onChange={(e) => setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                      placeholder="nama-keluarga-fam"
-                      className="flex-1 min-w-0 px-2 py-0.5 rounded text-xs font-mono border bg-white dark:bg-white/10 border-slate-300 dark:border-white/20 text-slate-900 dark:text-white outline-none focus:border-blue-400"
-                      autoFocus
-                    />
-                  ) : (
-                    <span className={`font-mono truncate ${familySlug ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
-                      {familySlug || '(belum dibuat)'}
-                    </span>
-                  )}
-                </div>
-                {/* Buat / Edit / Save / Cancel buttons */}
-                {!slugEditing ? (
-                  <button
-                    type="button"
-                    onClick={() => { setSlugInput(familySlug || ''); setSlugEditing(true); }}
-                    className={`shrink-0 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                      familySlug
-                        ? 'text-slate-600 dark:text-white/70 hover:bg-slate-200 dark:hover:bg-white/10'
-                        : 'bg-blue-600 text-white hover:bg-blue-500'
-                    }`}>
-                    {familySlug ? 'Edit' : 'Buat'}
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      disabled={slugLoading}
-                      onClick={async () => {
-                        setSlugLoading(true);
-                        setSlugError('');
-                        try {
-                          await onSetSlug(slugInput || undefined);
-                          setSlugEditing(false);
-                        } catch (err: any) {
-                          setSlugError(err?.message || 'Gagal membuat slug');
-                        }
-                        setSlugLoading(false);
-                      }}
-                      className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50">
-                      {slugLoading ? '…' : 'Simpan'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSlugEditing(false)}
-                      className="px-2 py-1 rounded-md text-xs font-medium text-slate-500 dark:text-white/50 hover:bg-slate-200 dark:hover:bg-white/10">
-                      Batal
-                    </button>
-                  </div>
-                )}
-              </div>
-              {slugError && slugEditing && (
-                <div className="text-xs text-rose-500 dark:text-rose-400">{slugError}</div>
-              )}
-              {familySlug && !slugEditing && (
-                <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
-                  <span className="shrink-0">Public URL:</span>
-                  <a href={publicFamilyUrl} target="_blank" rel="noopener noreferrer"
-                    className="font-mono text-blue-600 dark:text-blue-400 hover:underline truncate">
-                    {publicFamilyUrl}
-                  </a>
-                </div>
-              )}
-              {ownerUsername && !slugEditing && (
-                <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
-                  <span className="shrink-0">Username:</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400">{ownerUsername}</span>
-                </div>
-              )}
+          {/* Link to Family Node page for slug/URL editing */}
+          {isSelf && identity.treeId && (
+            <div className="mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2.5 text-xs">
+              <a href={`/family-node/${identity.treeId}`} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:underline">
+                <Link2 size={12} /> Kelola URL & Visibilitas di Family Node
+              </a>
             </div>
           )}
         </div>
