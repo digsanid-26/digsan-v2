@@ -414,7 +414,7 @@ export class TreeService {
   private async ensureIdentity(tree: { id: string; slug: string | null; name: string; userId: string; layoutConfig: any }) {
     let slug = tree.slug;
     const familyName = (tree.layoutConfig?.mainFamilyName as string) || tree.name || 'keluarga';
-    const desiredBase = `${familyName}-fam`;
+    const desiredBase = familyName.endsWith('-fam') ? familyName : `${familyName}-fam`;
     const sharedFamilySlug = tree.layoutConfig?.sharedFamilySlug as string | undefined;
 
     if (!slug) {
@@ -487,7 +487,7 @@ export class TreeService {
       }
       try {
         const familyName = config.mainFamilyName || tree.name || 'keluarga';
-        const desiredBase = `${familyName}-fam`;
+        const desiredBase = familyName.endsWith('-fam') ? familyName : `${familyName}-fam`;
         const slug = await this.uniqueTreeSlug(desiredBase, tree.id);
         await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
         details.push({ treeId: tree.id, slug });
@@ -574,7 +574,7 @@ export class TreeService {
       throw new ForbiddenException('Hanya pemilik pohon yang dapat mengatur slug');
     }
     const familyName = (tree.layoutConfig as any)?.mainFamilyName || tree.name || 'keluarga';
-    const base = desiredSlug?.trim() || `${familyName}-fam`;
+    const base = desiredSlug?.trim() || (familyName.endsWith('-fam') ? familyName : `${familyName}-fam`);
     const slug = await this.uniqueTreeSlug(base, tree.id);
     await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
     this.logger.log(`Slug manually set to "${slug}" for tree ${tree.id}`);
@@ -630,7 +630,7 @@ export class TreeService {
     }
 
     const familyName = config.mainFamilyName || tree.name || 'keluarga';
-    const base = desiredSlug?.trim() || `${familyName}-fam`;
+    const base = desiredSlug?.trim() || (familyName.endsWith('-fam') ? familyName : `${familyName}-fam`);
     const slug = await this.uniqueTreeSlug(base, tree.id);
     await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
     this.logger.log(`Slug set to "${slug}" for tree ${tree.id} (via Family Node page)`);
@@ -916,7 +916,7 @@ export class TreeService {
           });
         }
         const familyName = (config.mainFamilyName as string) || t.name || '';
-        const desiredBase = `${familyName}-fam`;
+        const desiredBase = familyName.endsWith('-fam') ? familyName : `${familyName}-fam`;
         // Match if the family name slugified equals the requested slug
         // e.g. "Farisma" → "farisma" or "farisma-fam"
         const slugified = familyName.toLowerCase().trim().replace(/\s+/g, '-');
