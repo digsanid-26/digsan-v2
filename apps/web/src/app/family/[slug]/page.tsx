@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Users, ArrowRight, Loader2, X, KeyRound, BadgeCheck, LogIn } from 'lucide-react';
+import { Users, ArrowRight, Loader2, X, KeyRound, BadgeCheck, LogIn, PanelLeft } from 'lucide-react';
 import { publicTreeApi, treeApi, savePendingClaim } from '@/lib/tree';
 import type { PublicFamily } from '@/lib/tree';
 import { auth, getTokens, getUser, saveTokens, saveUser } from '@/lib/auth';
@@ -46,6 +46,7 @@ export default function PublicFamilyPage() {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [viewMode, setViewMode] = useState<'member' | 'familynode'>('member');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Super user early access form
   const [isSuperUser, setIsSuperUser] = useState(false);
@@ -366,153 +367,162 @@ export default function PublicFamilyPage() {
           </div>
         </div>
       ) : data ? (
-        <main className="flex-1 flex flex-col">
-          {/* Family header — cover + family image + bio + marriage info */}
-          <section className="relative w-full">
-            {/* Cover image */}
-            {data.coverImage ? (
-              <div className="relative h-40 sm:h-56 w-full overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={data.coverImage} alt="Cover" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-[#05050f]" />
-              </div>
-            ) : (
-              <div className="h-24 sm:h-32 w-full bg-gradient-to-b from-white/[0.03] to-transparent" />
-            )}
+        <main className="flex-1 flex flex-col lg:flex-row relative">
+          {/* Toggle button */}
+          <button
+            onClick={() => setSidebarOpen((v) => !v)}
+            className="fixed top-20 left-2 z-30 p-2 rounded-lg border border-white/10 bg-[#0a0a16]/90 backdrop-blur text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label={sidebarOpen ? 'Sembunyikan info' : 'Tampilkan info'}
+          >
+            <PanelLeft size={18} />
+          </button>
 
-            {/* Family image + name + bio */}
-            <div className="max-w-2xl mx-auto px-6 -mt-12 sm:-mt-16 relative z-10 text-center">
-              {data.familyImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={data.familyImage}
-                  alt={data.name}
-                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover mx-auto border-4 border-[#05050f] shadow-xl mb-3"
-                />
-              ) : null}
-
-              <p className="text-blue-400/80 text-xs font-medium uppercase tracking-wider mb-2">Silsilah Keluarga</p>
-              <h1
-                className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight"
-                style={{ fontFamily: 'var(--font-space-grotesk, Space Grotesk, sans-serif)' }}
-              >
-                {data.name}
-              </h1>
-
-              {data.headName && (
-                <p className="text-white/50 text-sm mb-2">
-                  Kepala Keluarga: <span className="text-white/70 font-medium">{data.headName}</span>
-                </p>
+          {/* Left sidebar — cover + family info */}
+          <aside
+            className={`${
+              sidebarOpen ? 'w-full lg:w-80 xl:w-96' : 'w-0'
+            } shrink-0 overflow-hidden transition-all duration-300 border-r border-white/[0.06] bg-[#070712]`}
+          >
+            <div className="w-80 xl:w-96 h-full overflow-y-auto">
+              {/* Cover image */}
+              {data.coverImage ? (
+                <div className="relative h-32 w-full overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={data.coverImage} alt="Cover" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-[#070712]" />
+                </div>
+              ) : (
+                <div className="h-16 w-full bg-gradient-to-b from-white/[0.03] to-transparent" />
               )}
 
-              {data.familyBio && (
-                <p className="text-white/50 text-sm leading-relaxed mb-3 max-w-lg mx-auto">{data.familyBio}</p>
-              )}
+              {/* Family info — left aligned, no family image */}
+              <div className="px-5 py-4 text-left space-y-3">
+                <p className="text-blue-400/80 text-[10px] font-medium uppercase tracking-wider">Silsilah Keluarga</p>
+                <h1
+                  className="text-2xl font-bold text-white tracking-tight leading-tight"
+                  style={{ fontFamily: 'var(--font-space-grotesk, Space Grotesk, sans-serif)' }}
+                >
+                  {data.name}
+                </h1>
 
-              {data.description && !data.familyBio && (
-                <p className="text-white/50 text-sm leading-relaxed mb-3">{data.description}</p>
-              )}
+                {data.headName && (
+                  <p className="text-white/50 text-sm">
+                    Kepala Keluarga: <span className="text-white/70 font-medium">{data.headName}</span>
+                  </p>
+                )}
 
-              {/* Marriage info */}
-              {data.marriageStatus && data.marriageStatus !== 'NONE' && (
-                <div className="inline-flex items-center gap-3 text-xs text-white/40 mb-3">
-                  {data.marriageDate && (
-                    <span>
-                      Pernikahan: {new Date(data.marriageDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                {data.familyBio && (
+                  <p className="text-white/45 text-sm leading-relaxed">{data.familyBio}</p>
+                )}
+
+                {data.description && !data.familyBio && (
+                  <p className="text-white/45 text-sm leading-relaxed">{data.description}</p>
+                )}
+
+                {/* Marriage info */}
+                {data.marriageStatus && data.marriageStatus !== 'NONE' && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-white/40">
+                    {data.marriageDate && (
+                      <span>
+                        Pernikahan: {new Date(data.marriageDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/60">
+                      {data.marriageStatus === 'ONGOING' ? 'Berlangsung' :
+                       data.marriageStatus === 'DIVORCED' ? 'Cerai Hidup' :
+                       data.marriageStatus === 'WIDOWED' ? 'Cerai Mati' : data.marriageStatus}
                     </span>
-                  )}
-                  <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/60">
-                    {data.marriageStatus === 'ONGOING' ? 'Berlangsung' :
-                     data.marriageStatus === 'DIVORCED' ? 'Cerai Hidup' :
-                     data.marriageStatus === 'WIDOWED' ? 'Cerai Mati' : data.marriageStatus}
-                  </span>
-                </div>
-              )}
+                  </div>
+                )}
 
-              {data.owner && (
-                <div className="mt-2 inline-flex items-center gap-2 text-white/60 text-sm">
-                  {data.owner.avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={data.owner.avatar} alt={data.owner.name} referrerPolicy="no-referrer" className="w-6 h-6 rounded-full object-cover" />
-                  ) : null}
-                  <span>Dikelola oleh {data.owner.name}</span>
-                  {data.owner.username && (
-                    <Link href={`/family/${slug}/${data.owner.username}`} className="inline-flex items-center gap-1 text-blue-400 hover:underline">
-                      Lihat profil <ArrowRight size={13} />
-                    </Link>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Invited-member banner */}
-          {highlightId && (
-            <div className="px-6 -mt-1 mb-2">
-              <div className="max-w-md mx-auto rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-center">
-                <p className="text-amber-200 text-sm">Anda diundang — bagian Anda ditandai <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 align-middle" /> pada silsilah di bawah.</p>
+                {data.owner && (
+                  <div className="flex items-center gap-2 text-white/60 text-sm pt-2 border-t border-white/[0.06]">
+                    {data.owner.avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={data.owner.avatar} alt={data.owner.name} referrerPolicy="no-referrer" className="w-6 h-6 rounded-full object-cover" />
+                    ) : null}
+                    <span>Dikelola oleh {data.owner.name}</span>
+                    {data.owner.username && (
+                      <Link href={`/family/${slug}/${data.owner.username}`} className="inline-flex items-center gap-1 text-blue-400 hover:underline ml-auto">
+                        Profil <ArrowRight size={12} />
+                      </Link>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </aside>
 
-          {/* Tree */}
-          <section className="px-2 sm:px-6 pb-8">
-            {viewMode === 'familynode' ? (
-              <FamilyNodeTreeCanvas
-                nodes={familyNodeTree.nodes}
-                links={familyNodeTree.links}
-                onNodeClick={(fn) => {
-                  if (fn.slug && fn.slug !== slug) {
-                    router.push(`/family/${fn.slug}`);
-                  }
-                }}
-                onBack={() => setViewMode('member')}
-                className="w-full h-[70vh] min-h-[420px] max-h-[720px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
-              />
-            ) : nodes.length ? (
-              <PublicTreeCanvas
-                nodes={nodes}
-                lines={lines}
-                resolve={resolve}
-                onNodeClick={onNodeClick}
-                onGroupClick={(n) => {
-                  if (n.id === 'grp-kb') {
-                    setViewMode('familynode');
-                  }
-                }}
-                highlightId={highlightId ?? undefined}
-                focusId="self"
-                className="w-full h-[70vh] min-h-[420px] max-h-[720px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
-              />
-            ) : (
-              <div className="h-[420px] flex items-center justify-center text-white/40 text-sm">
-                Silsilah belum disiapkan.
+          {/* Right — tree + CTA */}
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* Invited-member banner */}
+            {highlightId && (
+              <div className="px-6 pt-3 mb-1">
+                <div className="max-w-md rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-center">
+                  <p className="text-amber-200 text-sm">Anda diundang — bagian Anda ditandai <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 align-middle" /> pada silsilah di bawah.</p>
+                </div>
               </div>
             )}
-            {viewMode === 'familynode' ? (
-              <p className="text-center text-white/25 text-xs mt-2">
-                Klik lingkaran untuk membuka halaman keluarga. Klik "Mode Familymember" untuk kembali.
-              </p>
-            ) : nodes.length ? (
-              <p className="text-center text-white/25 text-xs mt-2">
-                Geser untuk menjelajah, gulir/pinch untuk memperbesar. Lingkaran bergaris putus-putus belum diklaim.
-              </p>
-            ) : null}
-          </section>
 
-          {/* CTA */}
-          <section className="px-6 pb-10 text-center">
-            <div className="max-w-md mx-auto rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-              <h2 className="text-white font-semibold mb-1">Bagian dari keluarga ini?</h2>
-              <p className="text-white/45 text-sm mb-4">Gabung untuk melengkapi profil Anda dan menjaga silsilah tetap hidup.</p>
-              <Link
-                href="/register"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-              >
-                Bergabung di digsan.id <ArrowRight size={15} />
-              </Link>
-            </div>
-          </section>
+            {/* Tree */}
+            <section className="px-2 sm:px-4 pb-8 flex-1">
+              {viewMode === 'familynode' ? (
+                <FamilyNodeTreeCanvas
+                  nodes={familyNodeTree.nodes}
+                  links={familyNodeTree.links}
+                  onNodeClick={(fn) => {
+                    if (fn.slug && fn.slug !== slug) {
+                      router.push(`/family/${fn.slug}`);
+                    }
+                  }}
+                  onBack={() => setViewMode('member')}
+                  className="w-full h-[70vh] min-h-[420px] max-h-[720px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
+                />
+              ) : nodes.length ? (
+                <PublicTreeCanvas
+                  nodes={nodes}
+                  lines={lines}
+                  resolve={resolve}
+                  onNodeClick={onNodeClick}
+                  onGroupClick={(n) => {
+                    if (n.id === 'grp-kb') {
+                      setViewMode('familynode');
+                    }
+                  }}
+                  highlightId={highlightId ?? undefined}
+                  focusId="self"
+                  className="w-full h-[70vh] min-h-[420px] max-h-[720px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
+                />
+              ) : (
+                <div className="h-[420px] flex items-center justify-center text-white/40 text-sm">
+                  Silsilah belum disiapkan.
+                </div>
+              )}
+              {viewMode === 'familynode' ? (
+                <p className="text-center text-white/25 text-xs mt-2">
+                  Klik lingkaran untuk membuka halaman keluarga. Klik "Mode Familymember" untuk kembali.
+                </p>
+              ) : nodes.length ? (
+                <p className="text-center text-white/25 text-xs mt-2">
+                  Geser untuk menjelajah, gulir/pinch untuk memperbesar. Lingkaran bergaris putus-putus belum diklaim.
+                </p>
+              ) : null}
+            </section>
+
+            {/* CTA */}
+            <section className="px-6 pb-10 text-center">
+              <div className="max-w-md mx-auto rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <h2 className="text-white font-semibold mb-1">Bagian dari keluarga ini?</h2>
+                <p className="text-white/45 text-sm mb-4">Gabung untuk melengkapi profil Anda dan menjaga silsilah tetap hidup.</p>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                >
+                  Bergabung di digsan.id <ArrowRight size={15} />
+                </Link>
+              </div>
+            </section>
+          </div>
         </main>
       ) : null}
 
