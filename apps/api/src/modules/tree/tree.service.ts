@@ -1040,6 +1040,70 @@ export class TreeService {
     };
   }
 
+  /** Public personal-profile page resolved by username only (no family slug needed). */
+  async getPublicProfileByUsername(username: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: { id: true, name: true, username: true, avatar: true, bio: true, status: true, createdAt: true, birthDate: true, birthPlace: true, education: true, occupation: true, hobbies: true },
+    });
+    if (!user) throw new NotFoundException('Profil tidak ditemukan');
+
+    // Find the family tree this user belongs to.
+    // First check if they own a tree, otherwise find a tree where they're a linked/claimed member.
+    let tree = await this.prisma.familyTree.findFirst({
+      where: { userId: user.id },
+      select: { id: true, slug: true, name: true, layoutConfig: true, layoutMembers: true, userId: true },
+    });
+
+    let isOwner = !!tree;
+    let nodeId: string | null = null;
+    let node: any = null;
+
+    if (tree) {
+      nodeId = 'self';
+      node = (tree.layoutMembers as any)?.['self'] ?? null;
+    } else {
+      // Search all trees for a layout member linked to this user
+      const allTrees = await this.prisma.familyTree.findMany({
+        select: { id: true, slug: true, name: true, layoutConfig: true, layoutMembers: true, userId: true },
+      });
+      for (const t of allTrees) {
+        const members = (t.layoutMembers as any) ?? {};
+        const foundNodeId = this.findLayoutNodeForUser(members, user.id);
+        if (foundNodeId) {
+          tree = t;
+          nodeId = foundNodeId;
+          node = members[foundNodeId] ?? null;
+          break;
+        }
+      }
+    }
+
+    if (!tree) throw new NotFoundException('Profil tidak ditemukan di keluarga mana pun');
+
+    return {
+      family: { slug: tree.slug, name: (tree.layoutConfig as any)?.mainFamilyName || tree.name },
+      profile: {
+        name: node?.publicName || user.name,
+        username: user.username,
+        avatar: user.avatar || node?.photo || null,
+        bio: user.bio,
+        isOwner,
+        nodeId,
+        familyRole: node?.role || null,
+        gender: node?.gender || null,
+        alive: node?.alive !== false,
+        earlyAccess: user.status === 'EARLY_ACCESS',
+        joinedAt: user.createdAt,
+        birthDate: user.birthDate,
+        birthPlace: user.birthPlace,
+        education: user.education,
+        occupation: user.occupation,
+        hobbies: user.hobbies,
+      },
+    };
+  }
+
   // ─── PUBLIC LINK TOKENS ─────────────────────────────────────
 
   /** Check if a user is the owner of a tree by slug. */
@@ -1136,6 +1200,19 @@ export class TreeService {
     if (record.slug !== slug && record.slug !== `${slug}-fam` && `${record.slug}-fam` !== slug) {
       throw new ForbiddenException('Token tidak sesuai untuk keluarga ini');
     }
+    if (username && record.username && record.username !== username) {
+      throw new ForbiddenException('Token tidak sesuai untuk profil ini');
+    }
+    if (record.expiresAt < new Date()) {
+      throw new ForbiddenException('Token link publik telah kedaluwarsa. Silakan minta link baru.');
+    }
+    return true;
+  }
+
+  /** Validate a public link token by username only (no slug needed). */
+  async validatePublicLinkTokenByUsername(token: string, username?: string): Promise<boolean> {
+    const record = await this.prisma.publicLinkToken.findUnique({ where: { token } });
+    if (!record) throw new ForbiddenException('Token link publik tidak valid');
     if (username && record.username && record.username !== username) {
       throw new ForbiddenException('Token tidak sesuai untuk profil ini');
     }
@@ -1929,7 +2006,7 @@ export class TreeService {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // A username is what makes /family/{slug}/{username} resolvable, so every
+    // A username is what makes /id/{username} resolvable, so every
     // early-access member gets one up front.
     const username = await this.uniqueUsername(member.name);
 
@@ -1964,7 +2041,7 @@ export class TreeService {
 
     return {
       message: 'Early access berhasil dibuat',
-      publicProfileUrl: tree.slug ? `/family/${tree.slug}/${newUser.username}` : null,
+      publicProfileUrl: `/id/${newUser.username}`,
       user: { id: newUser.id, email: newUser.email, name: newUser.name, username: newUser.username, status: newUser.status },
     };
   }
@@ -2015,7 +2092,7 @@ export class TreeService {
     const passwordHash = await bcrypt.hash(password, 12);
     const memberName = member.name || nodeId;
 
-    // A username is what makes /family/{slug}/{username} resolvable, so every
+    // A username is what makes /id/{username} resolvable, so every
     // early-access member gets one up front.
     const username = await this.uniqueUsername(memberName);
 
@@ -2057,7 +2134,7 @@ export class TreeService {
     return {
       message: 'Early access berhasil dibuat',
       nodeId,
-      publicProfileUrl: tree.slug ? `/family/${tree.slug}/${username}` : null,
+      publicProfileUrl: `/id/${username}`,
       user: { id: newUser.id, email: newUser.email, name: newUser.name, username, status: newUser.status },
     };
   }

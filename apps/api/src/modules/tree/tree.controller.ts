@@ -478,4 +478,25 @@ export class PublicFamilyController {
     }
     throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai anggota keluarga.');
   }
+
+  @Get('profile/:username')
+  @ApiOperation({ summary: 'Get a personal profile page by username only (token or auth required)' })
+  async getProfileByUsername(
+    @Param('username') username: string,
+    @Query('t') token: string | undefined,
+    @Req() req: any,
+  ) {
+    if (token) {
+      // Token validation still checks slug+username, but we don't have slug here.
+      // The token's slug is used only for validation, not for resolution.
+      const record = await this.treeService.validatePublicLinkTokenByUsername(token, username);
+      return this.treeService.getPublicProfileByUsername(username);
+    }
+    const userId = this.extractUserId(req);
+    if (userId) {
+      // Logged-in users can view any profile
+      return this.treeService.getPublicProfileByUsername(username);
+    }
+    throw new ForbiddenException('Akses memerlukan token link yang valid atau login.');
+  }
 }

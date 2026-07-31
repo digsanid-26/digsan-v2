@@ -889,8 +889,8 @@ export default function TreeExplorer() {
           const base = `${origin}/family/${identity.slug}`;
           // Invited a specific member → deep-link to that person on the public tree.
           if (inviteCtx?.nodeId && inviteCtx.nodeId !== selfNodeId) return `${base}?m=${encodeURIComponent(inviteCtx.nodeId)}`;
-          // Owner / self share → link to the owner's public profile (nama-keluarga/nama-user).
-          if (identity.username) return `${base}/${identity.username}`;
+          // Owner / self share → link to the owner's public profile (/id/username).
+          if (identity.username) return `${origin}/id/${identity.username}`;
           return base;
         })()}
         region={studioRegion}
@@ -1073,7 +1073,7 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
   const publicFamilyUrl = familySlug ? `${origin}/family/${familySlug}` : '';
-  const publicProfileUrl = familySlug && ownerUsername ? `${origin}/family/${familySlug}/${ownerUsername}` : '';
+  const publicProfileUrl = ownerUsername ? `${origin}/id/${ownerUsername}` : '';
   const copyPublicLink = async () => {
     if (!publicFamilyUrl) return;
     try {

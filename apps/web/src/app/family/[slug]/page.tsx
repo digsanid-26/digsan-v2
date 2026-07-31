@@ -249,7 +249,7 @@ export default function PublicFamilyPage() {
   const onNodeClick = (node: TNode) => {
     // Self node with username → navigate to profile directly
     if (node.id === 'self' && data?.owner?.username) {
-      router.push(`/family/${slug}/${data.owner.username}`);
+      router.push(`/id/${data.owner.username}`);
       return;
     }
     // All other nodes → open unified modal
@@ -444,7 +444,7 @@ export default function PublicFamilyPage() {
                     ) : null}
                     <span>Dikelola oleh {data.owner.name}</span>
                     {data.owner.username && (
-                      <Link href={`/family/${slug}/${data.owner.username}`} className="inline-flex items-center gap-1 text-blue-400 hover:underline ml-auto">
+                      <Link href={`/id/${data.owner.username}`} className="inline-flex items-center gap-1 text-blue-400 hover:underline ml-auto">
                         Profil <ArrowRight size={12} />
                       </Link>
                     )}
@@ -593,7 +593,7 @@ export default function PublicFamilyPage() {
                 </div>
                 {isSelfNode && data?.owner?.username && (
                   <button
-                    onClick={() => data?.owner?.username && router.push(`/family/${slug}/${data.owner.username}`)}
+                    onClick={() => data?.owner?.username && router.push(`/id/${data.owner.username}`)}
                     className="w-full py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
                   >
                     Lihat Profil Lengkap
@@ -603,7 +603,7 @@ export default function PublicFamilyPage() {
                 {/* Early-access members get their own public profile page */}
                 {!isSelfNode && selectedMember?.username && (
                   <button
-                    onClick={() => router.push(`/family/${slug}/${selectedMember.username}`)}
+                    onClick={() => router.push(`/id/${selectedMember.username}`)}
                     className="w-full py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
                   >
                     Lihat Profil Publik

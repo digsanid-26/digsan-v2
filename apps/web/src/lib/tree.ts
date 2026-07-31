@@ -366,6 +366,9 @@ export const publicTreeApi = {
   getProfile: (slug: string, username: string, token?: string, authToken?: string) =>
     publicRequest<PublicProfile>(`/public/family/${encodeURIComponent(slug)}/${encodeURIComponent(username)}${token ? `?t=${token}` : ''}`, authToken),
 
+  getProfileByUsername: (username: string, token?: string, authToken?: string) =>
+    publicRequest<PublicProfile>(`/public/family/profile/${encodeURIComponent(username)}${token ? `?t=${token}` : ''}`, authToken),
+
   generatePublicLink: async (slug: string, username?: string) => {
     const tokens = getTokens();
     if (!tokens?.accessToken) throw new Error('Not authenticated');
