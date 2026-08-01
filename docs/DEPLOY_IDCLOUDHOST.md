@@ -314,6 +314,12 @@ CLOUDINARY_API_SECRET="uzzYn8tGwTec8m4JZ9Hw6qp4sLA"
 FIREBASE_PROJECT_ID="digsanid-6dbf6"
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC3e3CEMEHpM8ZA\nDESqvoyk6ir0ULg5feIJZqfIqkcP9qS06qU1i3cK1OafmMtZiPVb4raLt+bMzZpb\nRugHA/niMYl/Kx9F1ae+bWehhy2ufBXs1FEIn0oi57voa8XRe2yZp7j1Em/X7JrA\n/zf8cu3UvB9X5wSkEO6DAjlDbqzcmXy6RA+ICcUX/ycyMmkdLkNm3IKU8c4TR9vE\ndZdDXETp29RhXJoKaRXVrQWXzCA2Yli30MoY+A2URYzrbm4ysDFHLzloAZy+Ytzq\n7DvoSfGbdh5GuEJrHsrl+YckQoXkQdSPO8YhKSeAkdPmNxu1cO4nuplmzOc0GisV\n89M4Iom9AgMBAAECgf8otFTwWPBLgj8iVgME0R9s0RHk+rMpxY564e9rsBekjh6u\newz38bvqGSU01ikLMVMy+9vypFxAlGkkxzpnTEWBu26yBFdCW9yjNQmljzx4AMld\nsqUbiRle+lTdls0USHgBrgka4OOkCcsz3EkkBHT/TvBu1unsIV6FLffRLbNXlLH1\n3SliQ26AsvI555iOW6ad+ULSXzn9kMTA6rMcpTYG6dPeU5+pIgaWzuWw91VUhrXh\nI0iLr8SFOFke8pVC3ZD0r02p9jUAsm1far7t9kis3F/X1+XdKtDDwJZ14G3enFf2\nVIkwybKEIdGHPwSeKJXa0LD4Per6JlogVKCgfPMCgYEA7Mi26n6uZhoJ+qUdzARX\nPxtYknLwMrp2zmwvER5AkyOUlUfV4FHnLb+ZphgQMKXrWpMZijQdjuMl4Lxdy63K\nXeMsGo7Z3jkh2ZTP8pwxO0V3H+Atv1dilyx+c5GGMAf1IX17+B5SZ0kniDKCoRQd\nCDejSIz2LR5Sybx55KOofMsCgYEAxl9ba61bbcBJ15XVphtkdeTlQ6vpwiUY2S9C\nLoEes2km9br30LPvnc2EzseswQnqWGbrVP2B6bDiBh6GR3izG5EMrMS+92PVgrEr\ncAH9nX6ShO/WmeMnza1Qdtn4dMgnfuFc2c0QWjjGpnliSnqx+8dPhYtNdK/e2PfI\n/d2DCpcCgYEAiIF2Il4CAM7GLf9+3B0shy8mstccbsJct8haog3EwI7km+McBARz\nuEYbOEvrGYCt3Dutn6VH3RZKwfMWR9PbNKFAzdbI93oMb7mA4Kb3Iup7MJ83AHZK\nWkjGZa3hpFMSGMqU64ffjbf42GX2NRK5YgFhWvQZAA3ZQIAt7YgEHF0CgYADMX/I\nQPcq0iCeLtRMoz4/w5qJN1hA/tXikScwlnWHD9dHt2XL30mpMajEp2Q5i05Rc/6v\n1JDl0SoiTRV+SwwfEnuwwE4Or3W9b9qyJ+YMRgBX0YCT45s9bV/ROfsM7jfsi/Yx\nr2JnAWj5PxT8+/KnifLWxIJPsZEVzw9WPt2gKwKBgQDhHvyDvLdXtQEcKubRRFN+\nRnxlyV+HYUOUlr7n4kSTTcXN6L9k9SmUL/dDNKlY0NC0p1Ni5vVcnV/zLc+PQcQl\nWTljsOJ/f2/0hek0kaZ5CJ43IwRT+tg4Vv0eNaHqr1ixLTVl5zBOOkXYXqzhJFiO\nZgiFGqtX1dHsseTYe0Xk9Q==\n-----END PRIVATE KEY-----\n-----END PRIVATE KEY-----"
 FIREBASE_CLIENT_EMAIL="firebase-adminsdk-fbsvc@digsanid-6dbf6.iam.gserviceaccount.com"
+
+# ═══════════════════════════════════════════════════════════
+# OPENROUTER (Untuk AI image generation di Ads Builder)
+# Daftar di: https://openrouter.ai
+# ═══════════════════════════════════════════════════════════
+OPENROUTER_API_KEY="your-openrouter-api-key"
 EOF
 
 # Set permissions (hanya owner bisa baca)
