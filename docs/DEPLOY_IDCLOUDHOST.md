@@ -945,6 +945,18 @@ cd ~/digsan-v2
 # Deploy terbaru
 ~/digsan-v2/deploy.sh
 
+# Deploy Web saja
+cd ~/digsan-v2
+git pull origin master
+pnpm --filter @digsan/web build
+pm2 restart digsan-web
+
+# Deploy Api saja
+cd ~/digsan-v2
+git pull origin master
+pnpm --filter @digsan/api build
+pm2 restart digsan-api
+
 # Migrate Prisma
 cd ~/digsan-v2/apps/api
 npx prisma migrate deploy --schema prisma/schema.prisma
