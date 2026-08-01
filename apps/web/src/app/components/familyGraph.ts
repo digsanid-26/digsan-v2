@@ -432,7 +432,10 @@ export function layoutGraph(g: FamilyGraph): { nodes: TNode[]; lines: Poly[] } {
     kids.forEach((k, i) => {
       const kx = cursor + widths[i] / 2;
       place(k.id, kx, y + ROW);
-      centres.push(kx);
+      // Use the child's actual node x (not couple midpoint) so the parent
+      // line connects to the child's own circle, not between child and spouse.
+      const childNode = nodes.find((n) => n.id === k.id);
+      centres.push(childNode ? childNode.x : kx);
       cursor += widths[i] + SIB_GAP;
     });
     connectDown(lines, mid, y, centres, y + ROW);
