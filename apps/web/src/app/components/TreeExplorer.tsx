@@ -124,13 +124,15 @@ function generateTree(cfg: TreeConfig): { nodes: TNode[]; lines: Poly[] } {
 
 // ─── Collapsed (homepage-like) generation ───────────────────
 
-function generateCollapsed(cfg: TreeConfig, selfNodeId: string = 'self'): { nodes: TNode[]; lines: Poly[] } {
+function generateCollapsed(cfg: TreeConfig, selfNodeId: string = 'self', expandedGroup: string | null = null): { nodes: TNode[]; lines: Poly[] } {
   const nodes: TNode[] = [];
   const lines: Poly[] = [];
   const coupleXs = spread(1 + cfg.spouseCount, 150, 0);
   // Find which couple slot the selfNodeId maps to
   const selfSlot = selfNodeId === 'self' ? 0 : selfNodeId.startsWith('spouse-') ? parseInt(selfNodeId.split('-')[1], 10) + 1 : 0;
   const selfX = coupleXs[selfSlot] ?? coupleXs[0];
+  const leftEdge = Math.min(...coupleXs);
+  const rightEdge = Math.max(...coupleXs);
   nodes.push({ id: selfNodeId, name: 'Anda', role: 'Diri Sendiri', x: selfX, y: 0, group: 'self' });
   // Add the other partner(s)
   for (let i = 0; i < cfg.spouseCount; i++) {
@@ -144,11 +146,47 @@ function generateCollapsed(cfg: TreeConfig, selfNodeId: string = 'self'): { node
     nodes.push({ id: 'self', name: 'Pasangan', role: 'Suami / Istri', x: coupleXs[0], y: 0, group: 'spouse' });
     lines.push({ points: [[selfX, 0], [coupleXs[0], 0]], marriage: true });
   }
-  const bubbles: TNode[] = [];
-  if (cfg.parentCount > 0) bubbles.push({ id: 'grp-ot', name: 'Orang Tua', role: 'group', x: 0, y: -235, group: 'parent', count: cfg.parentCount });
-  if (cfg.olderCount > 0) bubbles.push({ id: 'grp-kk', name: 'Kakak', role: 'group', x: -235, y: 0, group: 'kakak', count: cfg.olderCount });
-  if (cfg.youngerCount > 0) bubbles.push({ id: 'grp-ad', name: 'Adik', role: 'group', x: 235, y: 0, group: 'adik', count: cfg.youngerCount });
-  bubbles.forEach((b) => { nodes.push(b); lines.push({ points: [[0, 0], [b.x, b.y]] }); });
+
+  // Parents — bubble or individual circles
+  if (cfg.parentCount > 0) {
+    if (expandedGroup === 'parent') {
+      const parentXs = spread(cfg.parentCount, 130, 0);
+      const parentLabels = cfg.parentCount === 2 ? ['Ayah', 'Ibu'] : parentXs.map((_, i) => `Orang Tua ${i + 1}`);
+      parentXs.forEach((x, i) => nodes.push({ id: `parent-${i}`, name: parentLabels[i], role: 'Orang Tua', x, y: -210, group: 'parent' }));
+      if (cfg.parentCount >= 2) lines.push({ points: [[parentXs[0], -210], [parentXs[parentXs.length - 1], -210]], marriage: true });
+      const parentMid = parentXs.reduce((a, b) => a + b, 0) / parentXs.length;
+      connectDown(lines, parentMid, -210, [selfX], 0);
+    } else {
+      nodes.push({ id: 'grp-ot', name: 'Orang Tua', role: 'group', x: 0, y: -235, group: 'parent', count: cfg.parentCount });
+      lines.push({ points: [[selfX, 0], [0, -235]] });
+    }
+  }
+
+  // Kakak — bubble or individual circles
+  if (cfg.olderCount > 0) {
+    if (expandedGroup === 'kakak') {
+      const olderXs = spread(cfg.olderCount, 120, -235);
+      olderXs.forEach((x, i) => nodes.push({ id: `older-${i}`, name: `Kakak ${i + 1}`, role: 'Saudara Tua', x, y: 0, group: 'kakak' }));
+      const nearest = Math.max(...olderXs);
+      lines.push({ points: [[leftEdge, 0], [nearest, 0]] });
+    } else {
+      nodes.push({ id: 'grp-kk', name: 'Kakak', role: 'group', x: -235, y: 0, group: 'kakak', count: cfg.olderCount });
+      lines.push({ points: [[leftEdge, 0], [-235, 0]] });
+    }
+  }
+
+  // Adik — bubble or individual circles
+  if (cfg.youngerCount > 0) {
+    if (expandedGroup === 'adik') {
+      const youngerXs = spread(cfg.youngerCount, 120, 235);
+      youngerXs.forEach((x, i) => nodes.push({ id: `younger-${i}`, name: `Adik ${i + 1}`, role: 'Saudara Muda', x, y: 0, group: 'adik' }));
+      const nearest = Math.min(...youngerXs);
+      lines.push({ points: [[rightEdge, 0], [nearest, 0]] });
+    } else {
+      nodes.push({ id: 'grp-ad', name: 'Adik', role: 'group', x: 235, y: 0, group: 'adik', count: cfg.youngerCount });
+      lines.push({ points: [[rightEdge, 0], [235, 0]] });
+    }
+  }
 
   // Children — always shown individually (part of main family)
   const coupleMid = coupleXs.reduce((a, b) => a + b, 0) / coupleXs.length;
@@ -239,6 +277,7 @@ export default function TreeExplorer() {
   const [members, setMembers] = useState<Members>({});
   const [consents, setConsents] = useState<GuardianConsent[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
 
@@ -409,8 +448,8 @@ export default function TreeExplorer() {
     if (expanded) {
       return layoutGraph(configToGraph(config, members, me?.name || 'Anda', selfNodeId));
     }
-    return generateCollapsed(config, selfNodeId);
-  }, [config, expanded, members, me, selfNodeId]);
+    return generateCollapsed(config, selfNodeId, expandedGroup);
+  }, [config, expanded, members, me, selfNodeId, expandedGroup]);
 
   // Display helper (applies member overrides)
   const disp = (id: string, fallback: string) => {
@@ -507,12 +546,13 @@ export default function TreeExplorer() {
     drag.current = null;
   };
 
-  const doExpand = () => { setExpanded(true); setZoom(0.42); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); };
-  const doCollapse = () => { setExpanded(false); setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); };
+  const doExpand = () => { setExpanded(true); setExpandedGroup(null); setZoom(0.42); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); };
+  const doCollapse = () => { setExpanded(false); setExpandedGroup(null); setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); };
   const reset = () => { setZoom(expanded ? 0.42 : 1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); };
 
   const clickNode = (n: TNode) => {
-    if (n.role === 'group') { doExpand(); return; }
+    if (n.role === 'group') { setExpandedGroup(prev => prev === n.group ? null : n.group); return; }
+    if (n.id === selfNodeId && expandedGroup) { setExpandedGroup(null); return; }
     const d = disp(n.id, n.name);
     setSelected({ ...n, name: d.name });
     setPanel('member');
