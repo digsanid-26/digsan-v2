@@ -603,7 +603,7 @@ function BuilderTab() {
         {result ? (
           <div className="space-y-3">
             <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-white/10">
-              <img src={result.imageUrl} alt="Generated banner" className="w-full" />
+              <img src={result.imageUrl.startsWith('http') ? result.imageUrl : `${API_URL.replace(/\/api$/, '')}${result.imageUrl}`} alt="Generated banner" className="w-full" />
             </div>
             <p className="text-xs text-slate-400 dark:text-white/40">Prompt: {result.prompt}</p>
           </div>

@@ -368,6 +368,41 @@ export class AdvertisingAdminService {
       throw new BadRequestException('AI image generation returned no image. The model may not support image output.');
     }
 
-    return { imageUrl, prompt: fullPrompt };
+    // Download the image to local storage so it persists
+    let localUrl: string | null = null;
+    try {
+      if (imageUrl.startsWith('data:image/')) {
+        // Base64 data URI — save directly
+        const matches = imageUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+        if (matches) {
+          const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+          const buffer = Buffer.from(matches[2], 'base64');
+          const filename = `ai-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+          const filepath = `${process.cwd()}/public/uploads/ads/${filename}`;
+          const { writeFileSync, mkdirSync } = await import('fs');
+          mkdirSync(`${process.cwd()}/public/uploads/ads`, { recursive: true });
+          writeFileSync(filepath, buffer);
+          localUrl = `/api/uploads/ads/${filename}`;
+        }
+      } else {
+        // External URL — download and save locally
+        const imgRes = await fetch(imageUrl);
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get('content-type') || 'image/png';
+          const ext = contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : contentType.includes('webp') ? 'webp' : 'png';
+          const buffer = Buffer.from(await imgRes.arrayBuffer());
+          const filename = `ai-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+          const filepath = `${process.cwd()}/public/uploads/ads/${filename}`;
+          const { writeFileSync, mkdirSync } = await import('fs');
+          mkdirSync(`${process.cwd()}/public/uploads/ads`, { recursive: true });
+          writeFileSync(filepath, buffer);
+          localUrl = `/api/uploads/ads/${filename}`;
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Failed to save AI image locally: ${err}`);
+    }
+
+    return { imageUrl: localUrl || imageUrl, prompt: fullPrompt };
   }
 }

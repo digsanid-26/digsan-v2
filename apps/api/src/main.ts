@@ -27,7 +27,9 @@ async function bootstrap() {
   app.useBodyParser('urlencoded', { limit: '10mb', extended: true });
 
   // Security
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
   app.use(compression());
   app.use(cookieParser());
 
@@ -40,13 +42,13 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Global prefix
-  app.setGlobalPrefix('api');
-
-  // Serve uploaded files statically
+  // Serve uploaded files statically (before global prefix so /api/uploads/ works)
   const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
   app.useStaticAssets(path.join(process.cwd(), 'public'), { prefix: '/api/uploads/' });
+
+  // Global prefix
+  app.setGlobalPrefix('api');
 
   // Global filters & interceptors
   app.useGlobalFilters(new AllExceptionsFilter());
