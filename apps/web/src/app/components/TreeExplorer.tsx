@@ -162,19 +162,26 @@ function generateCollapsed(cfg: TreeConfig, selfNodeId: string = 'self', expande
     }
   }
 
-  // Kakak — bubble or individual circles (packed leftward, away from couple)
+  // Sibling trunk Y — meets the parent-user vertical line at its midpoint
   const SIB_SPACING = 90;
   const SIB_GAP = 100;
+  const sibTrunkY = cfg.parentCount > 0
+    ? (expandedGroup === 'parent' ? -105 : -118)
+    : -105;
+
+  // Kakak — bubble or individual circles (packed leftward, away from couple)
   if (cfg.olderCount > 0) {
     if (expandedGroup === 'kakak') {
       const olderXs = Array.from({ length: cfg.olderCount }, (_, i) => leftEdge - SIB_GAP - i * SIB_SPACING);
       olderXs.forEach((x, i) => nodes.push({ id: `older-${i}`, name: `Kakak ${i + 1}`, role: 'Saudara Tua', x, y: 0, group: 'kakak' }));
       const nearest = Math.max(...olderXs);
-      lines.push({ points: [[leftEdge, 0], [nearest, 0]] });
+      // Up from each sibling, then horizontal to selfX at trunkY
+      olderXs.forEach((x) => lines.push({ points: [[x, 0], [x, sibTrunkY]] }));
+      lines.push({ points: [[nearest, sibTrunkY], [selfX, sibTrunkY]] });
     } else {
       const kkCenter = leftEdge - SIB_GAP - (cfg.olderCount - 1) * SIB_SPACING / 2;
       nodes.push({ id: 'grp-kk', name: 'Kakak', role: 'group', x: kkCenter, y: 0, group: 'kakak', count: cfg.olderCount });
-      lines.push({ points: [[leftEdge, 0], [kkCenter, 0]] });
+      lines.push({ points: [[kkCenter, 0], [kkCenter, sibTrunkY], [selfX, sibTrunkY]] });
     }
   }
 
@@ -184,11 +191,13 @@ function generateCollapsed(cfg: TreeConfig, selfNodeId: string = 'self', expande
       const youngerXs = Array.from({ length: cfg.youngerCount }, (_, i) => rightEdge + SIB_GAP + i * SIB_SPACING);
       youngerXs.forEach((x, i) => nodes.push({ id: `younger-${i}`, name: `Adik ${i + 1}`, role: 'Saudara Muda', x, y: 0, group: 'adik' }));
       const nearest = Math.min(...youngerXs);
-      lines.push({ points: [[rightEdge, 0], [nearest, 0]] });
+      // Up from each sibling, then horizontal to selfX at trunkY
+      youngerXs.forEach((x) => lines.push({ points: [[x, 0], [x, sibTrunkY]] }));
+      lines.push({ points: [[nearest, sibTrunkY], [selfX, sibTrunkY]] });
     } else {
       const adCenter = rightEdge + SIB_GAP + (cfg.youngerCount - 1) * SIB_SPACING / 2;
       nodes.push({ id: 'grp-ad', name: 'Adik', role: 'group', x: adCenter, y: 0, group: 'adik', count: cfg.youngerCount });
-      lines.push({ points: [[rightEdge, 0], [adCenter, 0]] });
+      lines.push({ points: [[adCenter, 0], [adCenter, sibTrunkY], [selfX, sibTrunkY]] });
     }
   }
 
