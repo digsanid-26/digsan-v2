@@ -300,12 +300,12 @@ export class AdvertisingAdminService {
     this.logger.log(`Generating AI image with model ${modelName}, prompt: ${fullPrompt.substring(0, 100)}...`);
 
     // Build message content — text prompt + optional attachment images
-    const content: any[] = [
+    const messageContent: any[] = [
       { type: 'text', text: `Generate an advertisement banner image. ${fullPrompt}. Size: ${size}. Return only the image.` },
     ];
     if (attachments && attachments.length > 0) {
       for (const url of attachments) {
-        content.push({ type: 'image_url', image_url: { url } });
+        messageContent.push({ type: 'image_url', image_url: { url } });
       }
     }
 
@@ -323,7 +323,7 @@ export class AdvertisingAdminService {
         messages: [
           {
             role: 'user',
-            content,
+            content: messageContent,
           },
         ],
         response_format: { type: 'image' },
