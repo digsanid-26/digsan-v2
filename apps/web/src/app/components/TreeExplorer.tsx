@@ -147,44 +147,48 @@ function generateCollapsed(cfg: TreeConfig, selfNodeId: string = 'self', expande
     lines.push({ points: [[selfX, 0], [coupleXs[0], 0]], marriage: true });
   }
 
-  // Parents — bubble or individual circles
+  // Parents — bubble or individual circles (centered above self for vertical line)
   if (cfg.parentCount > 0) {
     if (expandedGroup === 'parent') {
-      const parentXs = spread(cfg.parentCount, 130, 0);
+      const parentXs = spread(cfg.parentCount, 130, selfX);
       const parentLabels = cfg.parentCount === 2 ? ['Ayah', 'Ibu'] : parentXs.map((_, i) => `Orang Tua ${i + 1}`);
       parentXs.forEach((x, i) => nodes.push({ id: `parent-${i}`, name: parentLabels[i], role: 'Orang Tua', x, y: -210, group: 'parent' }));
       if (cfg.parentCount >= 2) lines.push({ points: [[parentXs[0], -210], [parentXs[parentXs.length - 1], -210]], marriage: true });
       const parentMid = parentXs.reduce((a, b) => a + b, 0) / parentXs.length;
       connectDown(lines, parentMid, -210, [selfX], 0);
     } else {
-      nodes.push({ id: 'grp-ot', name: 'Orang Tua', role: 'group', x: 0, y: -235, group: 'parent', count: cfg.parentCount });
-      lines.push({ points: [[selfX, 0], [0, -235]] });
+      nodes.push({ id: 'grp-ot', name: 'Orang Tua', role: 'group', x: selfX, y: -235, group: 'parent', count: cfg.parentCount });
+      lines.push({ points: [[selfX, 0], [selfX, -235]] });
     }
   }
 
-  // Kakak — bubble or individual circles
+  // Kakak — bubble or individual circles (packed leftward, away from couple)
+  const SIB_SPACING = 90;
+  const SIB_GAP = 100;
   if (cfg.olderCount > 0) {
     if (expandedGroup === 'kakak') {
-      const olderXs = spread(cfg.olderCount, 120, -235);
+      const olderXs = Array.from({ length: cfg.olderCount }, (_, i) => leftEdge - SIB_GAP - i * SIB_SPACING);
       olderXs.forEach((x, i) => nodes.push({ id: `older-${i}`, name: `Kakak ${i + 1}`, role: 'Saudara Tua', x, y: 0, group: 'kakak' }));
       const nearest = Math.max(...olderXs);
       lines.push({ points: [[leftEdge, 0], [nearest, 0]] });
     } else {
-      nodes.push({ id: 'grp-kk', name: 'Kakak', role: 'group', x: -235, y: 0, group: 'kakak', count: cfg.olderCount });
-      lines.push({ points: [[leftEdge, 0], [-235, 0]] });
+      const kkCenter = leftEdge - SIB_GAP - (cfg.olderCount - 1) * SIB_SPACING / 2;
+      nodes.push({ id: 'grp-kk', name: 'Kakak', role: 'group', x: kkCenter, y: 0, group: 'kakak', count: cfg.olderCount });
+      lines.push({ points: [[leftEdge, 0], [kkCenter, 0]] });
     }
   }
 
-  // Adik — bubble or individual circles
+  // Adik — bubble or individual circles (packed rightward, away from couple)
   if (cfg.youngerCount > 0) {
     if (expandedGroup === 'adik') {
-      const youngerXs = spread(cfg.youngerCount, 120, 235);
+      const youngerXs = Array.from({ length: cfg.youngerCount }, (_, i) => rightEdge + SIB_GAP + i * SIB_SPACING);
       youngerXs.forEach((x, i) => nodes.push({ id: `younger-${i}`, name: `Adik ${i + 1}`, role: 'Saudara Muda', x, y: 0, group: 'adik' }));
       const nearest = Math.min(...youngerXs);
       lines.push({ points: [[rightEdge, 0], [nearest, 0]] });
     } else {
-      nodes.push({ id: 'grp-ad', name: 'Adik', role: 'group', x: 235, y: 0, group: 'adik', count: cfg.youngerCount });
-      lines.push({ points: [[rightEdge, 0], [235, 0]] });
+      const adCenter = rightEdge + SIB_GAP + (cfg.youngerCount - 1) * SIB_SPACING / 2;
+      nodes.push({ id: 'grp-ad', name: 'Adik', role: 'group', x: adCenter, y: 0, group: 'adik', count: cfg.youngerCount });
+      lines.push({ points: [[rightEdge, 0], [adCenter, 0]] });
     }
   }
 
