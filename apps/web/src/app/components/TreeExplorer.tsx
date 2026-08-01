@@ -557,8 +557,6 @@ export default function TreeExplorer() {
   const clickNode = (n: TNode) => {
     if (n.role === 'group') { setExpandedGroup(prev => prev === n.group ? null : n.group); return; }
     if (n.id === selfNodeId && expandedGroup) { setExpandedGroup(null); return; }
-    // In expandedGroup mode, clicking a parent/kakak/adik individual triggers full expand
-    if (!expanded && expandedGroup && n.group === expandedGroup) { doExpand(); return; }
     const d = disp(n.id, n.name);
     setSelected({ ...n, name: d.name });
     setPanel('member');
@@ -813,8 +811,8 @@ export default function TreeExplorer() {
                   const idx = parseInt(n.id.split('-').pop() || '0', 10);
                   const dir: 'left' | 'right' | 'below' =
                     n.group === 'parent' ? (idx === 0 ? 'left' : 'right') : 'below';
-                  const EXPAND_SIZE = 40;
-                  const LINE_LEN = 44;
+                  const EXPAND_SIZE = 44;
+                  const LINE_LEN = 48;
                   const half = size / 2;
                   const expandPos =
                     dir === 'left' ? { left: -(LINE_LEN + EXPAND_SIZE / 2), top: half } :
@@ -826,11 +824,12 @@ export default function TreeExplorer() {
                     { left: half - 1, top: size, width: 2, height: LINE_LEN };
                   return (
                     <>
-                      <div className="absolute pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" style={{ ...lineStyle, background: 'rgba(148,163,184,0.35)' }} />
+                      <div className="absolute pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ ...lineStyle, background: 'rgba(129,140,248,0.6)' }} />
                       <button data-node onClick={(e) => { e.stopPropagation(); doExpand(); }}
-                        className="absolute flex items-center justify-center rounded-full border-2 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-30"
-                        style={{ ...expandPos, width: EXPAND_SIZE, height: EXPAND_SIZE, transform: 'translate(-50%,-50%)', background: 'rgba(99,102,241,0.25)', borderColor: 'rgba(129,140,248,0.6)', boxShadow: '0 0 14px rgba(99,102,241,0.3)' }}>
-                        <Network size={16} className="text-indigo-300" />
+                        className="absolute flex flex-col items-center justify-center rounded-full border-2 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer z-30 hover:scale-110"
+                        style={{ ...expandPos, width: EXPAND_SIZE, height: EXPAND_SIZE, transform: 'translate(-50%,-50%)', background: 'rgba(99,102,241,0.85)', borderColor: 'rgba(165,180,252,0.9)', boxShadow: '0 0 18px rgba(99,102,241,0.5)' }}>
+                        <Network size={15} className="text-white" />
+                        <span className="text-[7px] font-bold tracking-wider mt-0.5 text-white/90">EXPAND</span>
                       </button>
                     </>
                   );
