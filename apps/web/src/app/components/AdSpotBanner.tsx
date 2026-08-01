@@ -22,7 +22,7 @@ interface SpotResponse {
  * Fetches and renders active ad banners for a given spot key.
  * Returns null if no banners are active (nothing rendered).
  */
-export function AdSpotBanner({ spotKey, className = '' }: { spotKey: string; className?: string }) {
+export function AdSpotBanner({ spotKey, className = '', placeholder = false, placeholderText = 'Slot Iklan' }: { spotKey: string; className?: string; placeholder?: boolean; placeholderText?: string }) {
   const [banners, setBanners] = useState<AdBannerData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,7 +51,16 @@ export function AdSpotBanner({ spotKey, className = '' }: { spotKey: string; cla
     return () => { cancelled = true; };
   }, [spotKey]);
 
-  if (loading || banners.length === 0) return null;
+  if (loading) return null;
+
+  if (banners.length === 0) {
+    if (!placeholder) return null;
+    return (
+      <div className={`${className} border border-dashed border-white/15 bg-white/[0.02] flex items-center justify-center text-white/25 text-xs py-6`}>
+        {placeholderText}
+      </div>
+    );
+  }
 
   return (
     <div className={className}>

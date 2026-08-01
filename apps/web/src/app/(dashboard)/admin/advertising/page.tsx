@@ -294,11 +294,21 @@ function SpotFormModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Page</label>
-              <input value={form.page} onChange={(e) => setForm({ ...form, page: e.target.value })} className={inputCls} />
+              <select value={form.page} onChange={(e) => setForm({ ...form, page: e.target.value })} className={inputCls}>
+                <option value="dashboard">dashboard</option>
+                <option value="tree">tree</option>
+                <option value="family">family</option>
+                <option value="profile">profile</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Position</label>
-              <input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} className={inputCls} />
+              <select value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} className={inputCls}>
+                <option value="default">default</option>
+                <option value="sidebar-left">sidebar-left</option>
+                <option value="top-left">top-left</option>
+                <option value="footer">footer</option>
+              </select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -341,6 +351,8 @@ function BuilderTab() {
   const [colorScheme, setColorScheme] = useState('');
   const [aspectRatio, setAspectRatio] = useState('1:1');
   const [style, setStyle] = useState('');
+  const [model, setModel] = useState('google/gemini-2.0-flash-exp:free');
+  const [attachments, setAttachments] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{ imageUrl: string; prompt: string } | null>(null);
   const [error, setError] = useState('');
@@ -351,6 +363,16 @@ function BuilderTab() {
 
   const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
 
+  const aiModels = [
+    { value: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
+    { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+    { value: 'openai/gpt-4o', label: 'GPT-4o' },
+    { value: 'openai/gpt-4o-mini', label: 'GPT-4o Mini' },
+    { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
+    { value: 'meta-llama/llama-3.2-90b-vision-instruct', label: 'Llama 3.2 90B Vision' },
+  ];
+
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
     setGenerating(true);
@@ -360,7 +382,7 @@ function BuilderTab() {
     try {
       const data = await apiRequest('/admin/ads/ai-generate', {
         method: 'POST',
-        body: JSON.stringify({ prompt, includeText, textContent, fontFamily, colorScheme, aspectRatio, style }),
+        body: JSON.stringify({ prompt, includeText, textContent, fontFamily, colorScheme, aspectRatio, style, model, attachments: attachments.filter(Boolean) }),
       });
       setResult(data);
     } catch (err: any) {
@@ -431,6 +453,43 @@ function BuilderTab() {
               <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Style</label>
               <input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="mis. minimalis, flat" className={inputCls} />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">AI Model</label>
+            <select value={model} onChange={(e) => setModel(e.target.value)} className={inputCls}>
+              {aiModels.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Lampiran (URL gambar referensi)</label>
+            <div className="space-y-2">
+              {[0, 1].map((idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 dark:text-white/40 w-16">Lampiran {idx + 1}</span>
+                  <input
+                    value={attachments[idx] || ''}
+                    onChange={(e) => {
+                      const next = [...attachments];
+                      next[idx] = e.target.value;
+                      setAttachments(next);
+                    }}
+                    placeholder="https://... (opsional)"
+                    className={inputCls}
+                  />
+                  {attachments[idx] && (
+                    <button
+                      onClick={() => { const next = [...attachments]; next[idx] = ''; setAttachments(next); }}
+                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-400 dark:text-white/40 mt-1">Lampiran akan disertakan sebagai referensi gambar untuk AI.</p>
           </div>
 
           <div className="flex items-center gap-2">

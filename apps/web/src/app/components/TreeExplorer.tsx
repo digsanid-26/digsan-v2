@@ -669,9 +669,9 @@ export default function TreeExplorer() {
 
       {/* Left-Tree Ad Banners */}
       <div className="absolute top-16 left-3 z-20 w-44 space-y-2">
-        <AdSpotBanner spotKey="tree-l-r1/1-01" />
-        <AdSpotBanner spotKey="tree-l-r1/1-02" />
-        <AdSpotBanner spotKey="tree-l-r1/1-03" />
+        <AdSpotBanner spotKey="tree-l-r1/1-01" placeholder placeholderText="Slot 1:1" />
+        <AdSpotBanner spotKey="tree-l-r1/1-02" placeholder placeholderText="Slot 1:1" />
+        <AdSpotBanner spotKey="tree-l-r1/1-03" placeholder placeholderText="Slot 1:1" />
       </div>
 
       {/* Zoom controls */}

@@ -264,11 +264,13 @@ export class AdvertisingAdminService {
     colorScheme?: string;
     aspectRatio?: string;
     style?: string;
+    model?: string;
+    attachments?: string[];
   }): Promise<{ imageUrl: string; prompt: string }> {
     const apiKey = this.configService.get<string>('OPENROUTER_API_KEY');
     if (!apiKey) throw new BadRequestException('OPENROUTER_API_KEY not configured');
 
-    const { prompt, includeText, textContent, fontFamily, colorScheme, aspectRatio, style } = params;
+    const { prompt, includeText, textContent, fontFamily, colorScheme, aspectRatio, style, model, attachments } = params;
 
     // Build a detailed prompt for the image model
     const parts: string[] = [prompt];
@@ -292,10 +294,22 @@ export class AdvertisingAdminService {
     };
     const size = sizeMap[aspectRatio || '1:1'] || '1024x1024';
 
-    this.logger.log(`Generating AI image with prompt: ${fullPrompt.substring(0, 100)}...`);
+    // Use selected model or default
+    const modelName = model || 'google/gemini-2.0-flash-exp:free';
+
+    this.logger.log(`Generating AI image with model ${modelName}, prompt: ${fullPrompt.substring(0, 100)}...`);
+
+    // Build message content — text prompt + optional attachment images
+    const content: any[] = [
+      { type: 'text', text: `Generate an advertisement banner image. ${fullPrompt}. Size: ${size}. Return only the image.` },
+    ];
+    if (attachments && attachments.length > 0) {
+      for (const url of attachments) {
+        content.push({ type: 'image_url', image_url: { url } });
+      }
+    }
 
     // Use OpenRouter chat completions with a multimodal model
-    // Models like "google/gemini-2.0-flash-exp:free" support image generation
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -305,11 +319,11 @@ export class AdvertisingAdminService {
         'X-Title': 'Digsan Ads Builder',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-exp:free',
+        model: modelName,
         messages: [
           {
             role: 'user',
-            content: `Generate an advertisement banner image. ${fullPrompt}. Size: ${size}. Return only the image.`,
+            content,
           },
         ],
         response_format: { type: 'image' },

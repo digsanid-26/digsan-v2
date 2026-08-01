@@ -13,6 +13,7 @@ import { DEFAULT_CONFIG } from '@/app/components/treeTypes';
 import PublicTreeCanvas from '@/app/components/PublicTreeCanvas';
 import FamilyNodeTreeCanvas, { type FamilyNodeItem, type FamilyNodeLink, type FamilyNodeMember } from '@/app/components/FamilyNodeTreeCanvas';
 import AppHeader from '@/app/components/AppHeader';
+import { AdSpotBanner } from '@/app/components/AdSpotBanner';
 import { ThemeProvider } from '@/app/components/ThemeProvider';
 import { AuthProvider } from '@/components/providers/auth-provider';
 
@@ -450,6 +451,11 @@ export default function PublicFamilyPage() {
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Ad banner 3:1 */}
+              <div className="px-5 pb-3">
+                <AdSpotBanner spotKey="family-sidebar-3-1" placeholder placeholderText="Slot Iklan 3:1" className="rounded-xl overflow-hidden" />
               </div>
 
               {/* CTA — Bagian dari keluarga ini? */}

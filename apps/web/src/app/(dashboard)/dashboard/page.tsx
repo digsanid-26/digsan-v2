@@ -153,7 +153,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Ad Banner — 3:1 below Informasi */}
-        <AdSpotBanner spotKey="dash-in" className="mt-2" />
+        <AdSpotBanner spotKey="dash-in" placeholder placeholderText="Slot Iklan 3:1" className="mt-2" />
 
         {/* Column 4 — Gamification */}
         <Card

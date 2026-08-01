@@ -103,7 +103,7 @@ export class AdvertisingAdminController {
 
   @Post('ai-generate')
   @ApiOperation({ summary: 'Generate an ad banner image using AI (OpenRouter)' })
-  async generateAiImage(@Body() data: { prompt: string; includeText?: boolean; textContent?: string; fontFamily?: string; colorScheme?: string; aspectRatio?: string; style?: string }) {
+  async generateAiImage(@Body() data: { prompt: string; includeText?: boolean; textContent?: string; fontFamily?: string; colorScheme?: string; aspectRatio?: string; style?: string; model?: string; attachments?: string[] }) {
     return this.adsService.generateAiImage(data);
   }
 }
