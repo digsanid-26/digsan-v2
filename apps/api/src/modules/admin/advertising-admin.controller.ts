@@ -146,7 +146,7 @@ export class AdvertisingAdminController {
     if (!files || files.length === 0) {
       return { urls: [] };
     }
-    const urls = files.map((f) => `/uploads/ads/${f.filename}`);
+    const urls = files.map((f) => `/api/uploads/ads/${f.filename}`);
     return { urls };
   }
 }

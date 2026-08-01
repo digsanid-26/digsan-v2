@@ -395,7 +395,7 @@ function BuilderTab() {
       const data = (json as any).data ?? json;
       const urls: string[] = data.urls || [];
       // Build full URLs from relative paths
-      const fullUrls = urls.map((u: string) => u.startsWith('http') ? u : `${API_URL.replace('/api', '')}${u}`);
+      const fullUrls = urls.map((u: string) => u.startsWith('http') ? u : `${API_URL.replace(/\/api$/, '')}${u}`);
       setAttachments((prev) => [...prev, ...fullUrls].slice(0, 3));
     } catch (err: any) {
       setError(err.message || 'Gagal upload lampiran');

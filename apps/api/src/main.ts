@@ -46,7 +46,7 @@ async function bootstrap() {
   // Serve uploaded files statically
   const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-  app.useStaticAssets(path.join(process.cwd(), 'public'), { prefix: '/uploads/' });
+  app.useStaticAssets(path.join(process.cwd(), 'public'), { prefix: '/api/uploads/' });
 
   // Global filters & interceptors
   app.useGlobalFilters(new AllExceptionsFilter());
