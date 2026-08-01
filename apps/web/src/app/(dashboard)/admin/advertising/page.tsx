@@ -19,6 +19,7 @@ import {
   Calendar,
   Link2,
   Loader2,
+  Upload,
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
@@ -353,6 +354,7 @@ function BuilderTab() {
   const [style, setStyle] = useState('');
   const [model, setModel] = useState('google/gemini-2.0-flash-exp:free');
   const [attachments, setAttachments] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{ imageUrl: string; prompt: string } | null>(null);
   const [error, setError] = useState('');
@@ -372,6 +374,34 @@ function BuilderTab() {
     { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
     { value: 'meta-llama/llama-3.2-90b-vision-instruct', label: 'Llama 3.2 90B Vision' },
   ];
+
+  const handleUploadAttachments = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < Math.min(files.length, 3); i++) {
+        formData.append('files', files[i]);
+      }
+      const tokens = getTokens();
+      const res = await fetch(`${API_URL}/admin/ads/upload-attachments`, {
+        method: 'POST',
+        headers: { ...(tokens ? { Authorization: `Bearer ${tokens.accessToken}` } : {}) },
+        body: formData,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).message || `HTTP ${res.status}`);
+      const data = (json as any).data ?? json;
+      const urls: string[] = data.urls || [];
+      // Build full URLs from relative paths
+      const fullUrls = urls.map((u: string) => u.startsWith('http') ? u : `${API_URL.replace('/api', '')}${u}`);
+      setAttachments((prev) => [...prev, ...fullUrls].slice(0, 3));
+    } catch (err: any) {
+      setError(err.message || 'Gagal upload lampiran');
+    }
+    setUploading(false);
+  };
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -463,33 +493,38 @@ function BuilderTab() {
           </div>
 
           <div>
-            <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Lampiran (URL gambar referensi)</label>
+            <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Lampiran (gambar referensi untuk AI)</label>
             <div className="space-y-2">
-              {[0, 1].map((idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400 dark:text-white/40 w-16">Lampiran {idx + 1}</span>
-                  <input
-                    value={attachments[idx] || ''}
-                    onChange={(e) => {
-                      const next = [...attachments];
-                      next[idx] = e.target.value;
-                      setAttachments(next);
-                    }}
-                    placeholder="https://... (opsional)"
-                    className={inputCls}
-                  />
-                  {attachments[idx] && (
-                    <button
-                      onClick={() => { const next = [...attachments]; next[idx] = ''; setAttachments(next); }}
-                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((url, idx) => (
+                    <div key={idx} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-slate-200 dark:border-white/10">
+                      <img src={url} alt={`Lampiran ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))}
+                        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              {attachments.length < 3 && (
+                <label className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-dashed border-slate-300 dark:border-white/20 text-slate-500 dark:text-white/50 hover:border-blue-400 dark:hover:border-blue-400 cursor-pointer">
+                  {uploading ? <><Loader2 size={14} className="animate-spin" /> Uploading...</> : <><Upload size={14} /> Upload Gambar</>}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleUploadAttachments(e.target.files)}
+                    disabled={uploading}
+                  />
+                </label>
+              )}
             </div>
-            <p className="text-[10px] text-slate-400 dark:text-white/40 mt-1">Lampiran akan disertakan sebagai referensi gambar untuk AI.</p>
+            <p className="text-[10px] text-slate-400 dark:text-white/40 mt-1">Maksimal 3 gambar. Lampiran akan disertakan sebagai referensi gambar untuk AI.</p>
           </div>
 
           <div className="flex items-center gap-2">

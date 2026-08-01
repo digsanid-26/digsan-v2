@@ -1,6 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AdvertisingAdminService } from './advertising-admin.service';
@@ -105,5 +108,45 @@ export class AdvertisingAdminController {
   @ApiOperation({ summary: 'Generate an ad banner image using AI (OpenRouter)' })
   async generateAiImage(@Body() data: { prompt: string; includeText?: boolean; textContent?: string; fontFamily?: string; colorScheme?: string; aspectRatio?: string; style?: string; model?: string; attachments?: string[] }) {
     return this.adsService.generateAiImage(data);
+  }
+
+  @Post('upload-attachments')
+  @ApiOperation({ summary: 'Upload attachment images for AI generation' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FilesInterceptor('files', 3, {
+      storage: diskStorage({
+        destination: join(process.cwd(), 'public', 'uploads', 'ads'),
+        filename: (_req, file, cb) => {
+          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
+          cb(null, unique);
+        },
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return cb(new Error('Only image files are allowed'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadAttachments(@UploadedFiles() files: Express.Multer.File[]) {
+    if (!files || files.length === 0) {
+      return { urls: [] };
+    }
+    const urls = files.map((f) => `/uploads/ads/${f.filename}`);
+    return { urls };
   }
 }

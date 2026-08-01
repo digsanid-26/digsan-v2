@@ -6,6 +6,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import * as compression from 'compression';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import * as path from 'path';
+import * as fs from 'fs';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -40,6 +42,11 @@ async function bootstrap() {
 
   // Global prefix
   app.setGlobalPrefix('api');
+
+  // Serve uploaded files statically
+  const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  app.useStaticAssets(path.join(process.cwd(), 'public'), { prefix: '/uploads/' });
 
   // Global filters & interceptors
   app.useGlobalFilters(new AllExceptionsFilter());
