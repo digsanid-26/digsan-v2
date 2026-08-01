@@ -432,6 +432,27 @@ export class PublicFamilyController {
     }
   }
 
+  @Get('profile/:username')
+  @ApiOperation({ summary: 'Get a personal profile page by username only (token or auth required)' })
+  async getProfileByUsername(
+    @Param('username') username: string,
+    @Query('t') token: string | undefined,
+    @Req() req: any,
+  ) {
+    if (token) {
+      // Token validation still checks slug+username, but we don't have slug here.
+      // The token's slug is used only for validation, not for resolution.
+      const record = await this.treeService.validatePublicLinkTokenByUsername(token, username);
+      return this.treeService.getPublicProfileByUsername(username);
+    }
+    const userId = this.extractUserId(req);
+    if (userId) {
+      // Logged-in users can view any profile
+      return this.treeService.getPublicProfileByUsername(username);
+    }
+    throw new ForbiddenException('Akses memerlukan token link yang valid atau login.');
+  }
+
   @Get(':slug')
   @ApiOperation({ summary: 'Get a family page by slug (token or owner auth required)' })
   async getFamily(
@@ -477,26 +498,5 @@ export class PublicFamilyController {
       if (isSuper) return this.treeService.getPublicProfile(slug, username);
     }
     throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai anggota keluarga.');
-  }
-
-  @Get('profile/:username')
-  @ApiOperation({ summary: 'Get a personal profile page by username only (token or auth required)' })
-  async getProfileByUsername(
-    @Param('username') username: string,
-    @Query('t') token: string | undefined,
-    @Req() req: any,
-  ) {
-    if (token) {
-      // Token validation still checks slug+username, but we don't have slug here.
-      // The token's slug is used only for validation, not for resolution.
-      const record = await this.treeService.validatePublicLinkTokenByUsername(token, username);
-      return this.treeService.getPublicProfileByUsername(username);
-    }
-    const userId = this.extractUserId(req);
-    if (userId) {
-      // Logged-in users can view any profile
-      return this.treeService.getPublicProfileByUsername(username);
-    }
-    throw new ForbiddenException('Akses memerlukan token link yang valid atau login.');
   }
 }
