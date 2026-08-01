@@ -557,6 +557,8 @@ export default function TreeExplorer() {
   const clickNode = (n: TNode) => {
     if (n.role === 'group') { setExpandedGroup(prev => prev === n.group ? null : n.group); return; }
     if (n.id === selfNodeId && expandedGroup) { setExpandedGroup(null); return; }
+    // In expandedGroup mode, clicking a parent/kakak/adik individual triggers full expand
+    if (!expanded && expandedGroup && n.group === expandedGroup) { doExpand(); return; }
     const d = disp(n.id, n.name);
     setSelected({ ...n, name: d.name });
     setPanel('member');
@@ -805,6 +807,34 @@ export default function TreeExplorer() {
                     <span className="absolute top-0 right-0 w-4 h-4 rounded-full bg-slate-800 text-white text-[9px] flex items-center justify-center border border-white/40">&dagger;</span>
                   )}
                 </button>
+
+                {/* Expand hint circle — shows on hover when collapsed & expandedGroup active */}
+                {!expanded && expandedGroup && !isGroup && n.group === expandedGroup && (() => {
+                  const idx = parseInt(n.id.split('-').pop() || '0', 10);
+                  const dir: 'left' | 'right' | 'below' =
+                    n.group === 'parent' ? (idx === 0 ? 'left' : 'right') : 'below';
+                  const EXPAND_SIZE = 40;
+                  const LINE_LEN = 44;
+                  const half = size / 2;
+                  const expandPos =
+                    dir === 'left' ? { left: -(LINE_LEN + EXPAND_SIZE / 2), top: half } :
+                    dir === 'right' ? { left: size + LINE_LEN + EXPAND_SIZE / 2, top: half } :
+                    { left: half, top: size + LINE_LEN + EXPAND_SIZE / 2 };
+                  const lineStyle =
+                    dir === 'left' ? { left: -LINE_LEN, top: half - 1, width: LINE_LEN, height: 2 } :
+                    dir === 'right' ? { left: size, top: half - 1, width: LINE_LEN, height: 2 } :
+                    { left: half - 1, top: size, width: 2, height: LINE_LEN };
+                  return (
+                    <>
+                      <div className="absolute pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" style={{ ...lineStyle, background: 'rgba(148,163,184,0.35)' }} />
+                      <button data-node onClick={(e) => { e.stopPropagation(); doExpand(); }}
+                        className="absolute flex items-center justify-center rounded-full border-2 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-30"
+                        style={{ ...expandPos, width: EXPAND_SIZE, height: EXPAND_SIZE, transform: 'translate(-50%,-50%)', background: 'rgba(99,102,241,0.25)', borderColor: 'rgba(129,140,248,0.6)', boxShadow: '0 0 14px rgba(99,102,241,0.3)' }}>
+                        <Network size={16} className="text-indigo-300" />
+                      </button>
+                    </>
+                  );
+                })()}
 
                 {/* Super-user controls: corner "+" adders + hover edit/delete */}
                 {!isGroup && isSuperUser && (() => {
