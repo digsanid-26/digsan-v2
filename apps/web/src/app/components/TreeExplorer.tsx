@@ -222,8 +222,10 @@ function canEditMember(
   members: Members,
   config: TreeConfig,
   currentUserId: string,
-  selfNodeId: string = 'self'
+  selfNodeId: string = 'self',
+  isSuperUser: boolean = false
 ): boolean {
+  if (isSuperUser) return true;
   const m = members[nodeId];
   if (!m || m.alive) return true; // alive members can be edited
   if (nodeId === selfNodeId) return true; // self can always edit
@@ -928,7 +930,8 @@ export default function TreeExplorer() {
           <MemberForm key={selected.id} dark={dark} node={selected} isSelf={selected.id === selfNodeId}
             familySlug={identity.slug} ownerUsername={identity.username} treeId={identity.treeId}
             member={members[selected.id]} defaultName={selected.name} accountName={me?.name}
-            canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest', selfNodeId)}
+            canEdit={canEditMember(selected.id, selected.group, members, config, me?.id || 'guest', selfNodeId, isSuperUser)}
+            isSuperUser={isSuperUser}
             connectedFamily={connectedFamily}
             consent={consentFor(selected.id)}
             onRequestConsent={() => requestConsent(selected.id)}
@@ -1081,7 +1084,7 @@ function SetupForm({ initial, isTreeOwner, connectedFamily, familySlug, onSave, 
 
 // ─── Member form ────────────────────────────────────────────
 
-function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, defaultName, accountName, canEdit, canDelete, onDelete, connectedFamily, consent, onRequestConsent, onRevokeConsent, onSetSlug, onOpenInvite, onSave, onClose }: {
+function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, defaultName, accountName, canEdit, canDelete, onDelete, connectedFamily, consent, onRequestConsent, onRevokeConsent, onSetSlug, onOpenInvite, onSave, onClose, isSuperUser }: {
   dark: boolean; node: TNode; isSelf: boolean; familySlug?: string | null; ownerUsername?: string | null; treeId?: string | null; member?: Member; defaultName: string; accountName?: string; canEdit: boolean;
   canDelete?: boolean; onDelete?: () => void;
   connectedFamily?: ConnectedFamily | null;
@@ -1090,6 +1093,7 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
   onSetSlug: (slug?: string) => Promise<void>;
   onOpenInvite: () => void;
   onClose: () => void; onSave: (m: Member) => void;
+  isSuperUser?: boolean;
 }) {
   const [form, setForm] = useState<Member>({
     name: member?.name || (isSelf ? accountName || '' : ''),
@@ -1616,7 +1620,7 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
         {!isSelf && node.group === 'parent' && (() => {
           const deceased = !form.alive;
           const granted = consent?.status === 'GRANTED';
-          const unlocked = deceased ? canEdit : granted;
+          const unlocked = isSuperUser || (deceased ? canEdit : granted);
           return (
             <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-4">
               <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-1">
@@ -1625,10 +1629,12 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
               <p className="text-xs text-slate-500 dark:text-white/50 mb-3 leading-snug">
                 {deceased
                   ? <>Karena anggota ini telah meninggal, Anda sebagai wali dapat menata keluarganya. Menambah saudara akan memunculkan cabang paman/bibi yang tersambung ke kakek-nenek (terlihat saat <b>Expand All</b>).</>
-                  : <>Anggota ini masih hidup. Menata silsilahnya memerlukan <b>izin</b> dari pemilik akun. Ajukan permintaan, dan setelah disetujui bagian ini akan terbuka.</>}
+                  : isSuperUser
+                    ? <>Sebagai super user, Anda dapat menata keluarga anggota ini tanpa perlu izin.</>
+                    : <>Anggota ini masih hidup. Menata silsilahnya memerlukan <b>izin</b> dari pemilik akun. Ajukan permintaan, dan setelah disetujui bagian ini akan terbuka.</>}
               </p>
 
-              {!deceased && !granted && (
+              {!deceased && !granted && !isSuperUser && (
                 <div className="mb-3">
                   {consent?.status === 'PENDING' ? (
                     <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2">
