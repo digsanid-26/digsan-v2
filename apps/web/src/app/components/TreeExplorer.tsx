@@ -1123,7 +1123,6 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
   const [syncing, setSyncing] = useState(false);
 
   // Early access form (super_user only)
-  const isSuperUser = getUser()?.roles?.includes('super_user') ?? false;
   const [eaOpen, setEaOpen] = useState(false);
   const [eaEmail, setEaEmail] = useState('');
   const [eaPassword, setEaPassword] = useState('');
