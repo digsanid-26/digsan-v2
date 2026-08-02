@@ -530,12 +530,7 @@ export default function PublicFamilyPage() {
       setEaOpen(false);
       return;
     }
-    // Self node with username → navigate to profile directly
-    if (node.id === 'self' && data?.owner?.username) {
-      router.push(`/id/${data.owner.username}`);
-      return;
-    }
-    // All other nodes → open unified modal
+    // All nodes → open unified modal
     setSelectedNode(node);
     setClaimError(null);
     setEaError('');
