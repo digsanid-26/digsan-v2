@@ -42,6 +42,8 @@ interface Props {
   lineOpacity?: number[];
   /** When true, clicking a node centers it in the viewport (default: true). */
   anchorOnClick?: boolean;
+  /** Called when the SVG background (not a node) is clicked. */
+  onBackgroundClick?: () => void;
 }
 
 const PAD = 80; // padding around the tree bounding box (tree coords)
@@ -50,10 +52,11 @@ const MAX_SCALE = 4;
 const INITIAL_SCALE = 1.5;
 
 /** Pannable, zoomable renderer for a family graph, focused on a given node. */
-export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className, visibleTags, onNodeHover, nodeOpacity, lineOpacity, anchorOnClick = true }: Props) {
+export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className, visibleTags, onNodeHover, nodeOpacity, lineOpacity, anchorOnClick = true, onBackgroundClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
   const movedRef = useRef(false);
+  const nodeClickedRef = useRef(false);
   const [scale, setScale] = useState(INITIAL_SCALE);
   const [center, setCenter] = useState<{ x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -130,6 +133,12 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
 
   const endDrag = () => { dragRef.current = null; setDragging(false); };
 
+  /** Background click (not on a node) — fires after drag ends without movement. */
+  const onBackgroundPointerUp = () => {
+    if (!movedRef.current && !nodeClickedRef.current) onBackgroundClick?.();
+    nodeClickedRef.current = false;
+  };
+
   /** Smoothly animate center to a target position. */
   const animateCenter = (targetX: number, targetY: number, duration = 450) => {
     if (animRef.current) cancelAnimationFrame(animRef.current);
@@ -149,6 +158,7 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
   /** Node clicks should be ignored right after a pan drag. */
   const handleNodeClick = (fn?: () => void, node?: TNode) => {
     if (movedRef.current) return;
+    nodeClickedRef.current = true;
     if (anchorOnClick && node) animateCenter(node.x, node.y);
     fn?.();
   };
@@ -164,7 +174,7 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
       onWheel={onWheel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
+      onPointerUp={(e) => { endDrag(); onBackgroundPointerUp(); }}
       onPointerLeave={endDrag}
     >
       <svg viewBox={viewBox} className="w-full h-full" style={{ display: 'block' }}>

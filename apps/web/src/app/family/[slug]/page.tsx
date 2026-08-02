@@ -330,7 +330,10 @@ export default function PublicFamilyPage() {
       ls.push({ points: [[pMid, -210], [selfX, 0]], tag: 'self-parents' });
 
       // Self's siblings (tag: 'self-siblings') — ONE combined group bubble on the LEFT
-      const totalSibs = cfg.olderCount + cfg.youngerCount;
+      const selfSibOlder = members['self']?.familyConfig?.olderCount ?? cfg.olderCount;
+      const selfSibYounger = members['self']?.familyConfig?.youngerCount ?? cfg.youngerCount;
+      const selfSibLegacy = members['self']?.familyConfig?.siblingCount ?? 0;
+      const totalSibs = selfSibOlder + selfSibYounger + selfSibLegacy;
       if (totalSibs > 0) {
         const SIB_OFFSET = 180; // distance from selfX to the group bubble center
         const sibX = selfX - SIB_OFFSET;
@@ -358,7 +361,11 @@ export default function PublicFamilyPage() {
         ls.push({ points: [[pMid, -210], [sx, 0]], tag });
 
         // Spouse's siblings — ONE combined group bubble on the RIGHT
-        const totalSibs = cfg.olderCount + cfg.youngerCount;
+        const spMember = members[`spouse-${si}`];
+        const spSibOlder = spMember?.familyConfig?.olderCount ?? cfg.olderCount;
+        const spSibYounger = spMember?.familyConfig?.youngerCount ?? cfg.youngerCount;
+        const spSibLegacy = spMember?.familyConfig?.siblingCount ?? 0;
+        const totalSibs = spSibOlder + spSibYounger + spSibLegacy;
         if (totalSibs > 0) {
           const sibTag = `spouse-${si}-siblings`;
           const SIB_OFFSET = 180;
@@ -521,6 +528,13 @@ export default function PublicFamilyPage() {
   };
 
   const onNodeClick = (node: TNode) => {
+    // Start fade timer on any node click (hover reveal fades after 2s)
+    if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
+    fadeTimerRef.current = setTimeout(() => {
+      setHoverTarget(null);
+      setHoverLevel('none');
+      fadeTimerRef.current = null;
+    }, 2000);
     // If a sibling group is expanded and user clicks an individual sibling circle → open modal
     if (expandedGroup && (node.id.startsWith('sib-') || node.id.startsWith('sib-spouse-'))) {
       setSelectedNode(node);
@@ -799,6 +813,14 @@ export default function PublicFamilyPage() {
                   onNodeHover={onNodeHover}
                   nodeOpacity={nodeOpacity}
                   lineOpacity={lineOpacity}
+                  onBackgroundClick={() => {
+                    if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
+                    fadeTimerRef.current = setTimeout(() => {
+                      setHoverTarget(null);
+                      setHoverLevel('none');
+                      fadeTimerRef.current = null;
+                    }, 2000);
+                  }}
                 />
               ) : (
                 <div className="h-[480px] flex items-center justify-center text-white/40 text-sm">
