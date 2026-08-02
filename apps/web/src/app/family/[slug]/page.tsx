@@ -112,16 +112,16 @@ export default function PublicFamilyPage() {
 
   // Determine which sibling tag a group node id belongs to
   const getSiblingTag = (id: string): string | null => {
-    if (id.startsWith('grp-self-')) return 'self-siblings';
-    const m = id.match(/^grp-spouse-(\d+)-/);
+    if (id.startsWith('grp-self-saudara')) return 'self-siblings';
+    const m = id.match(/^grp-spouse-(\d+)-saudara/);
     if (m) return `spouse-${m[1]}-siblings`;
     return null;
   };
 
   // Determine which sibling tag an individual expanded sibling node id belongs to
   const getSiblingTagFromIndividual = (id: string): string | null => {
-    if (id.startsWith('sib-self-')) return 'self-siblings';
-    const m = id.match(/^sib-spouse-(\d+)-/);
+    if (id.startsWith('sib-self-saudara')) return 'self-siblings';
+    const m = id.match(/^sib-spouse-(\d+)-saudara/);
     if (m) return `spouse-${m[1]}-siblings`;
     return null;
   };
@@ -329,31 +329,15 @@ export default function PublicFamilyPage() {
       const pMid = pXs.reduce((a, b) => a + b, 0) / pXs.length;
       ls.push({ points: [[pMid, -210], [selfX, 0]], tag: 'self-parents' });
 
-      // Self's siblings (tag: 'self-siblings') — positioned beside parents, same y=0 level
+      // Self's siblings (tag: 'self-siblings') — ONE combined group bubble on the LEFT
       const totalSibs = cfg.olderCount + cfg.youngerCount;
       if (totalSibs > 0) {
-        // Sibling bubble positioned to the left (kakak) and right (adik) of self at y=0
-        // But we want them at y=0 horizontally aligned with self, packed outward
-        const SIB_GAP = 100;
-        const SIB_SPACING = 90;
-        // Kakak (older) — packed leftward from self
-        if (cfg.olderCount > 0) {
-          const kkXs = Array.from({ length: cfg.olderCount }, (_, i) => selfX - SIB_GAP - i * SIB_SPACING);
-          // Group bubble for kakak
-          const kkCenter = (kkXs[0] + kkXs[kkXs.length - 1]) / 2;
-          ns.push({ id: 'grp-self-kakak', name: `Saudara ${cfg.olderCount}`, role: 'group', x: kkCenter, y: 0, group: 'kakak', count: cfg.olderCount, tag: 'self-siblings' });
-          // Vertical line up from bubble to parent horizontal line at sibTrunkY
-          const sibTrunkY = -105;
-          ls.push({ points: [[kkCenter, 0], [kkCenter, sibTrunkY], [pMid, sibTrunkY]], tag: 'self-siblings' });
-        }
-        // Adik (younger) — packed rightward from self
-        if (cfg.youngerCount > 0) {
-          const adXs = Array.from({ length: cfg.youngerCount }, (_, i) => selfX + SIB_GAP + i * SIB_SPACING);
-          const adCenter = (adXs[0] + adXs[adXs.length - 1]) / 2;
-          ns.push({ id: 'grp-self-adik', name: `Saudara ${cfg.youngerCount}`, role: 'group', x: adCenter, y: 0, group: 'adik', count: cfg.youngerCount, tag: 'self-siblings' });
-          const sibTrunkY = -105;
-          ls.push({ points: [[adCenter, 0], [adCenter, sibTrunkY], [pMid, sibTrunkY]], tag: 'self-siblings' });
-        }
+        const SIB_OFFSET = 180; // distance from selfX to the group bubble center
+        const sibX = selfX - SIB_OFFSET;
+        const sibTrunkY = -105; // midpoint of vertical line self→parents
+        ns.push({ id: 'grp-self-saudara', name: `Saudara ${totalSibs}`, role: 'group', x: sibX, y: 0, group: 'kakak', count: totalSibs, tag: 'self-siblings' });
+        // Line: from bubble up to trunkY, then horizontal to selfX (midpoint of self→parents vertical)
+        ls.push({ points: [[sibX, 0], [sibX, sibTrunkY], [selfX, sibTrunkY]], tag: 'self-siblings' });
       }
     }
 
@@ -373,25 +357,15 @@ export default function PublicFamilyPage() {
         const pMid = pXs.reduce((a, b) => a + b, 0) / pXs.length;
         ls.push({ points: [[pMid, -210], [sx, 0]], tag });
 
-        // Spouse's siblings
+        // Spouse's siblings — ONE combined group bubble on the RIGHT
         const totalSibs = cfg.olderCount + cfg.youngerCount;
         if (totalSibs > 0) {
           const sibTag = `spouse-${si}-siblings`;
-          const SIB_GAP = 100;
-          const SIB_SPACING = 90;
+          const SIB_OFFSET = 180;
+          const sibX = sx + SIB_OFFSET;
           const sibTrunkY = -105;
-          if (cfg.olderCount > 0) {
-            const kkXs = Array.from({ length: cfg.olderCount }, (_, i) => sx - SIB_GAP - i * SIB_SPACING);
-            const kkCenter = (kkXs[0] + kkXs[kkXs.length - 1]) / 2;
-            ns.push({ id: `grp-spouse-${si}-kakak`, name: `Saudara ${cfg.olderCount}`, role: 'group', x: kkCenter, y: 0, group: 'kakak', count: cfg.olderCount, tag: sibTag });
-            ls.push({ points: [[kkCenter, 0], [kkCenter, sibTrunkY], [pMid, sibTrunkY]], tag: sibTag });
-          }
-          if (cfg.youngerCount > 0) {
-            const adXs = Array.from({ length: cfg.youngerCount }, (_, i) => sx + SIB_GAP + i * SIB_SPACING);
-            const adCenter = (adXs[0] + adXs[adXs.length - 1]) / 2;
-            ns.push({ id: `grp-spouse-${si}-adik`, name: `Saudara ${cfg.youngerCount}`, role: 'group', x: adCenter, y: 0, group: 'adik', count: cfg.youngerCount, tag: sibTag });
-            ls.push({ points: [[adCenter, 0], [adCenter, sibTrunkY], [pMid, sibTrunkY]], tag: sibTag });
-          }
+          ns.push({ id: `grp-spouse-${si}-saudara`, name: `Saudara ${totalSibs}`, role: 'group', x: sibX, y: 0, group: 'adik', count: totalSibs, tag: sibTag });
+          ls.push({ points: [[sibX, 0], [sibX, sibTrunkY], [sx, sibTrunkY]], tag: sibTag });
         }
       }
     }
@@ -406,7 +380,6 @@ export default function PublicFamilyPage() {
     if (!grpNode) return { displayNodes: nodes, displayLines: lines };
 
     // Determine the sibling group details
-    const isKakak = expandedGroup.includes('-kakak');
     const count = grpNode.count ?? 0;
     const tag = grpNode.tag;
     if (!tag || count === 0) return { displayNodes: nodes, displayLines: lines };
@@ -421,11 +394,11 @@ export default function PublicFamilyPage() {
     const sibXs = Array.from({ length: count }, (_, i) => cx + (i - (count - 1) / 2) * SIB_SPACING);
     const sibNodes: TNode[] = sibXs.map((x, i) => ({
       id: `${groupPrefix}-${i}`,
-      name: isKakak ? `Saudara ${i + 1}` : `Saudara ${i + 1}`,
-      role: isKakak ? 'Kakak' : 'Adik',
+      name: `Saudara ${i + 1}`,
+      role: 'Saudara',
       x,
       y,
-      group: isKakak ? 'kakak' : 'adik',
+      group: 'kakak',
       tag,
     }));
 
@@ -433,8 +406,15 @@ export default function PublicFamilyPage() {
     const newNodes = nodes.filter(n => n.id !== expandedGroup).concat(sibNodes);
 
     // Remove the old group→parent line and add individual lines from each sibling to the trunk
+    // The trunk horizontal endpoint is the main node (selfX or spouse x), not the bubble center
+    const trunkX = (() => {
+      if (expandedGroup.startsWith('grp-self-')) return nodes.find(n => n.id === 'self')?.x ?? 0;
+      const m = expandedGroup.match(/^grp-spouse-(\d+)-saudara/);
+      if (m) return nodes.find(n => n.id === `spouse-${m[1]}`)?.x ?? 0;
+      return cx;
+    })();
     const newLines = lines.filter(l => l.tag !== tag).concat(
-      sibXs.map(x => ({ points: [[x, y], [x, -105], [cx, -105]], tag }))
+      sibXs.map(x => ({ points: [[x, y], [x, -105], [trunkX, -105]], tag }))
     );
 
     return { displayNodes: newNodes, displayLines: newLines };
@@ -809,7 +789,7 @@ export default function PublicFamilyPage() {
                   onNodeClick={onNodeClick}
                   onGroupClick={(n) => {
                     // Sibling group bubbles → toggle expansion
-                    if (n.id.startsWith('grp-self-') || n.id.startsWith('grp-spouse-')) {
+                    if (n.id.startsWith('grp-self-saudara') || n.id.startsWith('grp-spouse-')) {
                       setExpandedGroup(prev => prev === n.id ? null : n.id);
                       return;
                     }
