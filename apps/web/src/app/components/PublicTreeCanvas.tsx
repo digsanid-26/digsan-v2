@@ -291,7 +291,7 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                   {n.name}
                 </text>
               )}
-              {/* Expand overlay on hovered Ortu nodes */
+              {/* Expand overlay on hovered Ortu nodes */}
               {hoveredNodeId === n.id && n.name === 'Ortu' && (
                 <g pointerEvents="none">
                   <rect x={-r} y={-10} width={r * 2} height={20} rx={10} fill="rgba(0,0,0,0.7)" />
