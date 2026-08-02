@@ -1616,10 +1616,10 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
 
         {/* Family setup — guardian manages a member's own network.
             Deceased direct relative: unlocked. Living member: requires consent. */}
-        {!isSelf && node.group === 'parent' && (() => {
+        {!isSelf && (node.group === 'parent' || node.group === 'spouse') && (() => {
           const deceased = !form.alive;
           const granted = consent?.status === 'GRANTED';
-          const unlocked = isSuperUser || (deceased ? canEdit : granted);
+          const unlocked = isSuperUser || (deceased ? canEdit : granted) || node.group === 'spouse';
           return (
             <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-4">
               <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-1">
@@ -1628,12 +1628,14 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
               <p className="text-xs text-slate-500 dark:text-white/50 mb-3 leading-snug">
                 {deceased
                   ? <>Karena anggota ini telah meninggal, Anda sebagai wali dapat menata keluarganya. Menambah saudara akan memunculkan cabang paman/bibi yang tersambung ke kakek-nenek (terlihat saat <b>Expand All</b>).</>
-                  : isSuperUser
-                    ? <>Sebagai super user, Anda dapat menata keluarga anggota ini tanpa perlu izin.</>
-                    : <>Anggota ini masih hidup. Menata silsilahnya memerlukan <b>izin</b> dari pemilik akun. Ajukan permintaan, dan setelah disetujui bagian ini akan terbuka.</>}
+                  : node.group === 'spouse'
+                    ? <>Atur jumlah saudara dari pasangan ini. Data ini akan tampil di pohon keluarga publik.</>
+                    : isSuperUser
+                      ? <>Sebagai super user, Anda dapat menata keluarga anggota ini tanpa perlu izin.</>
+                      : <>Anggota ini masih hidup. Menata silsilahnya memerlukan <b>izin</b> dari pemilik akun. Ajukan permintaan, dan setelah disetujui bagian ini akan terbuka.</>}
               </p>
 
-              {!deceased && !granted && !isSuperUser && (
+              {!deceased && !granted && !isSuperUser && node.group !== 'spouse' && (
                 <div className="mb-3">
                   {consent?.status === 'PENDING' ? (
                     <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2">

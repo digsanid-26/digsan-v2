@@ -388,8 +388,8 @@ export default function PublicFamilyPage() {
 
         // Spouse's siblings — ONE combined group bubble on the RIGHT
         const spMember = members[`spouse-${si}`];
-        const spSibOlder = spMember?.familyConfig?.olderCount ?? cfg.olderCount;
-        const spSibYounger = spMember?.familyConfig?.youngerCount ?? cfg.youngerCount;
+        const spSibOlder = spMember?.familyConfig?.olderCount ?? 0;
+        const spSibYounger = spMember?.familyConfig?.youngerCount ?? 0;
         const spSibLegacy = spMember?.familyConfig?.siblingCount ?? 0;
         const totalSibs = spSibOlder + spSibYounger + spSibLegacy;
         if (totalSibs > 0) {
