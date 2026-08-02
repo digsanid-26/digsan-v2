@@ -44,6 +44,8 @@ interface Props {
   anchorOnClick?: boolean;
   /** Called when the SVG background (not a node) is clicked. */
   onBackgroundClick?: () => void;
+  /** Node id currently hovered (for showing expand overlay). */
+  hoveredNodeId?: string | null;
 }
 
 const PAD = 80; // padding around the tree bounding box (tree coords)
@@ -52,7 +54,7 @@ const MAX_SCALE = 4;
 const INITIAL_SCALE = 1.5;
 
 /** Pannable, zoomable renderer for a family graph, focused on a given node. */
-export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className, visibleTags, onNodeHover, nodeOpacity, lineOpacity, anchorOnClick = true, onBackgroundClick }: Props) {
+export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className, visibleTags, onNodeHover, nodeOpacity, lineOpacity, anchorOnClick = true, onBackgroundClick, hoveredNodeId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
   const movedRef = useRef(false);
@@ -288,6 +290,13 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                 >
                   {n.name}
                 </text>
+              )}
+              {/* Expand overlay on hovered Ortu nodes */
+              {hoveredNodeId === n.id && n.name === 'Ortu' && (
+                <g pointerEvents="none">
+                  <rect x={-r} y={-10} width={r * 2} height={20} rx={10} fill="rgba(0,0,0,0.7)" />
+                  <text textAnchor="middle" dominantBaseline="central" fill="#facc15" fontSize={12} fontWeight={600}>Expand</text>
+                </g>
               )}
               {!isGroup && d?.name && (
                 <text

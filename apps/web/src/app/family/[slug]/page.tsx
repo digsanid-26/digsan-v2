@@ -104,9 +104,25 @@ export default function PublicFamilyPage() {
 
   // Determine which parent tag a node id belongs to
   const getParentTag = (id: string): string | null => {
-    if (id.startsWith('self-parent-')) return 'self-parents';
-    const m = id.match(/^spouse-(\d+)-parent-/);
+    if (id === 'self-ortu') return 'self-parents';
+    const m = id.match(/^spouse-(\d+)-ortu$/);
     if (m) return `spouse-${m[1]}-parents`;
+    return null;
+  };
+
+  // Determine which grandparent tag a node id belongs to
+  const getGrandparentTag = (id: string): string | null => {
+    if (id === 'self-simbah') return 'self-grandparents';
+    const m = id.match(/^spouse-(\d+)-simbah$/);
+    if (m) return `spouse-${m[1]}-grandparents`;
+    return null;
+  };
+
+  // Determine which uncle tag a node id belongs to
+  const getUncleTag = (id: string): string | null => {
+    if (id === 'grp-self-paman') return 'self-uncles';
+    const m = id.match(/^grp-spouse-(\d+)-paman$/);
+    if (m) return `spouse-${m[1]}-uncles`;
     return null;
   };
 
@@ -129,7 +145,7 @@ export default function PublicFamilyPage() {
   // Which parent tag does a spouse/self hover reveal?
   const getParentsTagForNode = (id: string): string | null => {
     if (id === 'self') return 'self-parents';
-    if (id.startsWith('spouse-') && !id.includes('-parent-') && !id.includes('-kakak') && !id.includes('-adik')) {
+    if (id.startsWith('spouse-') && !id.includes('-ortu') && !id.includes('-kakak') && !id.includes('-adik') && !id.includes('-paman') && !id.includes('-simbah')) {
       const m = id.match(/^spouse-(\d+)$/);
       if (m) return `spouse-${m[1]}-parents`;
     }
@@ -161,7 +177,12 @@ export default function PublicFamilyPage() {
     }
     const parentTag = getParentTag(node.id);
     if (parentTag) {
-      // Hovering a parent node → parents solid, show siblings faint
+      // Hovering an Ortu node → parents solid, show siblings + grandparents + uncles faint
+      setHoverLevel('parent-level');
+      return;
+    }
+    // Hovering grandparent or uncle → keep parent-level (stay visible)
+    if (getGrandparentTag(node.id) || getUncleTag(node.id)) {
       setHoverLevel('parent-level');
       return;
     }
@@ -316,18 +337,11 @@ export default function PublicFamilyPage() {
     childXs.forEach((x, i) => ns.push({ id: `child-${i}`, name: `Anak ${i + 1}`, role: 'Keturunan', x, y: 210, group: 'child' }));
     connectDown(ls, coupleMid, 0, childXs, 210);
 
-    // ─── Self's parents (tag: 'self-parents') ───
-    // Positioned directly above self's circle
+    // ─── Self's parents (tag: 'self-parents') — single "Ortu" circle ───
     if (cfg.parentCount > 0) {
-      const pXs = spreadX(cfg.parentCount, 130, selfX);
-      pXs.forEach((x, i) => {
-        ns.push({ id: `self-parent-${i}`, name: i === 0 ? 'Ayah' : 'Ibu', role: 'Orang Tua', x, y: -210, group: 'parent', tag: 'self-parents' });
-      });
-      if (cfg.parentCount >= 2) {
-        ls.push({ points: [[pXs[0], -210], [pXs[pXs.length - 1], -210]], marriage: true, tag: 'self-parents' });
-      }
-      const pMid = pXs.reduce((a, b) => a + b, 0) / pXs.length;
-      ls.push({ points: [[pMid, -210], [selfX, 0]], tag: 'self-parents' });
+      const ortuY = -210;
+      ns.push({ id: 'self-ortu', name: 'Ortu', role: 'Orang Tua', x: selfX, y: ortuY, group: 'parent', tag: 'self-parents' });
+      ls.push({ points: [[selfX, ortuY], [selfX, 0]], tag: 'self-parents' });
 
       // Self's siblings (tag: 'self-siblings') — ONE combined group bubble on the LEFT
       const selfSibOlder = members['self']?.familyConfig?.olderCount ?? cfg.olderCount;
@@ -335,30 +349,42 @@ export default function PublicFamilyPage() {
       const selfSibLegacy = members['self']?.familyConfig?.siblingCount ?? 0;
       const totalSibs = selfSibOlder + selfSibYounger + selfSibLegacy;
       if (totalSibs > 0) {
-        const SIB_OFFSET = 180; // distance from selfX to the group bubble center
+        const SIB_OFFSET = 180;
         const sibX = selfX - SIB_OFFSET;
-        const sibTrunkY = -105; // midpoint of vertical line self→parents
+        const sibTrunkY = -105;
         ns.push({ id: 'grp-self-saudara', name: `Saudara ${totalSibs}`, role: 'group', x: sibX, y: 0, group: 'kakak', count: totalSibs, tag: 'self-siblings' });
-        // Line: from bubble up to trunkY, then horizontal to selfX (midpoint of self→parents vertical)
         ls.push({ points: [[sibX, 0], [sibX, sibTrunkY], [selfX, sibTrunkY]], tag: 'self-siblings' });
+      }
+
+      // Self's grandparents (tag: 'self-grandparents') — single "Simbah" circle above Ortu
+      if (cfg.simbahP > 0 || cfg.simbahM > 0) {
+        const simbahY = -420;
+        ns.push({ id: 'self-simbah', name: 'Simbah', role: 'Simbah', x: selfX, y: simbahY, group: 'grandparent', tag: 'self-grandparents' });
+        ls.push({ points: [[selfX, -210], [selfX, simbahY]], tag: 'self-grandparents' });
+      }
+
+      // Self's uncles (tag: 'self-uncles') — "Paman/Bibi" circle to the RIGHT of Ortu
+      const parentMember = members['parent-0'];
+      const uncleOlder = parentMember?.familyConfig?.olderCount ?? 0;
+      const uncleYounger = parentMember?.familyConfig?.youngerCount ?? 0;
+      const uncleLegacy = parentMember?.familyConfig?.siblingCount ?? 0;
+      const totalUncles = uncleOlder + uncleYounger + uncleLegacy;
+      if (totalUncles > 0) {
+        const uncleOffset = 180;
+        const uncleX = selfX + uncleOffset;
+        ns.push({ id: 'grp-self-paman', name: `Paman/Bibi ${totalUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalUncles, tag: 'self-uncles' });
+        ls.push({ points: [[selfX, -210], [uncleX, -210]], tag: 'self-uncles' });
       }
     }
 
-    // ─── Spouse's parents (tag: 'spouse-0-parents', 'spouse-1-parents', etc.) ───
+    // ─── Spouse's parents (tag: 'spouse-0-parents', etc.) — single "Ortu" circle ───
     for (let si = 0; si < cfg.spouseCount; si++) {
       const sx = spouseXs[si];
-      // Spouse's parents: use parentCount as a reasonable default (same config for now)
       if (cfg.parentCount > 0) {
-        const pXs = spreadX(cfg.parentCount, 130, sx);
         const tag = `spouse-${si}-parents`;
-        pXs.forEach((x, i) => {
-          ns.push({ id: `spouse-${si}-parent-${i}`, name: i === 0 ? 'Ayah' : 'Ibu', role: 'Orang Tua', x, y: -210, group: 'parent', tag });
-        });
-        if (cfg.parentCount >= 2) {
-          ls.push({ points: [[pXs[0], -210], [pXs[pXs.length - 1], -210]], marriage: true, tag });
-        }
-        const pMid = pXs.reduce((a, b) => a + b, 0) / pXs.length;
-        ls.push({ points: [[pMid, -210], [sx, 0]], tag });
+        const ortuY = -210;
+        ns.push({ id: `spouse-${si}-ortu`, name: 'Ortu', role: 'Orang Tua', x: sx, y: ortuY, group: 'parent', tag });
+        ls.push({ points: [[sx, ortuY], [sx, 0]], tag });
 
         // Spouse's siblings — ONE combined group bubble on the RIGHT
         const spMember = members[`spouse-${si}`];
@@ -373,6 +399,28 @@ export default function PublicFamilyPage() {
           const sibTrunkY = -105;
           ns.push({ id: `grp-spouse-${si}-saudara`, name: `Saudara ${totalSibs}`, role: 'group', x: sibX, y: 0, group: 'adik', count: totalSibs, tag: sibTag });
           ls.push({ points: [[sibX, 0], [sibX, sibTrunkY], [sx, sibTrunkY]], tag: sibTag });
+        }
+
+        // Spouse's grandparents (tag: 'spouse-{i}-grandparents') — "Simbah" circle above Ortu
+        if (cfg.simbahP > 0 || cfg.simbahM > 0) {
+          const gpTag = `spouse-${si}-grandparents`;
+          const simbahY = -420;
+          ns.push({ id: `spouse-${si}-simbah`, name: 'Simbah', role: 'Simbah', x: sx, y: simbahY, group: 'grandparent', tag: gpTag });
+          ls.push({ points: [[sx, -210], [sx, simbahY]], tag: gpTag });
+        }
+
+        // Spouse's uncles (tag: 'spouse-{i}-uncles') — "Paman/Bibi" circle to the LEFT of Ortu
+        const spParentMember = members[`spouse-${si}-parent-0`] ?? members['parent-0'];
+        const spUncleOlder = spParentMember?.familyConfig?.olderCount ?? 0;
+        const spUncleYounger = spParentMember?.familyConfig?.youngerCount ?? 0;
+        const spUncleLegacy = spParentMember?.familyConfig?.siblingCount ?? 0;
+        const spTotalUncles = spUncleOlder + spUncleYounger + spUncleLegacy;
+        if (spTotalUncles > 0) {
+          const uncleTag = `spouse-${si}-uncles`;
+          const uncleOffset = 180;
+          const uncleX = sx - uncleOffset;
+          ns.push({ id: `grp-spouse-${si}-paman`, name: `Paman/Bibi ${spTotalUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalUncles, tag: uncleTag });
+          ls.push({ points: [[sx, -210], [uncleX, -210]], tag: uncleTag });
         }
       }
     }
@@ -447,6 +495,8 @@ export default function PublicFamilyPage() {
     // Determine which parent tag is active
     let activeParentTag: string | null = null;
     let activeSibTag: string | null = null;
+    let activeGpTag: string | null = null;
+    let activeUncleTag: string | null = null;
 
     if (hoverLevel === 'spouse-level') {
       activeParentTag = getParentsTagForNode(hoverTarget);
@@ -470,6 +520,38 @@ export default function PublicFamilyPage() {
         else {
           const m = activeParentTag.match(/^spouse-(\d+)-parents$/);
           if (m) activeSibTag = `spouse-${m[1]}-siblings`;
+        }
+      }
+      // Derive grandparent and uncle tags from parent tag
+      if (activeParentTag === 'self-parents') {
+        activeGpTag = 'self-grandparents';
+        activeUncleTag = 'self-uncles';
+      } else if (activeParentTag) {
+        const m = activeParentTag.match(/^spouse-(\d+)-parents$/);
+        if (m) {
+          activeGpTag = `spouse-${m[1]}-grandparents`;
+          activeUncleTag = `spouse-${m[1]}-uncles`;
+        }
+      }
+      // If hovering grandparent or uncle directly, derive from those
+      if (!activeParentTag) {
+        const gpTag = getGrandparentTag(hoverTarget);
+        if (gpTag) {
+          activeGpTag = gpTag;
+          if (gpTag === 'self-grandparents') activeParentTag = 'self-parents';
+          else {
+            const m = gpTag.match(/^spouse-(\d+)-grandparents$/);
+            if (m) activeParentTag = `spouse-${m[1]}-parents`;
+          }
+        }
+        const uncTag = getUncleTag(hoverTarget);
+        if (uncTag) {
+          activeUncleTag = uncTag;
+          if (uncTag === 'self-uncles') activeParentTag = 'self-parents';
+          else {
+            const m = uncTag.match(/^spouse-(\d+)-uncles$/);
+            if (m) activeParentTag = `spouse-${m[1]}-parents`;
+          }
         }
       }
     }
@@ -502,6 +584,26 @@ export default function PublicFamilyPage() {
           }
           for (let i = 0; i < displayLines.length; i++) {
             if (displayLines[i].tag === activeSibTag) lOp[i] = sibOpacity;
+          }
+        }
+        // Grandparents faint (0.35)
+        if (activeGpTag) {
+          vTags.add(activeGpTag);
+          for (const n of displayNodes) {
+            if (n.tag === activeGpTag) nOp[n.id] = 0.35;
+          }
+          for (let i = 0; i < displayLines.length; i++) {
+            if (displayLines[i].tag === activeGpTag) lOp[i] = 0.35;
+          }
+        }
+        // Uncles faint (0.35)
+        if (activeUncleTag) {
+          vTags.add(activeUncleTag);
+          for (const n of displayNodes) {
+            if (n.tag === activeUncleTag) nOp[n.id] = 0.35;
+          }
+          for (let i = 0; i < displayLines.length; i++) {
+            if (displayLines[i].tag === activeUncleTag) lOp[i] = 0.35;
           }
         }
       }
@@ -813,6 +915,7 @@ export default function PublicFamilyPage() {
                   onNodeHover={onNodeHover}
                   nodeOpacity={nodeOpacity}
                   lineOpacity={lineOpacity}
+                  hoveredNodeId={hoverTarget}
                   onBackgroundClick={() => {
                     if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
                     fadeTimerRef.current = setTimeout(() => {
