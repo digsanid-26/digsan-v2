@@ -50,6 +50,7 @@ interface AdSpot {
   position: string;
   aspectRatio: string;
   maxSlots: number;
+  deviceMode: string;
   isActive: boolean;
   assignments?: any[];
 }
@@ -224,7 +225,7 @@ function DashboardTab() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-white/50 mt-0.5">
-                    {spot.label} — {spot.page} / {spot.position} — {spot.aspectRatio}
+                    {spot.label} — {spot.page} / {spot.position} — {spot.aspectRatio} — {spot.deviceMode === 'desktop' ? 'Desktop' : spot.deviceMode === 'mobile' ? 'Mobile' : 'All Device'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -255,11 +256,11 @@ function DashboardTab() {
 // ─── Spot Form Modal ────────────────────────────────────────
 
 function SpotFormModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ key: '', label: '', description: '', page: 'dashboard', position: 'default', aspectRatio: '1:1', maxSlots: 1 });
+  const [form, setForm] = useState({ key: '', label: '', description: '', page: 'dashboard', position: 'default', aspectRatio: '1:1', maxSlots: 1, deviceMode: 'all' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-[#0a0e1a] dark:border-white/15 dark:text-white';
 
   const handleSave = async () => {
     setSaving(true);
@@ -329,6 +330,14 @@ function SpotFormModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
               <input type="number" min={1} value={form.maxSlots} onChange={(e) => setForm({ ...form, maxSlots: parseInt(e.target.value) || 1 })} className={inputCls} />
             </div>
           </div>
+          <div>
+            <label className="block text-xs text-slate-500 dark:text-white/50 mb-1">Device Mode</label>
+            <select value={form.deviceMode} onChange={(e) => setForm({ ...form, deviceMode: e.target.value })} className={inputCls}>
+              <option value="all">All Device</option>
+              <option value="desktop">Desktop Only</option>
+              <option value="mobile">Mobile Only (Tablet & Smartphone)</option>
+            </select>
+          </div>
           {error && <p className="text-xs text-rose-500">{error}</p>}
         </div>
         <div className="flex gap-2 justify-end">
@@ -363,7 +372,7 @@ function BuilderTab() {
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
 
-  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-[#0a0e1a] dark:border-white/15 dark:text-white';
 
   const aiModels = [
     { value: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
@@ -795,7 +804,7 @@ function AssignFormModal({ spots, banners, onClose, onSaved }: { spots: AdSpot[]
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-[#0a0e1a] dark:border-white/15 dark:text-white';
 
   const handleSave = async () => {
     setSaving(true);
@@ -875,7 +884,7 @@ function BannerFormModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/5 dark:border-white/15 dark:text-white';
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-[#0a0e1a] dark:border-white/15 dark:text-white';
 
   const handleSave = async () => {
     if (!title || !imageUrl) { setError('Judul dan URL gambar wajib diisi'); return; }

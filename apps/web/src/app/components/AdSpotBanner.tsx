@@ -14,8 +14,16 @@ interface AdBannerData {
 }
 
 interface SpotResponse {
-  spot: { id: string; key: string; label: string; aspectRatio: string; maxSlots: number } | null;
+  spot: { id: string; key: string; label: string; aspectRatio: string; maxSlots: number; deviceMode?: string } | null;
   banners: AdBannerData[];
+}
+
+function matchesDeviceMode(deviceMode?: string): boolean {
+  if (!deviceMode || deviceMode === 'all') return true;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+  if (deviceMode === 'desktop') return !isMobile;
+  if (deviceMode === 'mobile') return isMobile;
+  return true;
 }
 
 /**
@@ -24,6 +32,7 @@ interface SpotResponse {
  */
 export function AdSpotBanner({ spotKey, className = '', placeholder = false, placeholderText = 'Slot Iklan' }: { spotKey: string; className?: string; placeholder?: boolean; placeholderText?: string }) {
   const [banners, setBanners] = useState<AdBannerData[]>([]);
+  const [deviceMode, setDeviceMode] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,6 +50,7 @@ export function AdSpotBanner({ spotKey, className = '', placeholder = false, pla
         const data: SpotResponse = json.data ?? json;
         if (!cancelled && data.banners?.length > 0) {
           setBanners(data.banners);
+          setDeviceMode(data.spot?.deviceMode);
         }
       } catch {
         // Silent fail — ads are non-critical
@@ -52,6 +62,8 @@ export function AdSpotBanner({ spotKey, className = '', placeholder = false, pla
   }, [spotKey]);
 
   if (loading) return null;
+
+  if (!matchesDeviceMode(deviceMode)) return null;
 
   if (banners.length === 0) {
     if (!placeholder) return null;
@@ -99,11 +111,11 @@ export function usePageAds(page: string) {
         });
         if (!res.ok) return;
         const json = await res.json();
-        const data: Array<{ key: string; banners: AdBannerData[] }> = json.data ?? json;
+        const data: Array<{ key: string; banners: AdBannerData[]; deviceMode?: string }> = json.data ?? json;
         if (!cancelled) {
           const map: Record<string, AdBannerData[]> = {};
           for (const s of data) {
-            if (s.banners?.length > 0) map[s.key] = s.banners;
+            if (s.banners?.length > 0 && matchesDeviceMode(s.deviceMode)) map[s.key] = s.banners;
           }
           setAds(map);
         }

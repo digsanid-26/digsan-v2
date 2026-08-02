@@ -46,6 +46,7 @@ export class AdvertisingAdminService {
       aspectRatio: s.aspectRatio,
       maxSlots: s.maxSlots,
       isActive: s.isActive,
+      deviceMode: s.deviceMode,
       activeBanners: s.assignments.length,
       currentBanner: s.assignments[0]?.banner ?? null,
       assignments: s.assignments.map((a) => ({
@@ -72,13 +73,13 @@ export class AdvertisingAdminService {
 
   // ─── SPOTS CRUD ────────────────────────────────────────────
 
-  async createSpot(data: { key: string; label: string; description?: string; page?: string; position?: string; aspectRatio?: string; maxSlots?: number }) {
+  async createSpot(data: { key: string; label: string; description?: string; page?: string; position?: string; aspectRatio?: string; maxSlots?: number; deviceMode?: string }) {
     const existing = await this.prisma.adSpot.findUnique({ where: { key: data.key } });
     if (existing) throw new BadRequestException('Spot key already exists');
     return this.prisma.adSpot.create({ data });
   }
 
-  async updateSpot(id: string, data: { label?: string; description?: string; page?: string; position?: string; aspectRatio?: string; maxSlots?: number; isActive?: boolean }) {
+  async updateSpot(id: string, data: { label?: string; description?: string; page?: string; position?: string; aspectRatio?: string; maxSlots?: number; deviceMode?: string; isActive?: boolean }) {
     const spot = await this.prisma.adSpot.findUnique({ where: { id } });
     if (!spot) throw new NotFoundException('Spot not found');
     return this.prisma.adSpot.update({ where: { id }, data });
@@ -209,7 +210,7 @@ export class AdvertisingAdminService {
     });
 
     return {
-      spot: { id: spot.id, key: spot.key, label: spot.label, aspectRatio: spot.aspectRatio, maxSlots: spot.maxSlots },
+      spot: { id: spot.id, key: spot.key, label: spot.label, aspectRatio: spot.aspectRatio, maxSlots: spot.maxSlots, deviceMode: spot.deviceMode },
       banners: assignments.map((a) => ({
         id: a.banner.id,
         title: a.banner.title,
@@ -244,6 +245,7 @@ export class AdvertisingAdminService {
       label: s.label,
       aspectRatio: s.aspectRatio,
       maxSlots: s.maxSlots,
+      deviceMode: s.deviceMode,
       banners: s.assignments.slice(0, s.maxSlots).map((a) => ({
         id: a.banner.id,
         title: a.banner.title,
