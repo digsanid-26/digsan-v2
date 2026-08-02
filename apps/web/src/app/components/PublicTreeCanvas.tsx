@@ -32,6 +32,16 @@ interface Props {
   /** Node id to center the initial viewport on (defaults to "self"). */
   focusId?: string;
   className?: string;
+  /** Set of tags that are currently visible. Nodes/lines with a tag not in this set are hidden (opacity 0). */
+  visibleTags?: Set<string>;
+  /** Hover handler for a node. */
+  onNodeHover?: (node: TNode | null) => void;
+  /** Map of nodeId to opacity override (0-1). If present, overrides default behavior. */
+  nodeOpacity?: Record<string, number>;
+  /** Map of line index to opacity override (0-1). */
+  lineOpacity?: number[];
+  /** When true, clicking a node centers it in the viewport (default: true). */
+  anchorOnClick?: boolean;
 }
 
 const PAD = 80; // padding around the tree bounding box (tree coords)
@@ -40,13 +50,14 @@ const MAX_SCALE = 4;
 const INITIAL_SCALE = 1.5;
 
 /** Pannable, zoomable renderer for a family graph, focused on a given node. */
-export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className }: Props) {
+export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className, visibleTags, onNodeHover, nodeOpacity, lineOpacity, anchorOnClick = true }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
   const movedRef = useRef(false);
   const [scale, setScale] = useState(INITIAL_SCALE);
   const [center, setCenter] = useState<{ x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState(false);
+  const animRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
 
   const box = useMemo(() => {
     if (!nodes.length) return { minX: 0, minY: 0, w: 1, h: 1, cx: 0.5, cy: 0.5 };
@@ -99,6 +110,7 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
 
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
     dragRef.current = { x: e.clientX, y: e.clientY, cx, cy };
     movedRef.current = false;
     setDragging(true);
@@ -118,9 +130,26 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
 
   const endDrag = () => { dragRef.current = null; setDragging(false); };
 
+  /** Smoothly animate center to a target position. */
+  const animateCenter = (targetX: number, targetY: number, duration = 450) => {
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    const startX = center?.x ?? box.cx;
+    const startY = center?.y ?? box.cy;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - t0) / duration);
+      // easeInOutCubic
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      setCenter({ x: startX + (targetX - startX) * e, y: startY + (targetY - startY) * e });
+      if (t < 1) animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+  };
+
   /** Node clicks should be ignored right after a pan drag. */
-  const handleNodeClick = (fn?: () => void) => {
+  const handleNodeClick = (fn?: () => void, node?: TNode) => {
     if (movedRef.current) return;
+    if (anchorOnClick && node) animateCenter(node.x, node.y);
     fn?.();
   };
 
@@ -140,17 +169,26 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
     >
       <svg viewBox={viewBox} className="w-full h-full" style={{ display: 'block' }}>
         {/* Connector lines */}
-        {lines.map((l, i) => (
-          <polyline
-            key={i}
-            points={l.points.map(([x, y]) => `${x},${y}`).join(' ')}
-            fill="none"
-            stroke={l.marriage ? 'rgba(147,197,253,0.55)' : 'rgba(255,255,255,0.22)'}
-            strokeWidth={l.marriage ? 3 : 2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ))}
+        {lines.map((l, i) => {
+          let opacity = 1;
+          if (lineOpacity && lineOpacity[i] !== undefined) {
+            opacity = lineOpacity[i];
+          } else if (l.tag && visibleTags && !visibleTags.has(l.tag)) {
+            opacity = 0;
+          }
+          return (
+            <polyline
+              key={i}
+              points={l.points.map(([x, y]) => `${x},${y}`).join(' ')}
+              fill="none"
+              stroke={l.marriage ? 'rgba(147,197,253,0.55)' : 'rgba(255,255,255,0.22)'}
+              strokeWidth={l.marriage ? 3 : 2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ opacity, transition: 'opacity 0.4s ease' }}
+            />
+          );
+        })}
 
         {/* Nodes */}
         {nodes.map((n) => {
@@ -167,15 +205,24 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
             if (isGroup) onGroupClick?.(n);
             else if (onNodeClick) onNodeClick?.(n);
             else if (unclaimed) onUnclaimedClick?.(n);
-          });
+          }, n);
+          // Compute opacity: explicit override > tag-based > default
+          let nodeOp = alive ? 1 : 0.55;
+          if (nodeOpacity && nodeOpacity[n.id] !== undefined) {
+            nodeOp = nodeOpacity[n.id];
+          } else if (n.tag && visibleTags && !visibleTags.has(n.tag)) {
+            nodeOp = 0;
+          }
           return (
             <g
               key={n.id}
               id={`tree-node-${n.id}`}
               transform={`translate(${n.x}, ${n.y})`}
-              opacity={alive ? 1 : 0.55}
-              style={{ cursor: clickable ? 'pointer' : 'default' }}
+              opacity={nodeOp}
+              style={{ cursor: clickable ? 'pointer' : 'default', transition: 'opacity 0.4s ease' }}
               onClick={onClick}
+              onMouseEnter={() => onNodeHover?.(n)}
+              onMouseLeave={() => onNodeHover?.(null)}
             >
               {/* Dashed ring hints that this slot hasn't been claimed by an account yet */}
               {unclaimed && (

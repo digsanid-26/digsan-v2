@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -92,6 +92,88 @@ export default function PublicFamilyPage() {
     [data?.config],
   );
   const members: Members = useMemo(() => data?.members ?? {}, [data?.members]);
+
+  // ─── Hover state machine for progressive reveal of parents/siblings ───
+  // hoverTarget: which node is currently hovered ('self', 'spouse-0', 'self-parent-0', etc.)
+  // hoverLevel: 'none' | 'spouse-level' (parents faint) | 'parent-level' (parents solid + siblings faint)
+  // expandedGroup: which sibling group bubble was clicked to expand into individual circles
+  const [hoverTarget, setHoverTarget] = useState<string | null>(null);
+  const [hoverLevel, setHoverLevel] = useState<'none' | 'spouse-level' | 'parent-level'>('none');
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Determine which parent tag a node id belongs to
+  const getParentTag = (id: string): string | null => {
+    if (id.startsWith('self-parent-')) return 'self-parents';
+    const m = id.match(/^spouse-(\d+)-parent-/);
+    if (m) return `spouse-${m[1]}-parents`;
+    return null;
+  };
+
+  // Determine which sibling tag a group node id belongs to
+  const getSiblingTag = (id: string): string | null => {
+    if (id.startsWith('grp-self-')) return 'self-siblings';
+    const m = id.match(/^grp-spouse-(\d+)-/);
+    if (m) return `spouse-${m[1]}-siblings`;
+    return null;
+  };
+
+  // Determine which sibling tag an individual expanded sibling node id belongs to
+  const getSiblingTagFromIndividual = (id: string): string | null => {
+    if (id.startsWith('sib-self-')) return 'self-siblings';
+    const m = id.match(/^sib-spouse-(\d+)-/);
+    if (m) return `spouse-${m[1]}-siblings`;
+    return null;
+  };
+
+  // Which parent tag does a spouse/self hover reveal?
+  const getParentsTagForNode = (id: string): string | null => {
+    if (id === 'self') return 'self-parents';
+    if (id.startsWith('spouse-') && !id.includes('-parent-') && !id.includes('-kakak') && !id.includes('-adik')) {
+      const m = id.match(/^spouse-(\d+)$/);
+      if (m) return `spouse-${m[1]}-parents`;
+    }
+    return null;
+  };
+
+  const onNodeHover = useCallback((node: TNode | null) => {
+    if (fadeTimerRef.current) {
+      clearTimeout(fadeTimerRef.current);
+      fadeTimerRef.current = null;
+    }
+    if (!node) {
+      // Start 2s fade timer
+      fadeTimerRef.current = setTimeout(() => {
+        setHoverTarget(null);
+        setHoverLevel('none');
+        fadeTimerRef.current = null;
+      }, 2000);
+      return;
+    }
+    setHoverTarget(node.id);
+
+    // Determine hover level based on what node is hovered
+    const parentsTag = getParentsTagForNode(node.id);
+    if (parentsTag) {
+      // Hovering self or spouse → show their parents faint
+      setHoverLevel('spouse-level');
+      return;
+    }
+    const parentTag = getParentTag(node.id);
+    if (parentTag) {
+      // Hovering a parent node → parents solid, show siblings faint
+      setHoverLevel('parent-level');
+      return;
+    }
+    // Hovering a sibling group bubble or individual sibling → keep parent-level
+    const sibTag = getSiblingTag(node.id) || getSiblingTagFromIndividual(node.id);
+    if (sibTag) {
+      setHoverLevel('parent-level');
+      return;
+    }
+    // Hovering any other node (child, etc.) → reset
+    setHoverLevel('none');
+  }, []);
 
   // ─── Family Node Tree data (L103) ───────────────────────────
   const familyNodeTree = useMemo(() => {
@@ -210,34 +292,245 @@ export default function PublicFamilyPage() {
     return { nodes: fnNodes, links: fnLinks };
   }, [data, config, members, slug]);
 
-  const { nodes, lines } = useMemo(() => {
-    if (!data?.config) return { nodes: [] as TNode[], lines: [] as Poly[] };
+  // ─── Layout: main family (always visible) + parent sets + sibling groups (tagged, hidden by default) ───
+  const { nodes, lines, layoutInfo } = useMemo(() => {
+    if (!data?.config) return { nodes: [] as TNode[], lines: [] as Poly[], layoutInfo: null as null | { selfX: number; spouseXs: number[]; coupleMid: number } };
     const cfg = config;
     const ns: TNode[] = [];
     const ls: Poly[] = [];
 
-    // Self + spouses (y = 0)
+    // Self + spouses (y = 0) — always visible (no tag)
     const coupleXs = spreadX(1 + cfg.spouseCount, 160, 0);
     const selfX = coupleXs[0];
+    const spouseXs = coupleXs.slice(1);
     ns.push({ id: 'self', name: 'Anda', role: 'Diri Sendiri', x: selfX, y: 0, group: 'self' });
     for (let i = 0; i < cfg.spouseCount; i++) {
-      const sx = coupleXs[i + 1];
+      const sx = spouseXs[i];
       ns.push({ id: `spouse-${i}`, name: cfg.spouseCount > 1 ? `Pasangan ${i + 1}` : 'Pasangan', role: 'Suami / Istri', x: sx, y: 0, group: 'spouse' });
       ls.push({ points: [[selfX, 0], [sx, 0]], marriage: true });
     }
     const coupleMid = coupleXs.reduce((a, b) => a + b, 0) / coupleXs.length;
 
-    // Children (y = 210)
+    // Children (y = 210) — always visible
     const childXs = spreadX(cfg.childCount, 130, coupleMid);
     childXs.forEach((x, i) => ns.push({ id: `child-${i}`, name: `Anak ${i + 1}`, role: 'Keturunan', x, y: 210, group: 'child' }));
     connectDown(ls, coupleMid, 0, childXs, 210);
 
-    // "Keluarga Besar" group node (y = -210), connected directly to the couple
-    ns.push({ id: 'grp-kb', name: 'Keluarga Besar', role: 'group', x: coupleMid, y: -210, group: 'parent', count: cfg.parentCount + 2 });
-    ls.push({ points: [[coupleMid, 0], [coupleMid, -210]] });
+    // ─── Self's parents (tag: 'self-parents') ───
+    // Positioned directly above self's circle
+    if (cfg.parentCount > 0) {
+      const pXs = spreadX(cfg.parentCount, 130, selfX);
+      pXs.forEach((x, i) => {
+        ns.push({ id: `self-parent-${i}`, name: i === 0 ? 'Ayah' : 'Ibu', role: 'Orang Tua', x, y: -210, group: 'parent', tag: 'self-parents' });
+      });
+      if (cfg.parentCount >= 2) {
+        ls.push({ points: [[pXs[0], -210], [pXs[pXs.length - 1], -210]], marriage: true, tag: 'self-parents' });
+      }
+      const pMid = pXs.reduce((a, b) => a + b, 0) / pXs.length;
+      ls.push({ points: [[pMid, -210], [selfX, 0]], tag: 'self-parents' });
 
-    return { nodes: ns, lines: ls };
+      // Self's siblings (tag: 'self-siblings') — positioned beside parents, same y=0 level
+      const totalSibs = cfg.olderCount + cfg.youngerCount;
+      if (totalSibs > 0) {
+        // Sibling bubble positioned to the left (kakak) and right (adik) of self at y=0
+        // But we want them at y=0 horizontally aligned with self, packed outward
+        const SIB_GAP = 100;
+        const SIB_SPACING = 90;
+        // Kakak (older) — packed leftward from self
+        if (cfg.olderCount > 0) {
+          const kkXs = Array.from({ length: cfg.olderCount }, (_, i) => selfX - SIB_GAP - i * SIB_SPACING);
+          // Group bubble for kakak
+          const kkCenter = (kkXs[0] + kkXs[kkXs.length - 1]) / 2;
+          ns.push({ id: 'grp-self-kakak', name: `Saudara ${cfg.olderCount}`, role: 'group', x: kkCenter, y: 0, group: 'kakak', count: cfg.olderCount, tag: 'self-siblings' });
+          // Vertical line up from bubble to parent horizontal line at sibTrunkY
+          const sibTrunkY = -105;
+          ls.push({ points: [[kkCenter, 0], [kkCenter, sibTrunkY], [pMid, sibTrunkY]], tag: 'self-siblings' });
+        }
+        // Adik (younger) — packed rightward from self
+        if (cfg.youngerCount > 0) {
+          const adXs = Array.from({ length: cfg.youngerCount }, (_, i) => selfX + SIB_GAP + i * SIB_SPACING);
+          const adCenter = (adXs[0] + adXs[adXs.length - 1]) / 2;
+          ns.push({ id: 'grp-self-adik', name: `Saudara ${cfg.youngerCount}`, role: 'group', x: adCenter, y: 0, group: 'adik', count: cfg.youngerCount, tag: 'self-siblings' });
+          const sibTrunkY = -105;
+          ls.push({ points: [[adCenter, 0], [adCenter, sibTrunkY], [pMid, sibTrunkY]], tag: 'self-siblings' });
+        }
+      }
+    }
+
+    // ─── Spouse's parents (tag: 'spouse-0-parents', 'spouse-1-parents', etc.) ───
+    for (let si = 0; si < cfg.spouseCount; si++) {
+      const sx = spouseXs[si];
+      // Spouse's parents: use parentCount as a reasonable default (same config for now)
+      if (cfg.parentCount > 0) {
+        const pXs = spreadX(cfg.parentCount, 130, sx);
+        const tag = `spouse-${si}-parents`;
+        pXs.forEach((x, i) => {
+          ns.push({ id: `spouse-${si}-parent-${i}`, name: i === 0 ? 'Ayah' : 'Ibu', role: 'Orang Tua', x, y: -210, group: 'parent', tag });
+        });
+        if (cfg.parentCount >= 2) {
+          ls.push({ points: [[pXs[0], -210], [pXs[pXs.length - 1], -210]], marriage: true, tag });
+        }
+        const pMid = pXs.reduce((a, b) => a + b, 0) / pXs.length;
+        ls.push({ points: [[pMid, -210], [sx, 0]], tag });
+
+        // Spouse's siblings
+        const totalSibs = cfg.olderCount + cfg.youngerCount;
+        if (totalSibs > 0) {
+          const sibTag = `spouse-${si}-siblings`;
+          const SIB_GAP = 100;
+          const SIB_SPACING = 90;
+          const sibTrunkY = -105;
+          if (cfg.olderCount > 0) {
+            const kkXs = Array.from({ length: cfg.olderCount }, (_, i) => sx - SIB_GAP - i * SIB_SPACING);
+            const kkCenter = (kkXs[0] + kkXs[kkXs.length - 1]) / 2;
+            ns.push({ id: `grp-spouse-${si}-kakak`, name: `Saudara ${cfg.olderCount}`, role: 'group', x: kkCenter, y: 0, group: 'kakak', count: cfg.olderCount, tag: sibTag });
+            ls.push({ points: [[kkCenter, 0], [kkCenter, sibTrunkY], [pMid, sibTrunkY]], tag: sibTag });
+          }
+          if (cfg.youngerCount > 0) {
+            const adXs = Array.from({ length: cfg.youngerCount }, (_, i) => sx + SIB_GAP + i * SIB_SPACING);
+            const adCenter = (adXs[0] + adXs[adXs.length - 1]) / 2;
+            ns.push({ id: `grp-spouse-${si}-adik`, name: `Saudara ${cfg.youngerCount}`, role: 'group', x: adCenter, y: 0, group: 'adik', count: cfg.youngerCount, tag: sibTag });
+            ls.push({ points: [[adCenter, 0], [adCenter, sibTrunkY], [pMid, sibTrunkY]], tag: sibTag });
+          }
+        }
+      }
+    }
+
+    return { nodes: ns, lines: ls, layoutInfo: { selfX, spouseXs, coupleMid } };
   }, [data?.config, config, members]);
+
+  // ─── Expand sibling group bubbles into individual circles when clicked ───
+  const { displayNodes, displayLines } = useMemo(() => {
+    if (!expandedGroup) return { displayNodes: nodes, displayLines: lines };
+    const grpNode = nodes.find(n => n.id === expandedGroup);
+    if (!grpNode) return { displayNodes: nodes, displayLines: lines };
+
+    // Determine the sibling group details
+    const isKakak = expandedGroup.includes('-kakak');
+    const count = grpNode.count ?? 0;
+    const tag = grpNode.tag;
+    if (!tag || count === 0) return { displayNodes: nodes, displayLines: lines };
+
+    // Generate individual sibling circles at the same position area
+    const SIB_SPACING = 90;
+    const cx = grpNode.x;
+    const y = grpNode.y;
+    const groupPrefix = expandedGroup.replace('grp-', 'sib-');
+
+    // Pack circles centered on the group bubble's x
+    const sibXs = Array.from({ length: count }, (_, i) => cx + (i - (count - 1) / 2) * SIB_SPACING);
+    const sibNodes: TNode[] = sibXs.map((x, i) => ({
+      id: `${groupPrefix}-${i}`,
+      name: isKakak ? `Saudara ${i + 1}` : `Saudara ${i + 1}`,
+      role: isKakak ? 'Kakak' : 'Adik',
+      x,
+      y,
+      group: isKakak ? 'kakak' : 'adik',
+      tag,
+    }));
+
+    // Replace the group bubble with individual circles
+    const newNodes = nodes.filter(n => n.id !== expandedGroup).concat(sibNodes);
+
+    // Remove the old group→parent line and add individual lines from each sibling to the trunk
+    const newLines = lines.filter(l => l.tag !== tag).concat(
+      sibXs.map(x => ({ points: [[x, y], [x, -105], [cx, -105]], tag }))
+    );
+
+    return { displayNodes: newNodes, displayLines: newLines };
+  }, [nodes, lines, expandedGroup]);
+
+  // Compute visible tags and opacity overrides based on hover state
+  const { visibleTags, nodeOpacity, lineOpacity } = useMemo(() => {
+    const vTags = new Set<string>();
+    const nOp: Record<string, number> = {};
+    const lOp: number[] = displayLines.map(() => 1);
+
+    if (hoverLevel === 'none' || !hoverTarget) {
+      // Everything tagged is hidden
+      for (const n of displayNodes) {
+        if (n.tag) nOp[n.id] = 0;
+      }
+      for (let i = 0; i < displayLines.length; i++) {
+        if (displayLines[i].tag) lOp[i] = 0;
+      }
+      return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
+    }
+
+    // Determine which parent tag is active
+    let activeParentTag: string | null = null;
+    let activeSibTag: string | null = null;
+
+    if (hoverLevel === 'spouse-level') {
+      activeParentTag = getParentsTagForNode(hoverTarget);
+    } else if (hoverLevel === 'parent-level') {
+      activeParentTag = getParentTag(hoverTarget);
+      // If hovering a sibling group or individual sibling, also find the parent tag
+      if (!activeParentTag) {
+        const sibTag = getSiblingTag(hoverTarget) || getSiblingTagFromIndividual(hoverTarget);
+        if (sibTag) {
+          activeSibTag = sibTag;
+          // Derive parent tag from sibling tag
+          if (sibTag === 'self-siblings') activeParentTag = 'self-parents';
+          else {
+            const m = sibTag.match(/^spouse-(\d+)-siblings$/);
+            if (m) activeParentTag = `spouse-${m[1]}-parents`;
+          }
+        }
+      } else {
+        // Hovering a parent → derive sibling tag
+        if (activeParentTag === 'self-parents') activeSibTag = 'self-siblings';
+        else {
+          const m = activeParentTag.match(/^spouse-(\d+)-parents$/);
+          if (m) activeSibTag = `spouse-${m[1]}-siblings`;
+        }
+      }
+    }
+
+    if (activeParentTag) {
+      vTags.add(activeParentTag);
+      if (hoverLevel === 'spouse-level') {
+        // Parents faint (0.35)
+        for (const n of displayNodes) {
+          if (n.tag === activeParentTag) nOp[n.id] = 0.35;
+        }
+        for (let i = 0; i < displayLines.length; i++) {
+          if (displayLines[i].tag === activeParentTag) lOp[i] = 0.35;
+        }
+      } else if (hoverLevel === 'parent-level') {
+        // Parents solid (1.0)
+        for (const n of displayNodes) {
+          if (n.tag === activeParentTag) nOp[n.id] = 1;
+        }
+        for (let i = 0; i < displayLines.length; i++) {
+          if (displayLines[i].tag === activeParentTag) lOp[i] = 1;
+        }
+        // Siblings faint (0.35) — unless expanded (then solid)
+        if (activeSibTag) {
+          vTags.add(activeSibTag);
+          const isExpanded = expandedGroup && displayNodes.some(n => n.tag === activeSibTag && n.id.startsWith('sib-'));
+          const sibOpacity = isExpanded ? 1 : 0.35;
+          for (const n of displayNodes) {
+            if (n.tag === activeSibTag) nOp[n.id] = sibOpacity;
+          }
+          for (let i = 0; i < displayLines.length; i++) {
+            if (displayLines[i].tag === activeSibTag) lOp[i] = sibOpacity;
+          }
+        }
+      }
+    }
+
+    // All other tagged nodes/lines are hidden
+    for (const n of displayNodes) {
+      if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
+    }
+    for (let i = 0; i < displayLines.length; i++) {
+      const lt = displayLines[i].tag;
+      if (lt && !vTags.has(lt)) lOp[i] = 0;
+    }
+
+    return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
+  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expandedGroup]);
 
   const resolve = (id: string, fallback: string) => {
     const m = members[id];
@@ -248,6 +541,15 @@ export default function PublicFamilyPage() {
   };
 
   const onNodeClick = (node: TNode) => {
+    // If a sibling group is expanded and user clicks an individual sibling circle → open modal
+    if (expandedGroup && (node.id.startsWith('sib-') || node.id.startsWith('sib-spouse-'))) {
+      setSelectedNode(node);
+      setClaimError(null);
+      setEaError('');
+      setEaSuccess('');
+      setEaOpen(false);
+      return;
+    }
     // Self node with username → navigate to profile directly
     if (node.id === 'self' && data?.owner?.username) {
       router.push(`/id/${data.owner.username}`);
@@ -499,13 +801,18 @@ export default function PublicFamilyPage() {
                   onBack={() => setViewMode('member')}
                   className="w-full h-[85vh] min-h-[480px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
                 />
-              ) : nodes.length ? (
+              ) : displayNodes.length ? (
                 <PublicTreeCanvas
-                  nodes={nodes}
-                  lines={lines}
+                  nodes={displayNodes}
+                  lines={displayLines}
                   resolve={resolve}
                   onNodeClick={onNodeClick}
                   onGroupClick={(n) => {
+                    // Sibling group bubbles → toggle expansion
+                    if (n.id.startsWith('grp-self-') || n.id.startsWith('grp-spouse-')) {
+                      setExpandedGroup(prev => prev === n.id ? null : n.id);
+                      return;
+                    }
                     if (n.id === 'grp-kb') {
                       setViewMode('familynode');
                     }
@@ -513,6 +820,10 @@ export default function PublicFamilyPage() {
                   highlightId={highlightId ?? undefined}
                   focusId="self"
                   className="w-full h-[85vh] min-h-[480px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
+                  visibleTags={visibleTags}
+                  onNodeHover={onNodeHover}
+                  nodeOpacity={nodeOpacity}
+                  lineOpacity={lineOpacity}
                 />
               ) : (
                 <div className="h-[480px] flex items-center justify-center text-white/40 text-sm">
@@ -523,7 +834,7 @@ export default function PublicFamilyPage() {
                 <p className="text-center text-white/25 text-xs mt-2">
                   Klik lingkaran untuk membuka halaman keluarga. Klik "Mode Familymember" untuk kembali.
                 </p>
-              ) : nodes.length ? (
+              ) : displayNodes.length ? (
                 <p className="text-center text-white/25 text-xs mt-2">
                   Geser untuk menjelajah, gulir/pinch untuk memperbesar. Lingkaran bergaris putus-putus belum diklaim.
                 </p>
