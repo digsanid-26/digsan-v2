@@ -175,9 +175,10 @@ function generateCollapsed(cfg: TreeConfig, selfNodeId: string = 'self', expande
       const olderXs = Array.from({ length: cfg.olderCount }, (_, i) => leftEdge - SIB_GAP - i * SIB_SPACING);
       olderXs.forEach((x, i) => nodes.push({ id: `older-${i}`, name: `Kakak ${i + 1}`, role: 'Saudara Tua', x, y: 0, group: 'kakak' }));
       const nearest = Math.max(...olderXs);
-      // Up from each sibling, then horizontal to selfX at trunkY
+      const farthest = Math.min(...olderXs);
+      // Up from each sibling, then horizontal from farthest to selfX at trunkY
       olderXs.forEach((x) => lines.push({ points: [[x, 0], [x, sibTrunkY]] }));
-      lines.push({ points: [[nearest, sibTrunkY], [selfX, sibTrunkY]] });
+      lines.push({ points: [[farthest, sibTrunkY], [selfX, sibTrunkY]] });
     } else {
       const kkCenter = leftEdge - SIB_GAP - (cfg.olderCount - 1) * SIB_SPACING / 2;
       nodes.push({ id: 'grp-kk', name: 'Kakak', role: 'group', x: kkCenter, y: 0, group: 'kakak', count: cfg.olderCount });
@@ -191,9 +192,10 @@ function generateCollapsed(cfg: TreeConfig, selfNodeId: string = 'self', expande
       const youngerXs = Array.from({ length: cfg.youngerCount }, (_, i) => rightEdge + SIB_GAP + i * SIB_SPACING);
       youngerXs.forEach((x, i) => nodes.push({ id: `younger-${i}`, name: `Adik ${i + 1}`, role: 'Saudara Muda', x, y: 0, group: 'adik' }));
       const nearest = Math.min(...youngerXs);
-      // Up from each sibling, then horizontal to selfX at trunkY
+      const farthest = Math.max(...youngerXs);
+      // Up from each sibling, then horizontal from farthest to selfX at trunkY
       youngerXs.forEach((x) => lines.push({ points: [[x, 0], [x, sibTrunkY]] }));
-      lines.push({ points: [[nearest, sibTrunkY], [selfX, sibTrunkY]] });
+      lines.push({ points: [[farthest, sibTrunkY], [selfX, sibTrunkY]] });
     } else {
       const adCenter = rightEdge + SIB_GAP + (cfg.youngerCount - 1) * SIB_SPACING / 2;
       nodes.push({ id: 'grp-ad', name: 'Adik', role: 'group', x: adCenter, y: 0, group: 'adik', count: cfg.youngerCount });
