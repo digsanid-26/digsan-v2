@@ -579,11 +579,12 @@ export default function PublicFamilyPage() {
         for (let i = 0; i < displayLines.length; i++) {
           if (displayLines[i].tag === activeParentTag) lOp[i] = 1;
         }
-        // Siblings faint (0.35) — unless expanded (then solid)
+        // Siblings faint (0.35) — unless expanded (then solid) or hovered directly (then solid)
         if (activeSibTag) {
           vTags.add(activeSibTag);
           const isExpanded = expandedGroup && displayNodes.some(n => n.tag === activeSibTag && n.id.startsWith('sib-'));
-          const sibOpacity = isExpanded ? 1 : 0.35;
+          const isHovered = getSiblingTag(hoverTarget) === activeSibTag;
+          const sibOpacity = (isExpanded || isHovered) ? 1 : 0.35;
           for (const n of displayNodes) {
             if (n.tag === activeSibTag) nOp[n.id] = sibOpacity;
           }

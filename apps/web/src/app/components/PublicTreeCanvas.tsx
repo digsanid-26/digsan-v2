@@ -291,11 +291,11 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                   {n.name}
                 </text>
               )}
-              {/* Expand overlay on hovered Ortu nodes */}
-              {hoveredNodeId === n.id && n.name === 'Ortu' && (
+              {/* Buka overlay on hovered Ortu / Saudara group nodes */}
+              {hoveredNodeId === n.id && (n.name === 'Ortu' || (isGroup && n.name?.startsWith('Saudara'))) && (
                 <g pointerEvents="none">
                   <rect x={-r} y={-10} width={r * 2} height={20} rx={10} fill="rgba(0,0,0,0.7)" />
-                  <text textAnchor="middle" dominantBaseline="central" fill="#facc15" fontSize={12} fontWeight={600}>Expand</text>
+                  <text textAnchor="middle" dominantBaseline="central" fill="#facc15" fontSize={12} fontWeight={600}>Buka</text>
                 </g>
               )}
               {!isGroup && d?.name && (
