@@ -100,12 +100,13 @@ export default function PublicFamilyPage() {
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
   const [hoverLevel, setHoverLevel] = useState<'none' | 'spouse-level' | 'parent-level'>('none');
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [expandedParent, setExpandedParent] = useState<string | null>(null);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Determine which parent tag a node id belongs to
   const getParentTag = (id: string): string | null => {
-    if (id === 'self-ortu') return 'self-parents';
-    const m = id.match(/^spouse-(\d+)-ortu$/);
+    if (id === 'self-ortu' || id.startsWith('self-ortu-parent-')) return 'self-parents';
+    const m = id.match(/^spouse-(\d+)-ortu(-parent-\d+)?$/);
     if (m) return `spouse-${m[1]}-parents`;
     return null;
   };
@@ -433,16 +434,56 @@ export default function PublicFamilyPage() {
     return { nodes: ns, lines: ls, layoutInfo: { selfX, spouseXs, coupleMid } };
   }, [data?.config, config, members]);
 
-  // ─── Expand sibling group bubbles into individual circles when clicked ───
+  // ─── Expand sibling group bubbles and Ortu bubbles into individual circles ───
   const { displayNodes, displayLines } = useMemo(() => {
-    if (!expandedGroup) return { displayNodes: nodes, displayLines: lines };
-    const grpNode = nodes.find(n => n.id === expandedGroup);
-    if (!grpNode) return { displayNodes: nodes, displayLines: lines };
+    let curNodes = nodes;
+    let curLines = lines;
+
+    // ── Expand Ortu bubble into Ayah + Ibu ──
+    if (expandedParent) {
+      const ortuNode = curNodes.find(n => n.id === expandedParent);
+      if (ortuNode) {
+        const tag = ortuNode.tag;
+        const cx = ortuNode.x;
+        const y = ortuNode.y;
+        const PARENT_SPACING = 130;
+        const parentXs = [cx - PARENT_SPACING / 2, cx + PARENT_SPACING / 2];
+        const parentLabels = ['Ayah', 'Ibu'];
+        const parentNodes: TNode[] = parentXs.map((x, i) => ({
+          id: `${ortuNode.id}-parent-${i}`,
+          name: parentLabels[i],
+          role: 'Orang Tua',
+          x,
+          y,
+          group: 'parent',
+          tag,
+        }));
+        curNodes = curNodes.filter(n => n.id !== expandedParent).concat(parentNodes);
+        // Replace the single Ortu line with individual lines from each parent to the child below
+        const childY = 0;
+        const trunkY = (y + childY) / 2;
+        const childX = (() => {
+          if (ortuNode.id === 'self-ortu') return curNodes.find(n => n.id === 'self')?.x ?? cx;
+          const m = ortuNode.id.match(/^spouse-(\d+)-ortu$/);
+          if (m) return curNodes.find(n => n.id === `spouse-${m[1]}`)?.x ?? cx;
+          return cx;
+        })();
+        curLines = curLines.filter(l => l.tag !== tag).concat(
+          [{ points: [[parentXs[0], y], [parentXs[1], y]], tag }],
+          parentXs.map(x => ({ points: [[x, y], [x, trunkY], [childX, trunkY]], tag }))
+        );
+      }
+    }
+
+    // ── Expand sibling group bubbles ──
+    if (!expandedGroup) return { displayNodes: curNodes, displayLines: curLines };
+    const grpNode = curNodes.find(n => n.id === expandedGroup);
+    if (!grpNode) return { displayNodes: curNodes, displayLines: curLines };
 
     // Determine the sibling group details
     const count = grpNode.count ?? 0;
     const tag = grpNode.tag;
-    if (!tag || count === 0) return { displayNodes: nodes, displayLines: lines };
+    if (!tag || count === 0) return { displayNodes: curNodes, displayLines: curLines };
 
     // Generate individual sibling circles at the same position area
     const SIB_SPACING = 90;
@@ -463,7 +504,7 @@ export default function PublicFamilyPage() {
     }));
 
     // Replace the group bubble with individual circles
-    const newNodes = nodes.filter(n => n.id !== expandedGroup).concat(sibNodes);
+    const newNodes = curNodes.filter(n => n.id !== expandedGroup).concat(sibNodes);
 
     // Remove the old group→parent line and add individual lines from each sibling to the trunk
     // The trunk horizontal endpoint is the main node (selfX or spouse x), not the bubble center
@@ -473,12 +514,12 @@ export default function PublicFamilyPage() {
       if (m) return nodes.find(n => n.id === `spouse-${m[1]}`)?.x ?? 0;
       return cx;
     })();
-    const newLines = lines.filter(l => l.tag !== tag).concat(
+    const newLines = curLines.filter(l => l.tag !== tag).concat(
       sibXs.map(x => ({ points: [[x, y], [x, -105], [trunkX, -105]], tag }))
     );
 
     return { displayNodes: newNodes, displayLines: newLines };
-  }, [nodes, lines, expandedGroup]);
+  }, [nodes, lines, expandedGroup, expandedParent]);
 
   // Compute visible tags and opacity overrides based on hover state
   const { visibleTags, nodeOpacity, lineOpacity } = useMemo(() => {
@@ -650,6 +691,20 @@ export default function PublicFamilyPage() {
       setEaError('');
       setEaSuccess('');
       setEaOpen(false);
+      return;
+    }
+    // If an Ortu bubble is expanded and user clicks an individual parent circle → open modal
+    if (expandedParent && (node.id.startsWith('self-ortu-parent-') || node.id.match(/^spouse-\d+-ortu-parent-/))) {
+      setSelectedNode(node);
+      setClaimError(null);
+      setEaError('');
+      setEaSuccess('');
+      setEaOpen(false);
+      return;
+    }
+    // Ortu bubble click → toggle expansion into Ayah + Ibu (do NOT open modal)
+    if (node.name === 'Ortu') {
+      setExpandedParent(prev => prev === node.id ? null : node.id);
       return;
     }
     // All nodes → open unified modal
