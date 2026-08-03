@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -93,39 +93,11 @@ export default function PublicFamilyPage() {
   );
   const members: Members = useMemo(() => data?.members ?? {}, [data?.members]);
 
-  // ─── Hover state machine for progressive reveal of parents/siblings ───
-  // hoverTarget: which node is currently hovered ('self', 'spouse-0', 'self-parent-0', etc.)
-  // hoverLevel: 'none' | 'spouse-level' (parents faint) | 'parent-level' (parents solid + siblings faint)
-  // expandedGroup: which sibling group bubble was clicked to expand into individual circles
-  const [hoverTarget, setHoverTarget] = useState<string | null>(null);
-  const [hoverLevel, setHoverLevel] = useState<'none' | 'spouse-level' | 'parent-level'>('none');
-  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-  const [expandedParent, setExpandedParent] = useState<string | null>(null);
-  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Determine which parent tag a node id belongs to
-  const getParentTag = (id: string): string | null => {
-    if (id === 'self-ortu' || id.startsWith('self-ortu-parent-')) return 'self-parents';
-    const m = id.match(/^spouse-(\d+)-ortu(-parent-\d+)?$/);
-    if (m) return `spouse-${m[1]}-parents`;
-    return null;
-  };
-
-  // Determine which grandparent tag a node id belongs to
-  const getGrandparentTag = (id: string): string | null => {
-    if (id === 'self-simbah') return 'self-grandparents';
-    const m = id.match(/^spouse-(\d+)-simbah$/);
-    if (m) return `spouse-${m[1]}-grandparents`;
-    return null;
-  };
-
-  // Determine which uncle tag a node id belongs to
-  const getUncleTag = (id: string): string | null => {
-    if (id.startsWith('grp-self-paman')) return 'self-uncles';
-    const m = id.match(/^grp-spouse-(\d+)-paman/);
-    if (m) return `spouse-${m[1]}-uncles`;
-    return null;
-  };
+  // ─── Click-based branch expand/collapse ───
+  // openBranches: set of "nodeId:branch" keys that are currently expanded
+  // lockedNode: which node has an open branch (blocks other nodes' branches)
+  const [openBranches, setOpenBranches] = useState<Set<string>>(new Set());
+  const [lockedNode, setLockedNode] = useState<string | null>(null);
 
   // Determine which sibling tag a group node id belongs to
   const getSiblingTag = (id: string): string | null => {
@@ -135,15 +107,7 @@ export default function PublicFamilyPage() {
     return null;
   };
 
-  // Determine which sibling tag an individual expanded sibling node id belongs to
-  const getSiblingTagFromIndividual = (id: string): string | null => {
-    if (id.startsWith('sib-self-saudara')) return 'self-siblings';
-    const m = id.match(/^sib-spouse-(\d+)-saudara/);
-    if (m) return `spouse-${m[1]}-siblings`;
-    return null;
-  };
-
-  // Which parent tag does a spouse/self hover reveal?
+  // Which parent tag does a self/spouse node reveal?
   const getParentsTagForNode = (id: string): string | null => {
     if (id === 'self') return 'self-parents';
     if (id.startsWith('spouse-') && !id.includes('-ortu') && !id.includes('-kakak') && !id.includes('-adik') && !id.includes('-paman') && !id.includes('-simbah')) {
@@ -153,49 +117,71 @@ export default function PublicFamilyPage() {
     return null;
   };
 
-  const onNodeHover = useCallback((node: TNode | null) => {
-    if (fadeTimerRef.current) {
-      clearTimeout(fadeTimerRef.current);
-      fadeTimerRef.current = null;
-    }
-    if (!node) {
-      // Start 2s fade timer
-      fadeTimerRef.current = setTimeout(() => {
-        setHoverTarget(null);
-        setHoverLevel('none');
-        fadeTimerRef.current = null;
-      }, 2000);
-      return;
-    }
-    setHoverTarget(node.id);
+  // Branch key helper: "nodeId:branchType"
+  const branchKey = (nodeId: string, branch: string) => `${nodeId}:${branch}`;
 
-    // Determine hover level based on what node is hovered
-    const parentsTag = getParentsTagForNode(node.id);
-    if (parentsTag) {
-      // Hovering self or spouse → show their parents faint
-      setHoverLevel('spouse-level');
-      return;
+  // Toggle a branch open/closed. Opening a branch on a node locks that node.
+  const toggleBranch = useCallback((nodeId: string, branch: string) => {
+    const key = branchKey(nodeId, branch);
+    setOpenBranches(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+        // Unlock if no more branches open for this node
+        const stillOpen = [...next].some(k => k.startsWith(nodeId + ':'));
+        if (!stillOpen) setLockedNode(null);
+      } else {
+        // If another node is locked, ignore (can't open branches on two nodes at once)
+        if (lockedNode && lockedNode !== nodeId) return prev;
+        next.add(key);
+        setLockedNode(nodeId);
+      }
+      return next;
+    });
+  }, [lockedNode]);
+
+  // Check if a different node is locked (has open branches)
+  const isOtherNodeLocked = (nodeId: string) => lockedNode !== null && lockedNode !== nodeId;
+
+  // Get all visible tags based on open branches
+  const openBranchTags = useMemo(() => {
+    const tags = new Set<string>();
+    for (const key of openBranches) {
+      const [nodeId, branch] = key.split(':');
+      if (branch === 'ortu') {
+        const pt = getParentsTagForNode(nodeId);
+        if (pt) tags.add(pt);
+      } else if (branch === 'saudara') {
+        const st = getSiblingTag(`grp-${nodeId.replace('-', '')}-saudara`) || (nodeId === 'self' ? 'self-siblings' : null);
+        // For spouse-N, derive sibling tag
+        if (!st && nodeId.startsWith('spouse-')) {
+          const m = nodeId.match(/^spouse-(\d+)$/);
+          if (m) tags.add(`spouse-${m[1]}-siblings`);
+        } else if (st) {
+          tags.add(st);
+        }
+      } else if (branch === 'paman-ayah') {
+        if (nodeId === 'self') tags.add('self-uncles-ayah');
+        else {
+          const m = nodeId.match(/^spouse-(\d+)$/);
+          if (m) tags.add(`spouse-${m[1]}-uncles-ayah`);
+        }
+      } else if (branch === 'paman-ibu') {
+        if (nodeId === 'self') tags.add('self-uncles-ibu');
+        else {
+          const m = nodeId.match(/^spouse-(\d+)$/);
+          if (m) tags.add(`spouse-${m[1]}-uncles-ibu`);
+        }
+      } else if (branch === 'simbah') {
+        if (nodeId === 'self') tags.add('self-grandparents');
+        else {
+          const m = nodeId.match(/^spouse-(\d+)$/);
+          if (m) tags.add(`spouse-${m[1]}-grandparents`);
+        }
+      }
     }
-    const parentTag = getParentTag(node.id);
-    if (parentTag) {
-      // Hovering an Ortu node → parents solid, show siblings + grandparents + uncles faint
-      setHoverLevel('parent-level');
-      return;
-    }
-    // Hovering grandparent or uncle → keep parent-level (stay visible)
-    if (getGrandparentTag(node.id) || getUncleTag(node.id)) {
-      setHoverLevel('parent-level');
-      return;
-    }
-    // Hovering a sibling group bubble or individual sibling → keep parent-level
-    const sibTag = getSiblingTag(node.id) || getSiblingTagFromIndividual(node.id);
-    if (sibTag) {
-      setHoverLevel('parent-level');
-      return;
-    }
-    // Hovering any other node (child, etc.) → reset
-    setHoverLevel('none');
-  }, []);
+    return tags;
+  }, [openBranches]);
 
   // ─── Family Node Tree data (L103) ───────────────────────────
   const familyNodeTree = useMemo(() => {
@@ -373,8 +359,8 @@ export default function PublicFamilyPage() {
       if (totalAyahUncles > 0) {
         const uncleOffset = 180;
         const uncleX = selfX - uncleOffset;
-        ns.push({ id: 'grp-self-paman-ayah', name: `Paman/Bibi ${totalAyahUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalAyahUncles, tag: 'self-uncles' });
-        ls.push({ points: [[selfX, -210], [uncleX, -210]], tag: 'self-uncles' });
+        ns.push({ id: 'grp-self-paman-ayah', name: `Paman/Bibi ${totalAyahUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalAyahUncles, tag: 'self-uncles-ayah' });
+        ls.push({ points: [[selfX, -210], [uncleX, -210]], tag: 'self-uncles-ayah' });
       }
       const ibuMember = members['parent-1'];
       const ibuUncleOlder = ibuMember?.familyConfig?.olderCount ?? 0;
@@ -384,8 +370,8 @@ export default function PublicFamilyPage() {
       if (totalIbuUncles > 0) {
         const uncleOffset = 180;
         const uncleX = selfX + uncleOffset;
-        ns.push({ id: 'grp-self-paman-ibu', name: `Paman/Bibi ${totalIbuUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalIbuUncles, tag: 'self-uncles' });
-        ls.push({ points: [[selfX, -210], [uncleX, -210]], tag: 'self-uncles' });
+        ns.push({ id: 'grp-self-paman-ibu', name: `Paman/Bibi ${totalIbuUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalIbuUncles, tag: 'self-uncles-ibu' });
+        ls.push({ points: [[selfX, -210], [uncleX, -210]], tag: 'self-uncles-ibu' });
       }
     }
 
@@ -434,8 +420,8 @@ export default function PublicFamilyPage() {
           const uncleTag = `spouse-${si}-uncles`;
           const uncleOffset = 180;
           const uncleX = sx - uncleOffset;
-          ns.push({ id: `grp-spouse-${si}-paman-ayah`, name: `Paman/Bibi ${spTotalAyahUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalAyahUncles, tag: uncleTag });
-          ls.push({ points: [[sx, -210], [uncleX, -210]], tag: uncleTag });
+          ns.push({ id: `grp-spouse-${si}-paman-ayah`, name: `Paman/Bibi ${spTotalAyahUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalAyahUncles, tag: `spouse-${si}-uncles-ayah` });
+          ls.push({ points: [[sx, -210], [uncleX, -210]], tag: `spouse-${si}-uncles-ayah` });
         }
         const spIbuMember = members[`spouse-${si}-parent-1`];
         const spIbuUncleOlder = spIbuMember?.familyConfig?.olderCount ?? 0;
@@ -446,8 +432,8 @@ export default function PublicFamilyPage() {
           const uncleTag = `spouse-${si}-uncles`;
           const uncleOffset = 180;
           const uncleX = sx + uncleOffset;
-          ns.push({ id: `grp-spouse-${si}-paman-ibu`, name: `Paman/Bibi ${spTotalIbuUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalIbuUncles, tag: uncleTag });
-          ls.push({ points: [[sx, -210], [uncleX, -210]], tag: uncleTag });
+          ns.push({ id: `grp-spouse-${si}-paman-ibu`, name: `Paman/Bibi ${spTotalIbuUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalIbuUncles, tag: `spouse-${si}-uncles-ibu` });
+          ls.push({ points: [[sx, -210], [uncleX, -210]], tag: `spouse-${si}-uncles-ibu` });
         }
       }
     }
@@ -455,252 +441,114 @@ export default function PublicFamilyPage() {
     return { nodes: ns, lines: ls, layoutInfo: { selfX, spouseXs, coupleMid } };
   }, [data?.config, config, members]);
 
-  // ─── Expand sibling group bubbles and Ortu bubbles into individual circles ───
+  // ─── Expand Ortu and sibling group bubbles based on openBranches ───
   const { displayNodes, displayLines } = useMemo(() => {
     let curNodes = nodes;
     let curLines = lines;
 
-    // ── Expand Ortu bubble into Ayah + Ibu ──
-    if (expandedParent) {
-      const ortuNode = curNodes.find(n => n.id === expandedParent);
-      if (ortuNode) {
-        const tag = ortuNode.tag;
-        const cx = ortuNode.x;
-        const y = ortuNode.y;
-        const PARENT_SPACING = 130;
-        const parentXs = [cx - PARENT_SPACING / 2, cx + PARENT_SPACING / 2];
-        const parentLabels = ['Ayah', 'Ibu'];
-        const parentNodes: TNode[] = parentXs.map((x, i) => ({
-          id: `${ortuNode.id}-parent-${i}`,
-          name: parentLabels[i],
-          role: 'Orang Tua',
-          x,
-          y,
-          group: 'parent',
-          tag,
-        }));
-        curNodes = curNodes.filter(n => n.id !== expandedParent).concat(parentNodes);
-        // Replace the single Ortu line with individual lines from each parent to the child below
-        const childY = 0;
-        const trunkY = (y + childY) / 2;
-        const childX = (() => {
-          if (ortuNode.id === 'self-ortu') return curNodes.find(n => n.id === 'self')?.x ?? cx;
-          const m = ortuNode.id.match(/^spouse-(\d+)-ortu$/);
-          if (m) return curNodes.find(n => n.id === `spouse-${m[1]}`)?.x ?? cx;
-          return cx;
-        })();
-        curLines = curLines.filter(l => l.tag !== tag).concat(
-          [{ points: [[parentXs[0], y], [parentXs[1], y]], tag }],
-          parentXs.map(x => ({ points: [[x, y], [x, trunkY]], tag })),
-          [{ points: [[parentXs[0], trunkY], [parentXs[1], trunkY]], tag }],
-          [{ points: [[childX, trunkY], [childX, childY]], tag }]
-        );
-      }
+    // ── Expand Ortu bubbles into Ayah + Ibu for each open 'ortu' branch ──
+    for (const key of openBranches) {
+      const [nodeId, branch] = key.split(':');
+      if (branch !== 'ortu') continue;
+      // Find the Ortu node for this nodeId
+      const ortuId = nodeId === 'self' ? 'self-ortu' : `${nodeId}-ortu`;
+      const ortuNode = curNodes.find(n => n.id === ortuId);
+      if (!ortuNode) continue;
+      const tag = ortuNode.tag;
+      const cx = ortuNode.x;
+      const y = ortuNode.y;
+      const PARENT_SPACING = 130;
+      const parentXs = [cx - PARENT_SPACING / 2, cx + PARENT_SPACING / 2];
+      const parentLabels = ['Ayah', 'Ibu'];
+      const parentNodes: TNode[] = parentXs.map((x, i) => ({
+        id: `${ortuNode.id}-parent-${i}`,
+        name: parentLabels[i],
+        role: 'Orang Tua',
+        x,
+        y,
+        group: 'parent',
+        tag,
+      }));
+      curNodes = curNodes.filter(n => n.id !== ortuId).concat(parentNodes);
+      const childY = 0;
+      const trunkY = (y + childY) / 2;
+      const childX = (() => {
+        if (ortuNode.id === 'self-ortu') return nodes.find(n => n.id === 'self')?.x ?? cx;
+        const m = ortuNode.id.match(/^spouse-(\d+)-ortu$/);
+        if (m) return nodes.find(n => n.id === `spouse-${m[1]}`)?.x ?? cx;
+        return cx;
+      })();
+      curLines = curLines.filter(l => l.tag !== tag).concat(
+        [{ points: [[parentXs[0], y], [parentXs[1], y]], tag }],
+        parentXs.map(x => ({ points: [[x, y], [x, trunkY]], tag })),
+        [{ points: [[parentXs[0], trunkY], [parentXs[1], trunkY]], tag }],
+        [{ points: [[childX, trunkY], [childX, childY]], tag }]
+      );
     }
 
-    // ── Expand sibling group bubbles ──
-    if (!expandedGroup) return { displayNodes: curNodes, displayLines: curLines };
-    const grpNode = curNodes.find(n => n.id === expandedGroup);
-    if (!grpNode) return { displayNodes: curNodes, displayLines: curLines };
+    // ── Expand sibling group bubbles for each open 'saudara' branch ──
+    for (const key of openBranches) {
+      const [nodeId, branch] = key.split(':');
+      if (branch !== 'saudara') continue;
+      // Find the sibling group node for this nodeId
+      const grpId = nodeId === 'self' ? 'grp-self-saudara' : `grp-${nodeId}-saudara`;
+      const grpNode = curNodes.find(n => n.id === grpId);
+      if (!grpNode) continue;
+      const count = grpNode.count ?? 0;
+      const tag = grpNode.tag;
+      if (!tag || count === 0) continue;
 
-    // Determine the sibling group details
-    const count = grpNode.count ?? 0;
-    const tag = grpNode.tag;
-    if (!tag || count === 0) return { displayNodes: curNodes, displayLines: curLines };
+      const SIB_SPACING = 90;
+      const cx = grpNode.x;
+      const y = grpNode.y;
+      const groupPrefix = grpId.replace('grp-', 'sib-');
+      const isSelfSide = grpId.startsWith('grp-self-');
+      const sibXs = isSelfSide
+        ? Array.from({ length: count }, (_, i) => cx - i * SIB_SPACING)
+        : Array.from({ length: count }, (_, i) => cx + i * SIB_SPACING);
+      const sibNodes: TNode[] = sibXs.map((x, i) => ({
+        id: `${groupPrefix}-${i}`,
+        name: `Saudara ${i + 1}`,
+        role: 'Saudara',
+        x,
+        y,
+        group: 'kakak',
+        tag,
+      }));
+      curNodes = curNodes.filter(n => n.id !== grpId).concat(sibNodes);
+      const trunkX = (() => {
+        if (grpId.startsWith('grp-self-')) return nodes.find(n => n.id === 'self')?.x ?? 0;
+        const m = grpId.match(/^grp-spouse-(\d+)-saudara/);
+        if (m) return nodes.find(n => n.id === `spouse-${m[1]}`)?.x ?? 0;
+        return cx;
+      })();
+      curLines = curLines.filter(l => l.tag !== tag).concat(
+        sibXs.map(x => ({ points: [[x, y], [x, -105], [trunkX, -105]], tag }))
+      );
+    }
 
-    // Generate individual sibling circles at the same position area
-    const SIB_SPACING = 90;
-    const cx = grpNode.x;
-    const y = grpNode.y;
-    const groupPrefix = expandedGroup.replace('grp-', 'sib-');
+    return { displayNodes: curNodes, displayLines: curLines };
+  }, [nodes, lines, openBranches]);
 
-    // Pack circles outward from the group bubble's x (self→left, spouse→right)
-    const isSelfSide = expandedGroup.startsWith('grp-self-');
-    const sibXs = isSelfSide
-      ? Array.from({ length: count }, (_, i) => cx - i * SIB_SPACING)
-      : Array.from({ length: count }, (_, i) => cx + i * SIB_SPACING);
-    const sibNodes: TNode[] = sibXs.map((x, i) => ({
-      id: `${groupPrefix}-${i}`,
-      name: `Saudara ${i + 1}`,
-      role: 'Saudara',
-      x,
-      y,
-      group: 'kakak',
-      tag,
-    }));
-
-    // Replace the group bubble with individual circles
-    const newNodes = curNodes.filter(n => n.id !== expandedGroup).concat(sibNodes);
-
-    // Remove the old group→parent line and add individual lines from each sibling to the trunk
-    // The trunk horizontal endpoint is the main node (selfX or spouse x), not the bubble center
-    const trunkX = (() => {
-      if (expandedGroup.startsWith('grp-self-')) return nodes.find(n => n.id === 'self')?.x ?? 0;
-      const m = expandedGroup.match(/^grp-spouse-(\d+)-saudara/);
-      if (m) return nodes.find(n => n.id === `spouse-${m[1]}`)?.x ?? 0;
-      return cx;
-    })();
-    const newLines = curLines.filter(l => l.tag !== tag).concat(
-      sibXs.map(x => ({ points: [[x, y], [x, -105], [trunkX, -105]], tag }))
-    );
-
-    return { displayNodes: newNodes, displayLines: newLines };
-  }, [nodes, lines, expandedGroup, expandedParent]);
-
-  // Compute visible tags and opacity overrides based on hover state
+  // Compute visible tags and opacity overrides based on open branches
   const { visibleTags, nodeOpacity, lineOpacity } = useMemo(() => {
-    const vTags = new Set<string>();
+    const vTags = new Set<string>(openBranchTags);
     const nOp: Record<string, number> = {};
     const lOp: number[] = displayLines.map(() => 1);
 
-    if (hoverLevel === 'none' || !hoverTarget) {
-      // Keep expanded parent tag visible even without hover
-      if (expandedParent) {
-        const ortuNode = displayNodes.find(n => n.id.startsWith(expandedParent + '-parent-'));
-        if (ortuNode?.tag) vTags.add(ortuNode.tag);
-      }
-      // Everything tagged is hidden unless in vTags
-      for (const n of displayNodes) {
-        if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
-        else if (n.tag && vTags.has(n.tag)) nOp[n.id] = 1;
-      }
-      for (let i = 0; i < displayLines.length; i++) {
-        const lt = displayLines[i].tag;
-        if (lt && !vTags.has(lt)) lOp[i] = 0;
-        else if (lt && vTags.has(lt)) lOp[i] = 1;
-      }
-      return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
-    }
-
-    // Determine which parent tag is active
-    let activeParentTag: string | null = null;
-    let activeSibTag: string | null = null;
-    let activeGpTag: string | null = null;
-    let activeUncleTag: string | null = null;
-
-    if (hoverLevel === 'spouse-level') {
-      activeParentTag = getParentsTagForNode(hoverTarget);
-    } else if (hoverLevel === 'parent-level') {
-      activeParentTag = getParentTag(hoverTarget);
-      // If hovering a sibling group or individual sibling, also find the parent tag
-      if (!activeParentTag) {
-        const sibTag = getSiblingTag(hoverTarget) || getSiblingTagFromIndividual(hoverTarget);
-        if (sibTag) {
-          activeSibTag = sibTag;
-          // Derive parent tag from sibling tag
-          if (sibTag === 'self-siblings') activeParentTag = 'self-parents';
-          else {
-            const m = sibTag.match(/^spouse-(\d+)-siblings$/);
-            if (m) activeParentTag = `spouse-${m[1]}-parents`;
-          }
-        }
-      } else {
-        // Hovering a parent → derive sibling tag
-        if (activeParentTag === 'self-parents') activeSibTag = 'self-siblings';
-        else {
-          const m = activeParentTag.match(/^spouse-(\d+)-parents$/);
-          if (m) activeSibTag = `spouse-${m[1]}-siblings`;
-        }
-      }
-      // Derive grandparent and uncle tags from parent tag
-      if (activeParentTag === 'self-parents') {
-        activeGpTag = 'self-grandparents';
-        activeUncleTag = 'self-uncles';
-      } else if (activeParentTag) {
-        const m = activeParentTag.match(/^spouse-(\d+)-parents$/);
-        if (m) {
-          activeGpTag = `spouse-${m[1]}-grandparents`;
-          activeUncleTag = `spouse-${m[1]}-uncles`;
-        }
-      }
-      // If hovering grandparent or uncle directly, derive from those
-      if (!activeParentTag) {
-        const gpTag = getGrandparentTag(hoverTarget);
-        if (gpTag) {
-          activeGpTag = gpTag;
-          if (gpTag === 'self-grandparents') activeParentTag = 'self-parents';
-          else {
-            const m = gpTag.match(/^spouse-(\d+)-grandparents$/);
-            if (m) activeParentTag = `spouse-${m[1]}-parents`;
-          }
-        }
-        const uncTag = getUncleTag(hoverTarget);
-        if (uncTag) {
-          activeUncleTag = uncTag;
-          if (uncTag === 'self-uncles') activeParentTag = 'self-parents';
-          else {
-            const m = uncTag.match(/^spouse-(\d+)-uncles$/);
-            if (m) activeParentTag = `spouse-${m[1]}-parents`;
-          }
-        }
-      }
-    }
-
-    if (activeParentTag) {
-      vTags.add(activeParentTag);
-      if (hoverLevel === 'spouse-level') {
-        // Parents faint (0.35)
-        for (const n of displayNodes) {
-          if (n.tag === activeParentTag) nOp[n.id] = 0.35;
-        }
-        for (let i = 0; i < displayLines.length; i++) {
-          if (displayLines[i].tag === activeParentTag) lOp[i] = 0.35;
-        }
-      } else if (hoverLevel === 'parent-level') {
-        // Parents solid (1.0)
-        for (const n of displayNodes) {
-          if (n.tag === activeParentTag) nOp[n.id] = 1;
-        }
-        for (let i = 0; i < displayLines.length; i++) {
-          if (displayLines[i].tag === activeParentTag) lOp[i] = 1;
-        }
-        // Siblings faint (0.35) — unless expanded (then solid) or hovered directly (then solid)
-        if (activeSibTag) {
-          vTags.add(activeSibTag);
-          const isExpanded = expandedGroup && displayNodes.some(n => n.tag === activeSibTag && n.id.startsWith('sib-'));
-          const isHovered = getSiblingTag(hoverTarget) === activeSibTag;
-          const sibOpacity = (isExpanded || isHovered) ? 1 : 0.35;
-          for (const n of displayNodes) {
-            if (n.tag === activeSibTag) nOp[n.id] = sibOpacity;
-          }
-          for (let i = 0; i < displayLines.length; i++) {
-            if (displayLines[i].tag === activeSibTag) lOp[i] = sibOpacity;
-          }
-        }
-        // Grandparents faint (0.35)
-        if (activeGpTag) {
-          vTags.add(activeGpTag);
-          for (const n of displayNodes) {
-            if (n.tag === activeGpTag) nOp[n.id] = 0.35;
-          }
-          for (let i = 0; i < displayLines.length; i++) {
-            if (displayLines[i].tag === activeGpTag) lOp[i] = 0.35;
-          }
-        }
-        // Uncles faint (0.35)
-        if (activeUncleTag) {
-          vTags.add(activeUncleTag);
-          for (const n of displayNodes) {
-            if (n.tag === activeUncleTag) nOp[n.id] = 0.35;
-          }
-          for (let i = 0; i < displayLines.length; i++) {
-            if (displayLines[i].tag === activeUncleTag) lOp[i] = 0.35;
-          }
-        }
-      }
-    }
-
-    // All other tagged nodes/lines are hidden
+    // All tagged nodes/lines with a tag in vTags → opacity 1, else 0
     for (const n of displayNodes) {
-      if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
+      if (n.tag && vTags.has(n.tag)) nOp[n.id] = 1;
+      else if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
     }
     for (let i = 0; i < displayLines.length; i++) {
       const lt = displayLines[i].tag;
-      if (lt && !vTags.has(lt)) lOp[i] = 0;
+      if (lt && vTags.has(lt)) lOp[i] = 1;
+      else if (lt && !vTags.has(lt)) lOp[i] = 0;
     }
 
     return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
-  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expandedGroup, expandedParent]);
+  }, [displayNodes, displayLines, openBranchTags]);
 
   const resolve = (id: string, fallback: string) => {
     const m = members[id];
@@ -711,15 +559,8 @@ export default function PublicFamilyPage() {
   };
 
   const onNodeClick = (node: TNode) => {
-    // Start fade timer on any node click (hover reveal fades after 2s)
-    if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
-    fadeTimerRef.current = setTimeout(() => {
-      setHoverTarget(null);
-      setHoverLevel('none');
-      fadeTimerRef.current = null;
-    }, 2000);
-    // If a sibling group is expanded and user clicks an individual sibling circle → open modal
-    if (expandedGroup && (node.id.startsWith('sib-') || node.id.startsWith('sib-spouse-'))) {
+    // If user clicks an individual sibling circle → open modal
+    if (node.id.startsWith('sib-')) {
       setSelectedNode(node);
       setClaimError(null);
       setEaError('');
@@ -727,18 +568,13 @@ export default function PublicFamilyPage() {
       setEaOpen(false);
       return;
     }
-    // If an Ortu bubble is expanded and user clicks an individual parent circle → open modal
-    if (expandedParent && (node.id.startsWith('self-ortu-parent-') || node.id.match(/^spouse-\d+-ortu-parent-/))) {
+    // If user clicks an individual parent circle (Ayah/Ibu) → open modal
+    if (node.id.startsWith('self-ortu-parent-') || node.id.match(/^spouse-\d+-ortu-parent-/)) {
       setSelectedNode(node);
       setClaimError(null);
       setEaError('');
       setEaSuccess('');
       setEaOpen(false);
-      return;
-    }
-    // Ortu bubble click → toggle expansion into Ayah + Ibu (do NOT open modal)
-    if (node.name === 'Ortu') {
-      setExpandedParent(prev => prev === node.id ? null : node.id);
       return;
     }
     // All nodes → open unified modal
@@ -994,11 +830,6 @@ export default function PublicFamilyPage() {
                   resolve={resolve}
                   onNodeClick={onNodeClick}
                   onGroupClick={(n) => {
-                    // Sibling group bubbles → toggle expansion
-                    if (n.id.startsWith('grp-self-saudara') || n.id.startsWith('grp-spouse-')) {
-                      setExpandedGroup(prev => prev === n.id ? null : n.id);
-                      return;
-                    }
                     if (n.id === 'grp-kb') {
                       setViewMode('familynode');
                     }
@@ -1007,17 +838,15 @@ export default function PublicFamilyPage() {
                   focusId="self"
                   className="w-full h-[85vh] min-h-[480px] rounded-2xl border border-white/[0.06] bg-white/[0.01]"
                   visibleTags={visibleTags}
-                  onNodeHover={onNodeHover}
                   nodeOpacity={nodeOpacity}
                   lineOpacity={lineOpacity}
-                  hoveredNodeId={hoverTarget}
+                  onArrowClick={toggleBranch}
+                  openBranches={openBranches}
+                  isOtherNodeLocked={isOtherNodeLocked}
                   onBackgroundClick={() => {
-                    if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
-                    fadeTimerRef.current = setTimeout(() => {
-                      setHoverTarget(null);
-                      setHoverLevel('none');
-                      fadeTimerRef.current = null;
-                    }, 2000);
+                    // Close all branches when clicking background
+                    setOpenBranches(new Set());
+                    setLockedNode(null);
                   }}
                 />
               ) : (

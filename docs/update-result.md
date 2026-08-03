@@ -128,3 +128,40 @@ UI di `/tree` belum memakai `treeApi.saveFamilyNodeSlice()` — endpoint dan tip
 
 - `apps/web/src/app/family/[slug]/page.tsx` — fallback jumlah saudara pasangan diubah dari `cfg.olderCount`/`cfg.youngerCount` (milik `self`) menjadi `0`.
 - `apps/web/src/app/components/TreeExplorer.tsx` — bagian "Atur Keluarga" kini juga muncul untuk node `spouse`, tidak hanya `parent`. Pemilik pohon dapat mengatur jumlah kakak/adik pasangan tanpa perlu izin; UI persetujuan disembunyikan untuk kasus pasangan.
+
+---
+
+## 2026-08-03 — Klik Arrow untuk Buka/Tutup Cabang (Ganti Hover)
+
+**Masalah:** Sistem hover untuk membuka cabang (ortu/saudara/paman) rentan tumpang tindih dan tidak intuitif. User harus meng-hover node untuk melihat cabang samar, lalu klik untuk membuka. Tidak ada kontrol yang jelas untuk menutup.
+
+### Solusi
+
+Mengganti sistem hover dengan **klik arrow berarah** pada node. Arrow kecil muncul di sisi node yang menunjukkan arah cabang yang bisa dibuka (misal arrow ke atas untuk ortu, arrow ke kiri untuk saudara di sisi self). Klik arrow membuka cabang; arrow berbalik arah untuk menutup.
+
+### Yang Diubah
+
+#### `apps/web/src/app/family/[slug]/page.tsx`
+
+- **Dihapus:** State `hoverTarget`, `hoverLevel`, `expandedGroup`, `expandedParent`, `fadeTimerRef`, fungsi `onNodeHover`, dan seluruh mesin state hover.
+- **Ditambah:** State `openBranches` (Set berisi key `"nodeId:branch"`) dan `lockedNode` (node yang sedang memiliki cabang terbuka, memblokir node lain).
+- **Ditambah:** `toggleBranch(nodeId, branch)` — buka/tutup cabang dengan locking logic (hanya satu node yang boleh punya cabang terbuka dalam satu waktu).
+- **Ditambah:** `openBranchTags` memo — menerjemahkan `openBranches` menjadi set tag yang terlihat.
+- **Ditulis ulang:** Memo `displayNodes`/`displayLines` — ekspansi Ortu→Ayah/Ibu dan Saudara→lingkaran individu kini didasarkan pada `openBranches`, bukan `expandedParent`/`expandedGroup`.
+- **Ditulis ulang:** Memo opacity — menggunakan `openBranchTags` (biner 0/1, tanpa tingkat fade).
+- **Disederhanakan:** `onNodeClick` — tanpa fade timer atau toggle Ortu; langsung buka modal untuk node individu.
+- **Dihapus:** Helper functions yang tidak terpakai (`getParentTag`, `getGrandparentTag`, `getUncleTag`, `getSiblingTagFromIndividual`) dan import `useRef`.
+- **Split uncle tags:** `self-uncles` dipecah menjadi `self-uncles-ayah` + `self-uncles-ibu` (demikian juga untuk spouse), agar cabang paman dari sisi ayah dan ibu bisa dibuka/tutup secara independen.
+
+#### `apps/web/src/app/components/PublicTreeCanvas.tsx`
+
+- **Dihapus:** Props `onNodeHover` dan `hoveredNodeId`, handler `onMouseEnter`/`onMouseLeave`, dan overlay "Buka".
+- **Ditambah:** Props `onArrowClick`, `openBranches`, `isOtherNodeLocked`.
+- **Ditambah:** Rendering arrow button untuk:
+  - **Node self/spouse:** arrow untuk `ortu` (atas), `saudara` (kiri untuk self, kanan untuk spouse), `paman-ayah` (atas-kiri), `paman-ibu` (atas-kanan).
+  - **Node Ortu:** arrow atas/bawah untuk ekspansi menjadi Ayah/Ibu.
+  - **Node grup Saudara:** arrow kiri/kanan untuk ekspansi menjadi lingkaran individu.
+  - **Node grup Paman/Bibi:** arrow kiri/kanan untuk ekspansi.
+- Arrow berbalik arah saat cabang terbuka (menunjuk balik = tutup).
+- Arrow dinonaktifkan (redup + cursor `not-allowed`) saat node lain sedang locked.
+- Klik background menutup semua cabang.

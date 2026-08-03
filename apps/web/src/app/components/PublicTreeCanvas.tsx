@@ -34,8 +34,6 @@ interface Props {
   className?: string;
   /** Set of tags that are currently visible. Nodes/lines with a tag not in this set are hidden (opacity 0). */
   visibleTags?: Set<string>;
-  /** Hover handler for a node. */
-  onNodeHover?: (node: TNode | null) => void;
   /** Map of nodeId to opacity override (0-1). If present, overrides default behavior. */
   nodeOpacity?: Record<string, number>;
   /** Map of line index to opacity override (0-1). */
@@ -44,8 +42,12 @@ interface Props {
   anchorOnClick?: boolean;
   /** Called when the SVG background (not a node) is clicked. */
   onBackgroundClick?: () => void;
-  /** Node id currently hovered (for showing expand overlay). */
-  hoveredNodeId?: string | null;
+  /** Called when an arrow button is clicked: (nodeId, branch). */
+  onArrowClick?: (nodeId: string, branch: string) => void;
+  /** Set of open branch keys ("nodeId:branch"). */
+  openBranches?: Set<string>;
+  /** Returns true if a different node is locked (has open branches). */
+  isOtherNodeLocked?: (nodeId: string) => boolean;
 }
 
 const PAD = 80; // padding around the tree bounding box (tree coords)
@@ -54,7 +56,7 @@ const MAX_SCALE = 4;
 const INITIAL_SCALE = 1.5;
 
 /** Pannable, zoomable renderer for a family graph, focused on a given node. */
-export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className, visibleTags, onNodeHover, nodeOpacity, lineOpacity, anchorOnClick = true, onBackgroundClick, hoveredNodeId }: Props) {
+export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className, visibleTags, nodeOpacity, lineOpacity, anchorOnClick = true, onBackgroundClick, onArrowClick, openBranches, isOtherNodeLocked }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
   const movedRef = useRef(false);
@@ -233,8 +235,6 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
               opacity={nodeOp}
               style={{ cursor: clickable ? 'pointer' : 'default', transition: 'opacity 0.4s ease' }}
               onClick={onClick}
-              onMouseEnter={() => onNodeHover?.(n)}
-              onMouseLeave={() => onNodeHover?.(null)}
             >
               {/* Dashed ring hints that this slot hasn't been claimed by an account yet */}
               {unclaimed && (
@@ -291,13 +291,150 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                   {n.name}
                 </text>
               )}
-              {/* Buka overlay on hovered Ortu / Saudara group nodes */}
-              {hoveredNodeId === n.id && (n.name === 'Ortu' || (isGroup && n.name?.startsWith('Saudara'))) && (
-                <g pointerEvents="none">
-                  <rect x={-r} y={-10} width={r * 2} height={20} rx={10} fill="rgba(0,0,0,0.7)" />
-                  <text textAnchor="middle" dominantBaseline="central" fill="#facc15" fontSize={12} fontWeight={600}>Buka</text>
-                </g>
-              )}
+              {/* Arrow buttons for self/spouse nodes to expand/collapse branches */}
+              {!isGroup && onArrowClick && (n.id === 'self' || /^spouse-\d+$/.test(n.id)) && (() => {
+                const locked = isOtherNodeLocked?.(n.id) ?? false;
+                // Determine which branches exist for this node
+                const ortuId = n.id === 'self' ? 'self-ortu' : `${n.id}-ortu`;
+                const hasOrtu = nodes.some(nd => nd.id === ortuId);
+                const saudaraId = n.id === 'self' ? 'grp-self-saudara' : `grp-${n.id}-saudara`;
+                const hasSaudara = nodes.some(nd => nd.id === saudaraId);
+                const pamanAyahId = n.id === 'self' ? 'grp-self-paman-ayah' : `grp-${n.id}-paman-ayah`;
+                const hasPamanAyah = nodes.some(nd => nd.id === pamanAyahId);
+                const pamanIbuId = n.id === 'self' ? 'grp-self-paman-ibu' : `grp-${n.id}-paman-ibu`;
+                const hasPamanIbu = nodes.some(nd => nd.id === pamanIbuId);
+                const simbahId = n.id === 'self' ? 'self-simbah' : `${n.id}-simbah`;
+                const hasSimbah = nodes.some(nd => nd.id === simbahId);
+                if (!hasOrtu && !hasSaudara && !hasPamanAyah && !hasPamanIbu && !hasSimbah) return null;
+                const isSelfNode = n.id === 'self';
+                const arrowR = r + 16;
+                const arrowSize = 7;
+                const arrowColor = '#facc15';
+                const renderArrow = (cx: number, cy: number, dir: 'up' | 'down' | 'left' | 'right', branch: string, exists: boolean) => {
+                  if (!exists) return null;
+                  const key = `${n.id}:${branch}`;
+                  const isOpen = openBranches?.has(key) ?? false;
+                  const disabled = locked;
+                  // When open, flip the arrow to point the opposite direction
+                  const effectiveDir = isOpen ? (dir === 'up' ? 'down' : dir === 'down' ? 'up' : dir === 'left' ? 'right' : 'left') : dir;
+                  const rotation = effectiveDir === 'up' ? 0 : effectiveDir === 'right' ? 90 : effectiveDir === 'down' ? 180 : 270;
+                  return (
+                    <g
+                      transform={`translate(${cx}, ${cy}) rotate(${rotation})`}
+                      style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.3 : 0.85 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!disabled && onArrowClick) onArrowClick(n.id, branch);
+                      }}
+                    >
+                      <circle r={9} fill="rgba(10,10,22,0.85)" stroke={arrowColor} strokeWidth={1.5} />
+                      <path d={`M0,-${arrowSize} L${arrowSize * 0.7},${arrowSize * 0.5} L-${arrowSize * 0.7},${arrowSize * 0.5} Z`} fill={arrowColor} />
+                    </g>
+                  );
+                };
+                return (
+                  <g pointerEvents="all">
+                    {/* Ortu arrow: up */}
+                    {renderArrow(0, -arrowR, 'up', 'ortu', hasOrtu)}
+                    {/* Saudara arrow: left for self, right for spouse */}
+                    {renderArrow(isSelfNode ? -arrowR : arrowR, 0, isSelfNode ? 'left' : 'right', 'saudara', hasSaudara)}
+                    {/* Paman Ayah: up-left for self, up-left for spouse */}
+                    {renderArrow(-arrowR * 0.7, -arrowR * 0.7, 'up', 'paman-ayah', hasPamanAyah)}
+                    {/* Paman Ibu: up-right for self, up-right for spouse */}
+                    {renderArrow(arrowR * 0.7, -arrowR * 0.7, 'up', 'paman-ibu', hasPamanIbu)}
+                    {/* Simbah: up (slightly offset to not overlap ortu) */}
+                    {/* Simbah is handled by ortu branch — skip separate arrow for now */}
+                  </g>
+                );
+              })()}
+              {/* Arrow buttons for Ortu nodes to expand/collapse into Ayah/Ibu */}
+              {!isGroup && onArrowClick && n.name === 'Ortu' && (() => {
+                const locked = isOtherNodeLocked?.(n.id) ?? false;
+                // Derive the nodeId from the Ortu node id
+                const nodeId = n.id === 'self-ortu' ? 'self' : n.id.replace(/-ortu$/, '');
+                const key = `${nodeId}:ortu`;
+                const isOpen = openBranches?.has(key) ?? false;
+                const arrowR = r + 16;
+                const arrowSize = 7;
+                const arrowColor = '#facc15';
+                const dir = isOpen ? 'down' : 'up';
+                const rotation = dir === 'up' ? 0 : 180;
+                return (
+                  <g
+                    transform={`translate(0, -${arrowR}) rotate(${rotation})`}
+                    style={{ cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.3 : 0.85 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!locked && onArrowClick) onArrowClick(nodeId, 'ortu');
+                    }}
+                  >
+                    <circle r={9} fill="rgba(10,10,22,0.85)" stroke={arrowColor} strokeWidth={1.5} />
+                    <path d={`M0,-${arrowSize} L${arrowSize * 0.7},${arrowSize * 0.5} L-${arrowSize * 0.7},${arrowSize * 0.5} Z`} fill={arrowColor} />
+                  </g>
+                );
+              })()}
+              {/* Arrow buttons for sibling group nodes to expand/collapse */}
+              {isGroup && onArrowClick && n.name?.startsWith('Saudara') && (() => {
+                // Derive nodeId from group id: grp-self-saudara → self, grp-spouse-0-saudara → spouse-0
+                const nodeId = n.id === 'grp-self-saudara' ? 'self' : n.id.replace(/^grp-/, '').replace(/-saudara$/, '');
+                const locked = isOtherNodeLocked?.(nodeId) ?? false;
+                const key = `${nodeId}:saudara`;
+                const isOpen = openBranches?.has(key) ?? false;
+                const isSelfSide = n.id.startsWith('grp-self-');
+                const arrowR = r + 16;
+                const arrowSize = 7;
+                const arrowColor = '#facc15';
+                const dir = isOpen ? (isSelfSide ? 'right' : 'left') : (isSelfSide ? 'left' : 'right');
+                const rotation = dir === 'up' ? 0 : dir === 'right' ? 90 : dir === 'down' ? 180 : 270;
+                return (
+                  <g
+                    transform={`translate(${isSelfSide ? -arrowR : arrowR}, 0) rotate(${rotation})`}
+                    style={{ cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.3 : 0.85 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!locked && onArrowClick) onArrowClick(nodeId, 'saudara');
+                    }}
+                  >
+                    <circle r={9} fill="rgba(10,10,22,0.85)" stroke={arrowColor} strokeWidth={1.5} />
+                    <path d={`M0,-${arrowSize} L${arrowSize * 0.7},${arrowSize * 0.5} L-${arrowSize * 0.7},${arrowSize * 0.5} Z`} fill={arrowColor} />
+                  </g>
+                );
+              })()}
+              {/* Arrow buttons for uncle group nodes to expand/collapse */}
+              {isGroup && onArrowClick && n.name?.startsWith('Paman/Bibi') && (() => {
+                // Derive nodeId and branch from group id
+                let nodeId: string;
+                let branch: string;
+                if (n.id.startsWith('grp-self-paman-ayah')) { nodeId = 'self'; branch = 'paman-ayah'; }
+                else if (n.id.startsWith('grp-self-paman-ibu')) { nodeId = 'self'; branch = 'paman-ibu'; }
+                else if (n.id.match(/^grp-spouse-\d+-paman-ayah/)) { nodeId = n.id.replace(/^grp-/, '').replace(/-paman-ayah$/, ''); branch = 'paman-ayah'; }
+                else if (n.id.match(/^grp-spouse-\d+-paman-ibu/)) { nodeId = n.id.replace(/^grp-/, '').replace(/-paman-ibu$/, ''); branch = 'paman-ibu'; }
+                else return null;
+                const locked = isOtherNodeLocked?.(nodeId) ?? false;
+                const key = `${nodeId}:${branch}`;
+                const isOpen = openBranches?.has(key) ?? false;
+                const isAyah = branch === 'paman-ayah';
+                const arrowR = r + 16;
+                const arrowSize = 7;
+                const arrowColor = '#facc15';
+                // Ayah is on the left → arrow points left when closed, right when open
+                // Ibu is on the right → arrow points right when closed, left when open
+                const dir = isOpen ? (isAyah ? 'right' : 'left') : (isAyah ? 'left' : 'right');
+                const rotation = dir === 'up' ? 0 : dir === 'right' ? 90 : dir === 'down' ? 180 : 270;
+                return (
+                  <g
+                    transform={`translate(${isAyah ? -arrowR : arrowR}, 0) rotate(${rotation})`}
+                    style={{ cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.3 : 0.85 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!locked && onArrowClick) onArrowClick(nodeId, branch);
+                    }}
+                  >
+                    <circle r={9} fill="rgba(10,10,22,0.85)" stroke={arrowColor} strokeWidth={1.5} />
+                    <path d={`M0,-${arrowSize} L${arrowSize * 0.7},${arrowSize * 0.5} L-${arrowSize * 0.7},${arrowSize * 0.5} Z`} fill={arrowColor} />
+                  </g>
+                );
+              })()}
               {!isGroup && d?.name && (
                 <text
                   y={r + 18}
