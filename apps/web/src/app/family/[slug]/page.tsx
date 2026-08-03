@@ -121,8 +121,8 @@ export default function PublicFamilyPage() {
 
   // Determine which uncle tag a node id belongs to
   const getUncleTag = (id: string): string | null => {
-    if (id === 'grp-self-paman') return 'self-uncles';
-    const m = id.match(/^grp-spouse-(\d+)-paman$/);
+    if (id.startsWith('grp-self-paman')) return 'self-uncles';
+    const m = id.match(/^grp-spouse-(\d+)-paman/);
     if (m) return `spouse-${m[1]}-uncles`;
     return null;
   };
@@ -364,16 +364,27 @@ export default function PublicFamilyPage() {
         ls.push({ points: [[selfX, -210], [selfX, simbahY]], tag: 'self-grandparents' });
       }
 
-      // Self's uncles (tag: 'self-uncles') — "Paman/Bibi" circle to the RIGHT of Ortu
-      const parentMember = members['parent-0'];
-      const uncleOlder = parentMember?.familyConfig?.olderCount ?? 0;
-      const uncleYounger = parentMember?.familyConfig?.youngerCount ?? 0;
-      const uncleLegacy = parentMember?.familyConfig?.siblingCount ?? 0;
-      const totalUncles = uncleOlder + uncleYounger + uncleLegacy;
-      if (totalUncles > 0) {
+      // Self's uncles — split: ayah's siblings LEFT of ayah, ibu's siblings RIGHT of ibu
+      const ayahMember = members['parent-0'];
+      const ayahUncleOlder = ayahMember?.familyConfig?.olderCount ?? 0;
+      const ayahUncleYounger = ayahMember?.familyConfig?.youngerCount ?? 0;
+      const ayahUncleLegacy = ayahMember?.familyConfig?.siblingCount ?? 0;
+      const totalAyahUncles = ayahUncleOlder + ayahUncleYounger + ayahUncleLegacy;
+      if (totalAyahUncles > 0) {
+        const uncleOffset = 180;
+        const uncleX = selfX - uncleOffset;
+        ns.push({ id: 'grp-self-paman-ayah', name: `Paman/Bibi ${totalAyahUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalAyahUncles, tag: 'self-uncles' });
+        ls.push({ points: [[selfX, -210], [uncleX, -210]], tag: 'self-uncles' });
+      }
+      const ibuMember = members['parent-1'];
+      const ibuUncleOlder = ibuMember?.familyConfig?.olderCount ?? 0;
+      const ibuUncleYounger = ibuMember?.familyConfig?.youngerCount ?? 0;
+      const ibuUncleLegacy = ibuMember?.familyConfig?.siblingCount ?? 0;
+      const totalIbuUncles = ibuUncleOlder + ibuUncleYounger + ibuUncleLegacy;
+      if (totalIbuUncles > 0) {
         const uncleOffset = 180;
         const uncleX = selfX + uncleOffset;
-        ns.push({ id: 'grp-self-paman', name: `Paman/Bibi ${totalUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalUncles, tag: 'self-uncles' });
+        ns.push({ id: 'grp-self-paman-ibu', name: `Paman/Bibi ${totalIbuUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalIbuUncles, tag: 'self-uncles' });
         ls.push({ points: [[selfX, -210], [uncleX, -210]], tag: 'self-uncles' });
       }
     }
@@ -413,19 +424,29 @@ export default function PublicFamilyPage() {
           ls.push({ points: [[sx, -210], [sx, simbahY]], tag: gpTag });
         }
 
-        // Spouse's uncles (tag: 'spouse-{i}-uncles') — "Paman/Bibi" circle to the LEFT of Ortu.
-        // No fallback to members['parent-0']: that is the slug owner's parent,
-        // which would give the spouse the wrong side of the family.
-        const spParentMember = members[`spouse-${si}-parent-0`];
-        const spUncleOlder = spParentMember?.familyConfig?.olderCount ?? 0;
-        const spUncleYounger = spParentMember?.familyConfig?.youngerCount ?? 0;
-        const spUncleLegacy = spParentMember?.familyConfig?.siblingCount ?? 0;
-        const spTotalUncles = spUncleOlder + spUncleYounger + spUncleLegacy;
-        if (spTotalUncles > 0) {
+        // Spouse's uncles — split: ayah's siblings LEFT of ayah, ibu's siblings RIGHT of ibu
+        const spAyahMember = members[`spouse-${si}-parent-0`];
+        const spAyahUncleOlder = spAyahMember?.familyConfig?.olderCount ?? 0;
+        const spAyahUncleYounger = spAyahMember?.familyConfig?.youngerCount ?? 0;
+        const spAyahUncleLegacy = spAyahMember?.familyConfig?.siblingCount ?? 0;
+        const spTotalAyahUncles = spAyahUncleOlder + spAyahUncleYounger + spAyahUncleLegacy;
+        if (spTotalAyahUncles > 0) {
           const uncleTag = `spouse-${si}-uncles`;
           const uncleOffset = 180;
           const uncleX = sx - uncleOffset;
-          ns.push({ id: `grp-spouse-${si}-paman`, name: `Paman/Bibi ${spTotalUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalUncles, tag: uncleTag });
+          ns.push({ id: `grp-spouse-${si}-paman-ayah`, name: `Paman/Bibi ${spTotalAyahUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalAyahUncles, tag: uncleTag });
+          ls.push({ points: [[sx, -210], [uncleX, -210]], tag: uncleTag });
+        }
+        const spIbuMember = members[`spouse-${si}-parent-1`];
+        const spIbuUncleOlder = spIbuMember?.familyConfig?.olderCount ?? 0;
+        const spIbuUncleYounger = spIbuMember?.familyConfig?.youngerCount ?? 0;
+        const spIbuUncleLegacy = spIbuMember?.familyConfig?.siblingCount ?? 0;
+        const spTotalIbuUncles = spIbuUncleOlder + spIbuUncleYounger + spIbuUncleLegacy;
+        if (spTotalIbuUncles > 0) {
+          const uncleTag = `spouse-${si}-uncles`;
+          const uncleOffset = 180;
+          const uncleX = sx + uncleOffset;
+          ns.push({ id: `grp-spouse-${si}-paman-ibu`, name: `Paman/Bibi ${spTotalIbuUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalIbuUncles, tag: uncleTag });
           ls.push({ points: [[sx, -210], [uncleX, -210]], tag: uncleTag });
         }
       }
@@ -470,7 +491,9 @@ export default function PublicFamilyPage() {
         })();
         curLines = curLines.filter(l => l.tag !== tag).concat(
           [{ points: [[parentXs[0], y], [parentXs[1], y]], tag }],
-          parentXs.map(x => ({ points: [[x, y], [x, trunkY], [childX, trunkY]], tag }))
+          parentXs.map(x => ({ points: [[x, y], [x, trunkY]], tag })),
+          [{ points: [[parentXs[0], trunkY], [parentXs[1], trunkY]], tag }],
+          [{ points: [[childX, trunkY], [childX, childY]], tag }]
         );
       }
     }
@@ -491,8 +514,11 @@ export default function PublicFamilyPage() {
     const y = grpNode.y;
     const groupPrefix = expandedGroup.replace('grp-', 'sib-');
 
-    // Pack circles centered on the group bubble's x
-    const sibXs = Array.from({ length: count }, (_, i) => cx + (i - (count - 1) / 2) * SIB_SPACING);
+    // Pack circles outward from the group bubble's x (self→left, spouse→right)
+    const isSelfSide = expandedGroup.startsWith('grp-self-');
+    const sibXs = isSelfSide
+      ? Array.from({ length: count }, (_, i) => cx - i * SIB_SPACING)
+      : Array.from({ length: count }, (_, i) => cx + i * SIB_SPACING);
     const sibNodes: TNode[] = sibXs.map((x, i) => ({
       id: `${groupPrefix}-${i}`,
       name: `Saudara ${i + 1}`,
