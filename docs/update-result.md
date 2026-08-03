@@ -118,7 +118,7 @@ Backfill berjalan tiga tahap: anggota tertaut → penanda `sharedFamilySlug` lam
 
 ## Yang Belum Dikerjakan
 
-UI di `/tree` belum memakai `treeApi.saveFamilyNodeSlice()` — endpoint dan tipe `familyNode` pada respons `getLayout` sudah siap, tapi `TreeExplorer` masih menyimpan ke `PUT /trees/layout` (pohon pribadi). Untuk anggota non-kepala yang ingin mengedit Family Node bersama langsung dari `/tree`, penyambungan UI itu perlu satu langkah lanjutan.
+~~UI di `/tree` belum memakai `treeApi.saveFamilyNodeSlice()`~~ — **sudah dikerjakan**, lihat bagian *Penyambungan UI `/tree` ke Family Node Slice* di bawah.
 
 ---
 
@@ -165,3 +165,45 @@ Mengganti sistem hover dengan **klik arrow berarah** pada node. Arrow kecil munc
 - Arrow berbalik arah saat cabang terbuka (menunjuk balik = tutup).
 - Arrow dinonaktifkan (redup + cursor `not-allowed`) saat node lain sedang locked.
 - Klik background menutup semua cabang.
+
+---
+
+## 2026-08-03 — Penyambungan UI `/tree` ke Family Node Slice
+
+**Menutup:** butir "Yang Belum Dikerjakan" pada catatan *Sinkronisasi Data Antar Anggota Family Node*.
+
+**Masalah:** Endpoint `PUT /trees/family-node/slice` dan field `familyNode` pada respons `getLayout` sudah ada sejak fase 3, tapi `TreeExplorer` selalu menyimpan lewat `PUT /trees/layout` — yaitu **pohon pribadi**, bukan pohon anchor. Akibatnya anggota non-kepala yang mengedit dari `/tree` tidak pernah menulis ke halaman Family Node bersama.
+
+### Yang Diubah — `apps/web/src/app/components/TreeExplorer.tsx`
+
+**State baru:**
+- `familyNode: FamilyNodeMembership | null` — diisi dari `remote.familyNode` saat `getLayout()`. Berisi `nodeId`, `role`, `slug`, dan `isHead`.
+- `saveError: string | null` — menampung pesan penolakan dari server.
+
+**Pemisahan jalur simpan di `pushLayout`:**
+
+| Yang disimpan | Kepala node / tanpa keanggotaan | Anggota non-kepala |
+|---|---|---|
+| `config` (silsilah pribadi) | `PUT /trees/layout` | `PUT /trees/layout` — tetap pohon pribadi |
+| `members` (lingkaran di halaman bersama) | `PUT /trees/layout` | `PUT /trees/family-node/slice` |
+
+Alasan `config` tetap ke pohon pribadi: itu silsilah ke atas milik orang itu sendiri, dan sudah diresolusi lintas pohon oleh `hydrateLinkedFamilyConfigs()` saat halaman publik dibaca. Konsisten dengan tabel *Pembagian Sumber Kebenaran*.
+
+**Parameter `changedIds` pada `saveMembers`:**
+
+Endpoint slice memakai semantik **patch** dan menolak (`403`) node di luar irisan pemanggil. Mengirim seluruh objek `members` otomatis kena tolak. Karena itu `saveMembers(m, changedIds?)` kini menerima daftar node id yang benar-benar disentuh, lalu `pushLayout` menyusun patch hanya dari id tersebut.
+
+Pemanggil yang meneruskan `changedIds`:
+
+- `addRelative` arah `bottom` → `[id]` (anak baru)
+- `addRelative` arah `left`/`right` → `[id]` (kakak/adik baru)
+- `addRelative` arah `top` → `[id, n.id]` (ortu baru + pointer `parentId` anaknya)
+- `MemberForm.onSave` → `[selected.id]`
+
+**Sengaja tidak lewat slice:** `deleteNode` tidak meneruskan `changedIds` sehingga jatuh ke `saveLayout`. Patch bersifat *merge*, jadi tidak bisa menghapus kunci; selain itu tombol hapus sudah dibatasi super user (`canDelete={isSuperUser && ...}`).
+
+**Penanganan `403`:** pesan asli dari server (berisi daftar node yang ditolak) ditampilkan di banner merah top-center yang bisa ditutup. Error non-403 memakai pesan generik dan data lokal tetap dipertahankan.
+
+### Catatan untuk Ke Depan
+
+Kalau nanti ada aksi simpan baru yang menyentuh `members`, **wajib** meneruskan `changedIds` — kalau tidak, anggota non-kepala akan diam-diam menulis ke pohon pribadinya, bukan ke Family Node bersama.

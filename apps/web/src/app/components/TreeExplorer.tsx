@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getUser } from '@/lib/auth';
 import { treeApi } from '@/lib/tree';
-import type { GuardianConsent, ConnectedFamily } from '@/lib/tree';
+import type { GuardianConsent, ConnectedFamily, FamilyNodeMembership } from '@/lib/tree';
 import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
 import { DEFAULT_CONFIG } from './treeTypes';
@@ -290,6 +290,8 @@ export default function TreeExplorer() {
   const [identity, setIdentity] = useState<{ treeId: string | null; slug: string | null; username: string | null }>({ treeId: null, slug: null, username: null });
   const [isTreeOwner, setIsTreeOwner] = useState(true);
   const [connectedFamily, setConnectedFamily] = useState<ConnectedFamily | null>(null);
+  const [familyNode, setFamilyNode] = useState<FamilyNodeMembership | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [config, setConfig] = useState<TreeConfig>(DEFAULT_CONFIG);
   const [members, setMembers] = useState<Members>({});
   const [consents, setConsents] = useState<GuardianConsent[]>([]);
@@ -350,6 +352,7 @@ export default function TreeExplorer() {
         setIdentity({ treeId: remote.treeId, slug: remote.slug, username: remote.owner?.username ?? null });
         setIsTreeOwner(remote.isTreeOwner !== false);
         setConnectedFamily(remote.connectedFamily ?? null);
+        setFamilyNode(remote.familyNode ?? null);
 
         if (remote.config) {
           const merged = { ...DEFAULT_CONFIG, ...remote.config };
@@ -420,9 +423,36 @@ export default function TreeExplorer() {
     }
   }, [panel, selected, identity.slug, selfNodeId]);
 
-  const pushLayout = (payload: { config?: TreeConfig; members?: Members }) => {
+  const pushLayout = (payload: { config?: TreeConfig; members?: Members; changedIds?: string[] }) => {
     if (uidRef.current === 'guest') return; // only sync for logged-in users
-    treeApi.saveLayout(payload)
+
+    // A member who is NOT the head of their Family Node does not own the shared
+    // layout. Their circle edits must go through the targeted slice endpoint so
+    // the server can enforce that they only touch their own branch. Config keeps
+    // going to their personal tree — that is their own ancestry, resolved
+    // cross-tree when the public page is read.
+    const isSliceMember = !!familyNode && !familyNode.isHead;
+    const { config: cfg, members: mem, changedIds } = payload;
+
+    if (isSliceMember && mem && changedIds?.length) {
+      const patch: Record<string, unknown> = {};
+      for (const id of changedIds) {
+        if (mem[id] !== undefined) patch[id] = mem[id];
+      }
+      treeApi.saveFamilyNodeSlice<Members>(patch)
+        .then((res) => {
+          setSaveError(null);
+          setIdentity((prev) => ({ ...prev, slug: res.slug ?? prev.slug }));
+        })
+        .catch((e: Error & { status?: number }) => {
+          setSaveError(e?.status === 403
+            ? e.message
+            : 'Gagal menyimpan ke Family Node bersama. Perubahan tersimpan lokal.');
+        });
+      if (!cfg) return;
+    }
+
+    treeApi.saveLayout({ config: cfg, members: isSliceMember && changedIds?.length ? undefined : mem })
       // The server generates/returns the family slug + owner username here, so
       // refresh identity to activate the public link without needing a reload.
       .then((res) => setIdentity({ treeId: res.treeId, slug: res.slug, username: res.owner?.username ?? null }))
@@ -434,10 +464,15 @@ export default function TreeExplorer() {
     try { localStorage.setItem(`digsan_tree_cfg_${uidRef.current}`, JSON.stringify(c)); } catch { /* ignore */ }
     pushLayout({ config: c });
   };
-  const saveMembers = (m: Members) => {
+  /**
+   * `changedIds` lists the node ids this save actually touched. It lets a
+   * non-head Family Node member push just their own circles through the slice
+   * endpoint instead of the whole layout (which the server would reject).
+   */
+  const saveMembers = (m: Members, changedIds?: string[]) => {
     setMembers(m);
     try { localStorage.setItem(`digsan_tree_mem_${uidRef.current}`, JSON.stringify(m)); } catch { /* ignore */ }
-    pushLayout({ members: m });
+    pushLayout({ members: m, changedIds });
   };
 
   const consentFor = (nodeId: string) => consents.find((c) => c.nodeId === nodeId);
@@ -611,14 +646,14 @@ export default function TreeExplorer() {
 
     if (dir === 'bottom') {
       const id = genId('child');
-      return saveMembers({ ...members, [id]: { name: 'Anggota Baru', gender: '', alive: true, photo: null, group: 'child', role: 'Keturunan', parentId: n.id } });
+      return saveMembers({ ...members, [id]: { name: 'Anggota Baru', gender: '', alive: true, photo: null, group: 'child', role: 'Keturunan', parentId: n.id } }, [id]);
     }
     if (dir === 'left' || dir === 'right') {
       const pid = parentIdOf(n.id);
       if (!pid) return;
       const group: Group = dir === 'left' ? 'kakak' : 'adik';
       const id = genId(group);
-      return saveMembers({ ...members, [id]: { name: 'Anggota Baru', gender: '', alive: true, photo: null, group, role: dir === 'left' ? 'Saudara Tua' : 'Saudara Muda', parentId: pid } });
+      return saveMembers({ ...members, [id]: { name: 'Anggota Baru', gender: '', alive: true, photo: null, group, role: dir === 'left' ? 'Saudara Tua' : 'Saudara Muda', parentId: pid } }, [id]);
     }
     // top — add a parent above an explicit root node
     const id = genId('parent');
@@ -626,7 +661,7 @@ export default function TreeExplorer() {
       ...members,
       [id]: { name: 'Orang Tua', gender: '', alive: true, photo: null, group: 'parent', role: 'Orang Tua' },
       [n.id]: { ...(members[n.id] ?? { name: n.name, gender: '', alive: true, photo: null }), parentId: id },
-    });
+    }, [id, n.id]);
   };
 
   /** Delete a circle. Explicit nodes cascade-delete descendants; config nodes decrement their count. */
@@ -755,6 +790,20 @@ export default function TreeExplorer() {
           <p className="px-4 py-2 rounded-full text-sm bg-amber-500 text-white shadow-lg">
             Seret untuk memilih area & menyorot lingkaran yang perlu dilengkapi
           </p>
+        </div>
+      )}
+
+      {/* Rejected write-back to the shared Family Node (e.g. editing outside your own branch) */}
+      {saveError && (
+        <div className="absolute inset-x-0 top-16 z-40 flex justify-center px-4">
+          <div className="flex items-start gap-2 max-w-lg px-4 py-2.5 rounded-xl text-sm shadow-lg border
+            bg-rose-50 text-rose-800 border-rose-200
+            dark:bg-rose-500/15 dark:text-rose-200 dark:border-rose-400/30">
+            <span className="flex-1">{saveError}</span>
+            <button onClick={() => setSaveError(null)} className="shrink-0 opacity-70 hover:opacity-100" title="Tutup">
+              <X size={15} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -953,7 +1002,7 @@ export default function TreeExplorer() {
             onClose={() => setPanel('none')}
             canDelete={isSuperUser && selected.id !== selfNodeId && selected.id !== 'self'}
             onDelete={() => deleteNode(selected.id)}
-            onSave={(m) => { saveMembers({ ...members, [selected.id]: m }); setPanel('none'); }} />
+            onSave={(m) => { saveMembers({ ...members, [selected.id]: m }, [selected.id]); setPanel('none'); }} />
         )}
       </div>
 
