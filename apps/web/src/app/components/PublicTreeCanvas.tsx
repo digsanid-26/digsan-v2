@@ -385,7 +385,7 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                 const arrowSize = 7;
                 const arrowColor = '#facc15';
                 const dir = isOpen ? (isSelfSide ? 'right' : 'left') : (isSelfSide ? 'left' : 'right');
-                const rotation = dir === 'up' ? 0 : dir === 'right' ? 90 : dir === 'down' ? 180 : 270;
+                const rotation = dir === 'right' ? 90 : 270;
                 return (
                   <g
                     transform={`translate(${isSelfSide ? -arrowR : arrowR}, 0) rotate(${rotation})`}
@@ -420,7 +420,7 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
                 // Ayah is on the left → arrow points left when closed, right when open
                 // Ibu is on the right → arrow points right when closed, left when open
                 const dir = isOpen ? (isAyah ? 'right' : 'left') : (isAyah ? 'left' : 'right');
-                const rotation = dir === 'up' ? 0 : dir === 'right' ? 90 : dir === 'down' ? 180 : 270;
+                const rotation = dir === 'right' ? 90 : 270;
                 return (
                   <g
                     transform={`translate(${isAyah ? -arrowR : arrowR}, 0) rotate(${rotation})`}
