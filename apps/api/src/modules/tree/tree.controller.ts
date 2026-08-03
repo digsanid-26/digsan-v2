@@ -480,31 +480,27 @@ export class PublicFamilyController {
   }
 
   @Get(':slug')
-  @ApiOperation({ summary: 'Get a family page by slug (token or owner auth required)' })
+  @ApiOperation({ summary: 'Get a family page by slug (any logged-in member, or a valid link token)' })
   async getFamily(
     @Param('slug') slug: string,
     @Query('t') token: string | undefined,
     @Req() req: any,
   ) {
-    // If token provided, validate it
+    // Anonymous visitors still need a valid share link.
     if (token) {
       await this.treeService.validatePublicLinkToken(token, slug);
       return this.treeService.getPublicFamily(slug);
     }
-    // Check if authenticated user is the owner or a member of the tree
+    // Any logged-in member may browse any family page. What they actually see
+    // is narrowed later by per-field visibility settings, not by this gate.
     const userId = this.extractUserId(req);
-    if (userId) {
-      const isMember = await this.treeService.isTreeMember(slug, userId);
-      if (isMember) return this.treeService.getPublicFamily(slug);
-      // Super users can access any family page
-      const isSuper = await this.treeService.isSuperUser(userId);
-      if (isSuper) return this.treeService.getPublicFamily(slug);
-    }
-    throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai anggota keluarga.');
+    if (userId) return this.treeService.getPublicFamily(slug);
+
+    throw new ForbiddenException('Akses memerlukan token link yang valid atau login terlebih dahulu.');
   }
 
   @Get(':slug/:username')
-  @ApiOperation({ summary: 'Get a personal profile page by family slug + username (token or owner auth required)' })
+  @ApiOperation({ summary: 'Get a personal profile page by family slug + username (any logged-in member, or a valid link token)' })
   async getProfile(
     @Param('slug') slug: string,
     @Param('username') username: string,
@@ -516,13 +512,8 @@ export class PublicFamilyController {
       return this.treeService.getPublicProfile(slug, username);
     }
     const userId = this.extractUserId(req);
-    if (userId) {
-      const isMember = await this.treeService.isTreeMember(slug, userId);
-      if (isMember) return this.treeService.getPublicProfile(slug, username);
-      // Super users can access any profile page
-      const isSuper = await this.treeService.isSuperUser(userId);
-      if (isSuper) return this.treeService.getPublicProfile(slug, username);
-    }
-    throw new ForbiddenException('Akses memerlukan token link yang valid atau login sebagai anggota keluarga.');
+    if (userId) return this.treeService.getPublicProfile(slug, username);
+
+    throw new ForbiddenException('Akses memerlukan token link yang valid atau login terlebih dahulu.');
   }
 }
