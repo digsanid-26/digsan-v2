@@ -380,14 +380,17 @@ export default function PublicFamilyPage() {
     // ─── Spouse's parents (tag: 'spouse-0-parents', etc.) — single "Ortu" circle ───
     for (let si = 0; si < cfg.spouseCount; si++) {
       const sx = spouseXs[si];
-      if (cfg.parentCount > 0) {
+      const spMember = members[`spouse-${si}`];
+      // A spouse's ancestry comes from their OWN tree config (hydrated by the
+      // API as familyConfig) — never from the slug owner's counts.
+      const spParentCount = spMember?.familyConfig?.parentCount ?? 0;
+      if (spParentCount > 0) {
         const tag = `spouse-${si}-parents`;
         const ortuY = -210;
         ns.push({ id: `spouse-${si}-ortu`, name: 'Ortu', role: 'Orang Tua', x: sx, y: ortuY, group: 'parent', tag });
         ls.push({ points: [[sx, ortuY], [sx, 0]], tag });
 
         // Spouse's siblings — ONE combined group bubble on the RIGHT
-        const spMember = members[`spouse-${si}`];
         const spSibOlder = spMember?.familyConfig?.olderCount ?? 0;
         const spSibYounger = spMember?.familyConfig?.youngerCount ?? 0;
         const spSibLegacy = spMember?.familyConfig?.siblingCount ?? 0;
@@ -409,8 +412,10 @@ export default function PublicFamilyPage() {
           ls.push({ points: [[sx, -210], [sx, simbahY]], tag: gpTag });
         }
 
-        // Spouse's uncles (tag: 'spouse-{i}-uncles') — "Paman/Bibi" circle to the LEFT of Ortu
-        const spParentMember = members[`spouse-${si}-parent-0`] ?? members['parent-0'];
+        // Spouse's uncles (tag: 'spouse-{i}-uncles') — "Paman/Bibi" circle to the LEFT of Ortu.
+        // No fallback to members['parent-0']: that is the slug owner's parent,
+        // which would give the spouse the wrong side of the family.
+        const spParentMember = members[`spouse-${si}-parent-0`];
         const spUncleOlder = spParentMember?.familyConfig?.olderCount ?? 0;
         const spUncleYounger = spParentMember?.familyConfig?.youngerCount ?? 0;
         const spUncleLegacy = spParentMember?.familyConfig?.siblingCount ?? 0;

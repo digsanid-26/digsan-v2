@@ -9,6 +9,15 @@ export interface ConnectedFamily {
   ownerName: string;
 }
 
+/** Which shared Family Node the current user belongs to, and which circle is theirs. */
+export interface FamilyNodeMembership {
+  treeId: string;
+  nodeId: string;
+  role: string;
+  slug: string | null;
+  isHead: boolean;
+}
+
 export interface TreeLayout<C = unknown, M = unknown> {
   treeId: string;
   slug: string | null;
@@ -18,6 +27,7 @@ export interface TreeLayout<C = unknown, M = unknown> {
   updatedAt: string;
   isTreeOwner?: boolean;
   connectedFamily?: ConnectedFamily | null;
+  familyNode?: FamilyNodeMembership | null;
 }
 
 let refreshingPromise: Promise<boolean> | null = null;
@@ -179,6 +189,23 @@ export const treeApi = {
 
   syncLinkedUser: (nodeId: string) =>
     authRequest<{ treeId: string; slug: string; nodeId: string; member: any; synced: any }>(`/trees/sync-linked-user/${nodeId}`, {
+      method: 'POST',
+    }),
+
+  /** Write back only the caller's own slice of the shared Family Node layout. */
+  saveFamilyNodeSlice: <M = unknown>(members: Record<string, unknown>) =>
+    authRequest<{ treeId: string; slug: string | null; nodeId: string; isHead: boolean; members: M }>('/trees/family-node/slice', {
+      method: 'PUT',
+      body: JSON.stringify({ members }),
+    }),
+
+  leaveFamilyNode: () =>
+    authRequest<{ message: string }>('/trees/family-node/membership', {
+      method: 'DELETE',
+    }),
+
+  backfillFamilyNodes: () =>
+    authRequest<{ linked: number; heads: number; slugsRetired: number }>('/trees/backfill-family-nodes', {
       method: 'POST',
     }),
 

@@ -52,6 +52,7 @@ model User {
   // Digsan feature relations
   familyTrees   FamilyTree[]
   familyMembers FamilyMember[]
+  familyNodeMemberships FamilyNodeMember[]
   points        Point[]
   badges        UserBadge[]
   notifications Notification[]
@@ -235,8 +236,36 @@ model FamilyTree {
   hubTargets     FamilyHubConnection[] @relation("TargetTree")
   invitations    TreeInvitation[]
   guardianConsents GuardianConsent[]
+  nodeMembers    FamilyNodeMember[]
 
   @@map("family_trees")
+}
+
+/// Explicit membership of a user in a Family Node.
+///
+/// The Family Node is the tree that owns the public slug (the "anchor").
+/// One family = one slug = one public page: every member of the household
+/// points at the same anchor tree instead of minting a slug of their own.
+///
+/// A person's own ancestry still lives in their personal tree; this table only
+/// records WHICH shared family page they belong to and WHICH circle they are.
+model FamilyNodeMember {
+  id         String   @id @default(cuid())
+  treeId     String   @map("tree_id")
+  userId     String   @map("user_id")
+  nodeId     String   @map("node_id")
+  role       String   @default("member")
+  isHead     Boolean  @default(false) @map("is_head")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tree FamilyTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([treeId, userId])
+  @@unique([userId])
+  @@index([treeId])
+  @@map("family_node_members")
 }
 
 model CardStyle {

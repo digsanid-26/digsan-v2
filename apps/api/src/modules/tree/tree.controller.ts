@@ -14,6 +14,7 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 import { UpdateCardStyleDto } from './dto/card-style.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { SaveLayoutDto } from './dto/save-layout.dto';
+import { SaveFamilyNodeSliceDto } from './dto/family-node-slice.dto';
 import { SetSlugDto } from './dto/set-slug.dto';
 import { RequestConsentDto, RespondConsentDto } from './dto/consent.dto';
 import { ClaimNodeDto } from './dto/claim-node.dto';
@@ -69,6 +70,31 @@ export class TreeController {
   async recoverSlugs(@CurrentUser('id') userId: string, @CurrentUser('roles') roles?: string[]) {
     if (!roles?.some((r) => ['super_user', 'admin', 'super_admin'].includes(r))) throw new ForbiddenException('Akses ditolak');
     return this.treeService.recoverSlugs();
+  }
+
+  @Post('backfill-family-nodes')
+  @ApiOperation({ summary: 'Derive FamilyNodeMember rows from existing links so each household shares one slug (admin only)' })
+  async backfillFamilyNodes(@CurrentUser('roles') roles?: string[]) {
+    if (!roles?.some((r) => ['super_user', 'admin', 'super_admin'].includes(r))) throw new ForbiddenException('Akses ditolak');
+    return this.treeService.backfillFamilyNodeMembers();
+  }
+
+  // ─── FAMILY NODE (shared household page) ────────────────────
+
+  @Put('family-node/slice')
+  @ApiOperation({ summary: 'Write back the caller\'s own slice of the shared Family Node layout' })
+  async saveFamilyNodeSlice(
+    @CurrentUser('id') userId: string,
+    @Body() dto: SaveFamilyNodeSliceDto,
+  ) {
+    return this.treeService.saveFamilyNodeSlice(userId, dto.members);
+  }
+
+  @Delete('family-node/membership')
+  @ApiOperation({ summary: 'Leave the current Family Node (the caller gets their own family page again)' })
+  async leaveFamilyNode(@CurrentUser('id') userId: string) {
+    await this.treeService.leaveFamilyNode(userId);
+    return { message: 'Anda telah keluar dari Family Node' };
   }
 
   @Put('slug')

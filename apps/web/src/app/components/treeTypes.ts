@@ -24,6 +24,7 @@ export interface NodeFamilyConfig {
   olderCount?: number;
   youngerCount?: number;
   siblingCount?: number; // legacy fallback (treated as older)
+  parentCount?: number;
   spouseCount?: number;
   childCount?: number;
 }
