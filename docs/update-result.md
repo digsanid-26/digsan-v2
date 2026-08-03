@@ -131,7 +131,9 @@ Backfill berjalan tiga tahap: anggota tertaut → penanda `sharedFamilySlug` lam
 
 ---
 
-## 2026-08-03 — Klik Arrow untuk Buka/Tutup Cabang (Ganti Hover)
+## 2026-08-03 — Klik Arrow untuk Buka/Tutup Cabang (Ganti Hover) — **DIBATALKAN**
+
+> **Status: dibatalkan.** Alur navigasinya terasa tidak mengalir, sehingga dikembalikan ke mode hover. Lihat *Kembali ke Mode Hover + Perbaikan Lingkaran Bertumpuk* di bawah. Bagian ini disimpan sebagai catatan sejarah agar pendekatan yang sama tidak diulang tanpa alasan baru.
 
 **Masalah:** Sistem hover untuk membuka cabang (ortu/saudara/paman) rentan tumpang tindih dan tidak intuitif. User harus meng-hover node untuk melihat cabang samar, lalu klik untuk membuka. Tidak ada kontrol yang jelas untuk menutup.
 
@@ -207,3 +209,76 @@ Pemanggil yang meneruskan `changedIds`:
 ### Catatan untuk Ke Depan
 
 Kalau nanti ada aksi simpan baru yang menyentuh `members`, **wajib** meneruskan `changedIds` — kalau tidak, anggota non-kepala akan diam-diam menulis ke pohon pribadinya, bukan ke Family Node bersama.
+
+---
+
+## 2026-08-04 — Kembali ke Mode Hover + Perbaikan Lingkaran Bertumpuk
+
+**Membatalkan:** commit `3010e80` dan `fb0a980` (sistem klik arrow).
+
+Mode hover dikembalikan dengan `git checkout c4da4c4 --` pada dua file: `apps/web/src/app/family/[slug]/page.tsx` dan `apps/web/src/app/components/PublicTreeCanvas.tsx`. Pekerjaan Family Node slice (`9e61770`) tidak tersentuh karena berada di file lain.
+
+Lalu kekurangan yang jadi alasan awal pindah ke arrow — **lingkaran antar tree bertumpuk** — diperbaiki di akarnya.
+
+### Akar Masalah
+
+Setiap cabang silsilah digambar pada **offset absolut** dari kolom pemiliknya:
+
+| Cabang | Offset dari kolom pemilik |
+|---|---|
+| Paman/Bibi | 180 px ke samping |
+| Saudara | 180 px ke samping |
+| Ayah↔Ibu (saat Ortu dibuka) | ±65 px |
+
+Tapi jarak pasangan dikunci konstan: `spreadX(1 + spouseCount, 160, 0)` → suami dan istri hanya **160 px** terpisah. Karena 180 > 160, cabang satu pihak otomatis masuk ke wilayah pihak lain. Ini bukan kasus tepi — ia **selalu** terjadi begitu kedua pihak punya silsilah.
+
+Terbukti secara numerik pada geometri lama (gap 160), tepat tiga tabrakan:
+
+```
+OVERLAP selfAyah      x spPamanAyah   dist 45.0  need 70
+OVERLAP selfIbu       x spAyah        dist 30.0  need 74
+OVERLAP spIbu         x selfPamanIbu  dist 45.0  need 70
+```
+
+Persis dua gejala yang dilaporkan: paman/bibi menimpa ortu pihak lain, dan Ayah pihak satu menimpa Ibu pihak lain.
+
+### Solusi — Jarak Pasangan Dihitung, Bukan Dikunci
+
+Ganti gap konstan dengan pengukuran **envelope horizontal** tiap pihak, lalu tempatkan kolom agar envelope tidak pernah bersentuhan.
+
+`envelopeOf(person)` menghitung jangkauan kiri dan kanan seseorang dari cabang yang benar-benar dimilikinya:
+
+- Lebar Ayah/Ibu **selalu dicadangkan** meski Ortu masih tertutup — membuka Ortu jadi tidak memakan ruang tambahan, sehingga tree tidak bergeser atau tabrakan saat diklik.
+- Saudara: `self` mengarah kiri, pasangan mengarah kanan (menjauhi tengah).
+- Paman/Bibi ayah ke kiri, ibu ke kanan.
+- Semua digerbangi `parentCount > 0`, sama seperti kondisi render aslinya, supaya tidak mencadangkan ruang untuk cabang yang tidak ada.
+
+Penempatan lalu berurutan:
+
+```
+gap = max(MIN_COUPLE_GAP, envelope[i-1].right + COUPLE_CLEARANCE + envelope[i].left)
+```
+
+Hasilnya diketengahkan pada x = 0 termasuk envelope-nya, jadi kanvas tetap seimbang.
+
+### Konstanta Dijadikan Satu Sumber
+
+`UNCLE_OFFSET`, `SIB_OFFSET`, `PARENT_SPACING`, `COUPLE_CLEARANCE`, `MIN_COUPLE_GAP`, dan `radiusOf()` dipindah ke level modul. Sebelumnya nilai 180 dan 130 ditulis ulang di enam tempat sebagai `const` lokal. **Duplikasi itulah yang membuat bug ini mungkin** — jarak pasangan tidak tahu-menahu soal offset cabang. Sekarang layout dan matematika jarak membaca angka yang sama, jadi tidak bisa lepas sinkron.
+
+Radius diambil dari `STYLE` di `treeStyle.ts`, bukan ditebak, supaya ukuran lingkaran dan perhitungan tabrakan selalu konsisten.
+
+### Hasil
+
+Untuk kasus terberat (kedua pihak punya ortu + saudara + paman/bibi dua sisi), gap pasangan jadi **458 px** dan pemeriksaan seluruh 12 lingkaran cabang melaporkan **nol tumpang tindih**.
+
+Pasangan tanpa silsilah tetap `MIN_COUPLE_GAP` = 160 px seperti sebelumnya — tidak ada regresi untuk tree sederhana.
+
+### Konsekuensi yang Perlu Disadari
+
+Garis pernikahan jadi lebih panjang saat kedua pihak punya silsilah lengkap. Ini **tidak bisa dihindari**: dua kipas cabang selebar 180 px mustahil ditampung di antara dua lingkaran yang hanya 160 px terpisah. Kalau tampilan lebih rapat lebih diutamakan, opsinya adalah mengarahkan **kedua** grup paman/bibi ke sisi luar masing-masing pihak (gap turun ke ~236 px), tapi itu mengorbankan makna "paman dari ayah di kiri ayah, dari ibu di kanan ibu" yang dibangun di `c4da4c4`.
+
+### Belum Diverifikasi
+
+Perubahan sudah lolos `npx tsc --noEmit --incremental false` dan pemeriksaan geometri numerik, tapi **belum dilihat di browser**. Tampilan visual pada data nyata perlu dicek manual.
+
+**Catatan alat:** `npx tsc --noEmit` tanpa `--incremental false` **tidak bisa dipercaya** di repo ini — `tsconfig.json` memakai `"incremental": true`, dan cache `.tsbuildinfo` pernah melaporkan sukses pada kode yang sebenarnya gagal di build produksi.
