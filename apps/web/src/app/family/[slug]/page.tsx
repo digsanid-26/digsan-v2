@@ -528,12 +528,20 @@ export default function PublicFamilyPage() {
     const lOp: number[] = displayLines.map(() => 1);
 
     if (hoverLevel === 'none' || !hoverTarget) {
-      // Everything tagged is hidden
+      // Keep expanded parent tag visible even without hover
+      if (expandedParent) {
+        const ortuNode = displayNodes.find(n => n.id.startsWith(expandedParent + '-parent-'));
+        if (ortuNode?.tag) vTags.add(ortuNode.tag);
+      }
+      // Everything tagged is hidden unless in vTags
       for (const n of displayNodes) {
-        if (n.tag) nOp[n.id] = 0;
+        if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
+        else if (n.tag && vTags.has(n.tag)) nOp[n.id] = 1;
       }
       for (let i = 0; i < displayLines.length; i++) {
-        if (displayLines[i].tag) lOp[i] = 0;
+        const lt = displayLines[i].tag;
+        if (lt && !vTags.has(lt)) lOp[i] = 0;
+        else if (lt && vTags.has(lt)) lOp[i] = 1;
       }
       return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
     }
@@ -666,7 +674,7 @@ export default function PublicFamilyPage() {
     }
 
     return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
-  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expandedGroup]);
+  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expandedGroup, expandedParent]);
 
   const resolve = (id: string, fallback: string) => {
     const m = members[id];
