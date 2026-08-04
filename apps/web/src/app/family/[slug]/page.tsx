@@ -112,7 +112,7 @@ export default function PublicFamilyPage() {
   // hoverTarget: which node is currently hovered
   // hoverLevel: 'none' | 'spouse-level' (parents faint) | 'parent-level' (parents solid + siblings faint)
   // expansionStack: LIFO stack of expanded branches — only the last one can be closed
-  type Expansion = { id: string; tag: string; kind: 'parent' | 'sibling' | 'uncle' };
+  type Expansion = { id: string; tag: string; kind: 'parent' | 'sibling' | 'uncle' | 'grandparent' };
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
   const [hoverLevel, setHoverLevel] = useState<'none' | 'spouse-level' | 'parent-level'>('none');
   const [expansionStack, setExpansionStack] = useState<Expansion[]>([]);
@@ -121,6 +121,7 @@ export default function PublicFamilyPage() {
   const expandedParent = expansionStack.find(e => e.kind === 'parent')?.id ?? null;
   const expandedGroup = expansionStack.find(e => e.kind === 'sibling')?.id ?? null;
   const expandedUncle = expansionStack.find(e => e.kind === 'uncle')?.id ?? null;
+  const expandedGrandparent = expansionStack.find(e => e.kind === 'grandparent')?.id ?? null;
 
   // Determine which "side" a node belongs to: 'self' or 'spouse-N'
   // Only same-side expansions are allowed simultaneously.
@@ -190,6 +191,11 @@ export default function PublicFamilyPage() {
       }
       return;
     }
+    // If there are active expansions on one side, don't change hover when
+    // hovering a node on the other side — prevents hiding active branches
+    if (activeSide && getSide(node.id) !== activeSide) {
+      return;
+    }
     setHoverTarget(node.id);
 
     // Determine hover level based on what node is hovered
@@ -218,7 +224,7 @@ export default function PublicFamilyPage() {
     }
     // Hovering any other node (child, etc.) → reset
     setHoverLevel('none');
-  }, [expansionStack.length]);
+  }, [expansionStack.length, activeSide]);
 
   // ─── Family Node Tree data (L103) ───────────────────────────
   const familyNodeTree = useMemo(() => {
@@ -440,11 +446,12 @@ export default function PublicFamilyPage() {
       // Self's grandparents (tag: 'self-grandparents') — single "Simbah" circle above Ortu
       if (cfg.simbahP > 0 || cfg.simbahM > 0) {
         const simbahY = -420;
+        const simbahTrunkY = -315;
         ns.push({ id: 'self-simbah', name: 'Simbah', role: 'Simbah', x: selfX, y: simbahY, group: 'grandparent', tag: 'self-grandparents' });
-        ls.push({ points: [[selfX, -210], [selfX, simbahY]], tag: 'self-grandparents' });
+        ls.push({ points: [[selfX, -210], [selfX, simbahTrunkY], [selfX, simbahY]], tag: 'self-grandparents' });
       }
 
-      // Self's uncles — split: ayah's siblings LEFT of ayah, ibu's siblings RIGHT of ibu
+      // Self's uncles — attached to Simbah level, like siblings attach to parent level
       const ayahMember = members['parent-0'];
       const ayahUncleOlder = ayahMember?.familyConfig?.olderCount ?? 0;
       const ayahUncleYounger = ayahMember?.familyConfig?.youngerCount ?? 0;
@@ -452,8 +459,9 @@ export default function PublicFamilyPage() {
       const totalAyahUncles = ayahUncleOlder + ayahUncleYounger + ayahUncleLegacy;
       if (totalAyahUncles > 0) {
         const uncleX = selfX - UNCLE_OFFSET;
-        ns.push({ id: 'grp-self-paman-ayah', name: `Paman/Bibi ${totalAyahUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalAyahUncles, tag: 'self-uncles' });
-        ls.push({ points: [[selfX, -210], [uncleX, -210]], tag: 'self-uncles' });
+        const uncleTrunkY = -315;
+        ns.push({ id: 'grp-self-paman-ayah', name: `Paman/Bibi ${totalAyahUncles}`, role: 'group', x: uncleX, y: -420, group: 'uncle', count: totalAyahUncles, tag: 'self-uncles' });
+        ls.push({ points: [[uncleX, -420], [uncleX, uncleTrunkY], [selfX, uncleTrunkY]], tag: 'self-uncles' });
       }
       const ibuMember = members['parent-1'];
       const ibuUncleOlder = ibuMember?.familyConfig?.olderCount ?? 0;
@@ -462,8 +470,9 @@ export default function PublicFamilyPage() {
       const totalIbuUncles = ibuUncleOlder + ibuUncleYounger + ibuUncleLegacy;
       if (totalIbuUncles > 0) {
         const uncleX = selfX + UNCLE_OFFSET;
-        ns.push({ id: 'grp-self-paman-ibu', name: `Paman/Bibi ${totalIbuUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: totalIbuUncles, tag: 'self-uncles' });
-        ls.push({ points: [[selfX, -210], [uncleX, -210]], tag: 'self-uncles' });
+        const uncleTrunkY = -315;
+        ns.push({ id: 'grp-self-paman-ibu', name: `Paman/Bibi ${totalIbuUncles}`, role: 'group', x: uncleX, y: -420, group: 'uncle', count: totalIbuUncles, tag: 'self-uncles' });
+        ls.push({ points: [[uncleX, -420], [uncleX, uncleTrunkY], [selfX, uncleTrunkY]], tag: 'self-uncles' });
       }
     }
 
@@ -497,11 +506,12 @@ export default function PublicFamilyPage() {
         if (cfg.simbahP > 0 || cfg.simbahM > 0) {
           const gpTag = `spouse-${si}-grandparents`;
           const simbahY = -420;
+          const simbahTrunkY = -315;
           ns.push({ id: `spouse-${si}-simbah`, name: 'Simbah', role: 'Simbah', x: sx, y: simbahY, group: 'grandparent', tag: gpTag });
-          ls.push({ points: [[sx, -210], [sx, simbahY]], tag: gpTag });
+          ls.push({ points: [[sx, -210], [sx, simbahTrunkY], [sx, simbahY]], tag: gpTag });
         }
 
-        // Spouse's uncles — split: ayah's siblings LEFT of ayah, ibu's siblings RIGHT of ibu
+        // Spouse's uncles — attached to Simbah level, like siblings attach to parent level
         const spAyahMember = members[`spouse-${si}-parent-0`];
         const spAyahUncleOlder = spAyahMember?.familyConfig?.olderCount ?? 0;
         const spAyahUncleYounger = spAyahMember?.familyConfig?.youngerCount ?? 0;
@@ -510,8 +520,9 @@ export default function PublicFamilyPage() {
         if (spTotalAyahUncles > 0) {
           const uncleTag = `spouse-${si}-uncles`;
           const uncleX = sx - UNCLE_OFFSET;
-          ns.push({ id: `grp-spouse-${si}-paman-ayah`, name: `Paman/Bibi ${spTotalAyahUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalAyahUncles, tag: uncleTag });
-          ls.push({ points: [[sx, -210], [uncleX, -210]], tag: uncleTag });
+          const uncleTrunkY = -315;
+          ns.push({ id: `grp-spouse-${si}-paman-ayah`, name: `Paman/Bibi ${spTotalAyahUncles}`, role: 'group', x: uncleX, y: -420, group: 'uncle', count: spTotalAyahUncles, tag: uncleTag });
+          ls.push({ points: [[uncleX, -420], [uncleX, uncleTrunkY], [sx, uncleTrunkY]], tag: uncleTag });
         }
         const spIbuMember = members[`spouse-${si}-parent-1`];
         const spIbuUncleOlder = spIbuMember?.familyConfig?.olderCount ?? 0;
@@ -521,8 +532,9 @@ export default function PublicFamilyPage() {
         if (spTotalIbuUncles > 0) {
           const uncleTag = `spouse-${si}-uncles`;
           const uncleX = sx + UNCLE_OFFSET;
-          ns.push({ id: `grp-spouse-${si}-paman-ibu`, name: `Paman/Bibi ${spTotalIbuUncles}`, role: 'group', x: uncleX, y: -210, group: 'uncle', count: spTotalIbuUncles, tag: uncleTag });
-          ls.push({ points: [[sx, -210], [uncleX, -210]], tag: uncleTag });
+          const uncleTrunkY = -315;
+          ns.push({ id: `grp-spouse-${si}-paman-ibu`, name: `Paman/Bibi ${spTotalIbuUncles}`, role: 'group', x: uncleX, y: -420, group: 'uncle', count: spTotalIbuUncles, tag: uncleTag });
+          ls.push({ points: [[uncleX, -420], [uncleX, uncleTrunkY], [sx, uncleTrunkY]], tag: uncleTag });
         }
       }
     }
@@ -597,15 +609,46 @@ export default function PublicFamilyPage() {
             tag: uncTag,
           }));
           curNodes = curNodes.filter(n => n.id !== expandedUncle).concat(uncNodes);
-          // Trunk point is the Ortu/self position at y=-210
+          // Trunk point is the Simbah position at y=-420, trunk horizontal at y=-315
           const trunkX = (() => {
-            if (expandedUncle.startsWith('grp-self-')) return nodes.find(n => n.id === 'self-ortu')?.x ?? 0;
+            if (expandedUncle.startsWith('grp-self-')) return nodes.find(n => n.id === 'self-simbah')?.x ?? 0;
             const m = expandedUncle.match(/^grp-spouse-(\d+)-paman/);
-            if (m) return nodes.find(n => n.id === `spouse-${m[1]}-ortu`)?.x ?? 0;
+            if (m) return nodes.find(n => n.id === `spouse-${m[1]}-simbah`)?.x ?? 0;
             return ux;
           })();
           curLines = curLines.filter(l => l.tag !== uncTag).concat(
-            uncXs.map(x => ({ points: [[x, uy], [trunkX, uy]], tag: uncTag }))
+            uncXs.map(x => ({ points: [[x, uy], [x, -315], [trunkX, -315]], tag: uncTag }))
+          );
+        }
+      }
+    }
+
+    // ── Expand Simbah bubble into Simbah Kakung + Simbah Putri ──
+    if (expandedGrandparent) {
+      const gpNode = curNodes.find(n => n.id === expandedGrandparent);
+      if (gpNode) {
+        const gpTag = gpNode.tag;
+        if (gpTag) {
+          const GP_SPACING = 130;
+          const gx = gpNode.x;
+          const gy = gpNode.y; // -420
+          const gpXs = [gx - GP_SPACING / 2, gx + GP_SPACING / 2];
+          const gpNodes: TNode[] = [
+            { id: `${expandedGrandparent}-parent-0`, name: 'Simbah Kakung', role: 'Simbah', x: gpXs[0], y: gy, group: 'grandparent', tag: gpTag },
+            { id: `${expandedGrandparent}-parent-1`, name: 'Simbah Putri', role: 'Simbah', x: gpXs[1], y: gy, group: 'grandparent', tag: gpTag },
+          ];
+          curNodes = curNodes.filter(n => n.id !== expandedGrandparent).concat(gpNodes);
+          // Trunk: vertical from ortu (y=-210) to trunk (y=-315), horizontal between the two grandparents, vertical down to each
+          const trunkX = (() => {
+            if (expandedGrandparent === 'self-simbah') return nodes.find(n => n.id === 'self-ortu')?.x ?? gx;
+            const m = expandedGrandparent.match(/^spouse-(\d+)-simbah$/);
+            if (m) return nodes.find(n => n.id === `spouse-${m[1]}-ortu`)?.x ?? gx;
+            return gx;
+          })();
+          curLines = curLines.filter(l => l.tag !== gpTag).concat(
+            [{ points: [[trunkX, -210], [trunkX, -315]], tag: gpTag }],
+            [{ points: [[gpXs[0], -315], [gpXs[1], -315]], tag: gpTag }],
+            gpXs.map(x => ({ points: [[x, -315], [x, gy]], tag: gpTag })),
           );
         }
       }
@@ -658,7 +701,7 @@ export default function PublicFamilyPage() {
     );
 
     return { displayNodes: newNodes, displayLines: newLines };
-  }, [nodes, lines, expandedGroup, expandedParent, expandedUncle]);
+  }, [nodes, lines, expandedGroup, expandedParent, expandedUncle, expandedGrandparent]);
 
   // Compute visible tags and opacity overrides based on hover state
   const { visibleTags, nodeOpacity, lineOpacity } = useMemo(() => {
@@ -729,10 +772,15 @@ export default function PublicFamilyPage() {
         const gpTag = getGrandparentTag(hoverTarget);
         if (gpTag) {
           activeGpTag = gpTag;
-          if (gpTag === 'self-grandparents') activeParentTag = 'self-parents';
-          else {
+          if (gpTag === 'self-grandparents') {
+            activeParentTag = 'self-parents';
+            activeUncleTag = 'self-uncles';
+          } else {
             const m = gpTag.match(/^spouse-(\d+)-grandparents$/);
-            if (m) activeParentTag = `spouse-${m[1]}-parents`;
+            if (m) {
+              activeParentTag = `spouse-${m[1]}-parents`;
+              activeUncleTag = `spouse-${m[1]}-uncles`;
+            }
           }
         }
         const uncTag = getUncleTag(hoverTarget);
@@ -853,13 +901,20 @@ export default function PublicFamilyPage() {
       const uncNodes = displayNodes.filter(n => n.id.startsWith('unc-') && n.tag === last.tag);
       if (uncNodes.length > 0) {
         const trunkNode = last.id.startsWith('grp-self-')
-          ? nodes.find(n => n.id === 'self-ortu')
-          : nodes.find(n => n.id === last.id.replace(/^grp-(spouse-\d+)-paman.*$/, 'spouse-$1-ortu'));
+          ? nodes.find(n => n.id === 'self-simbah')
+          : nodes.find(n => n.id === last.id.replace(/^grp-(spouse-\d+)-paman.*$/, 'spouse-$1-simbah'));
         const trunkX = trunkNode?.x ?? 0;
         const outermost = uncNodes.reduce((prev, curr) =>
           Math.abs(curr.x - trunkX) > Math.abs(prev.x - trunkX) ? curr : prev
         );
-        return [{ x: outermost.x, y: -210, tag: last.tag }];
+        return [{ x: outermost.x, y: -315, tag: last.tag }];
+      }
+    }
+
+    if (last.kind === 'grandparent') {
+      const gpNode = nodes.find(n => n.id === last.id);
+      if (gpNode?.tag) {
+        return [{ x: gpNode.x, y: -315, tag: gpNode.tag }];
       }
     }
 
@@ -911,12 +966,29 @@ export default function PublicFamilyPage() {
       setEaOpen(false);
       return;
     }
+    // If a Simbah bubble is expanded and user clicks an individual grandparent circle → open modal
+    if (expandedGrandparent && (node.id.startsWith('self-simbah-parent-') || node.id.match(/^spouse-\d+-simbah-parent-/))) {
+      setSelectedNode(node);
+      setClaimError(null);
+      setEaError('');
+      setEaSuccess('');
+      setEaOpen(false);
+      return;
+    }
     // Ortu bubble click → expand into Ayah + Ibu (push to stack, do NOT toggle)
     if (node.name === 'Ortu' && node.tag) {
       // Block if a different side already has active expansions
       if (activeSide && getSide(node.id) !== activeSide) return;
       setExpansionStack(prev =>
         prev.some(e => e.id === node.id) ? prev : [...prev, { id: node.id, tag: node.tag!, kind: 'parent' as const }]
+      );
+      return;
+    }
+    // Simbah bubble click → expand into Simbah Kakung + Simbah Putri (push to stack)
+    if (node.name === 'Simbah' && node.tag) {
+      if (activeSide && getSide(node.id) !== activeSide) return;
+      setExpansionStack(prev =>
+        prev.some(e => e.id === node.id) ? prev : [...prev, { id: node.id, tag: node.tag!, kind: 'grandparent' as const }]
       );
       return;
     }
