@@ -795,8 +795,8 @@ export default function PublicFamilyPage() {
     // Siblings: when expanded into individual circles, place at outermost junction
     if (expandedGroup) {
       const sibNodes = displayNodes.filter(n => n.id.startsWith('sib-') && n.tag);
-      if (sibNodes.length > 0) {
-        const tag = sibNodes[0].tag;
+      if (sibNodes.length > 0 && sibNodes[0].tag) {
+        const tag: string = sibNodes[0].tag;
         // Find outermost sibling (furthest from trunk)
         const trunkNode = expandedGroup.startsWith('grp-self-')
           ? nodes.find(n => n.id === 'self')
