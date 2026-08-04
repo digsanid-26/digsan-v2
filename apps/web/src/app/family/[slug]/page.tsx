@@ -279,7 +279,7 @@ export default function PublicFamilyPage() {
 
     // Older siblings (left)
     for (let i = 0; i < cfg.olderCount; i++) {
-      const k = ms[`kakak-${i}`];
+      const k = ms[`older-${i}`];
       const sibName = k?.publicName || k?.name || `Kakak ${i + 1}`;
       fnNodes.push({
         id: `fn-kakak-${i}`,
@@ -295,7 +295,7 @@ export default function PublicFamilyPage() {
 
     // Younger siblings (right)
     for (let i = 0; i < cfg.youngerCount; i++) {
-      const a = ms[`adik-${i}`];
+      const a = ms[`younger-${i}`];
       const sibName = a?.publicName || a?.name || `Adik ${i + 1}`;
       fnNodes.push({
         id: `fn-adik-${i}`,
@@ -675,13 +675,17 @@ export default function PublicFamilyPage() {
     const sibXs = isSelfSide
       ? Array.from({ length: count }, (_, i) => cx - i * SIB_SPACING)
       : Array.from({ length: count }, (_, i) => cx + i * SIB_SPACING);
+    // The bubble packs the older siblings first, so label them accordingly.
+    const sibOlderCount = isSelfSide
+      ? (members['self']?.familyConfig?.olderCount ?? config.olderCount)
+      : (members[expandedGroup.replace(/^grp-(spouse-\d+)-saudara$/, '$1')]?.familyConfig?.olderCount ?? 0);
     const sibNodes: TNode[] = sibXs.map((x, i) => ({
       id: `${groupPrefix}-${i}`,
-      name: `Saudara ${i + 1}`,
-      role: 'Saudara',
+      name: i < sibOlderCount ? `Kakak ${i + 1}` : `Adik ${i - sibOlderCount + 1}`,
+      role: i < sibOlderCount ? 'Saudara Tua' : 'Saudara Muda',
       x,
       y,
-      group: 'kakak',
+      group: i < sibOlderCount ? 'kakak' : 'adik',
       tag,
     }));
 
@@ -701,7 +705,7 @@ export default function PublicFamilyPage() {
     );
 
     return { displayNodes: newNodes, displayLines: newLines };
-  }, [nodes, lines, expandedGroup, expandedParent, expandedUncle, expandedGrandparent]);
+  }, [nodes, lines, expandedGroup, expandedParent, expandedUncle, expandedGrandparent, members, config.olderCount]);
 
   // Compute visible tags and opacity overrides based on hover state
   const { visibleTags, nodeOpacity, lineOpacity } = useMemo(() => {
@@ -930,8 +934,62 @@ export default function PublicFamilyPage() {
     });
   }, []);
 
+  // Rendered circles use layout-specific ids ("self-ortu-parent-0",
+  // "sib-self-saudara-2", "unc-self-paman-ayah-1"), but the member records saved
+  // by the tree editor are keyed by the canonical node ids ("parent-0",
+  // "older-2", "unclePo-1"). Without this translation every expanded circle
+  // falls back to its generic label and shows no photo.
+  const memberKeyFor = (id: string): string => {
+    // Parents — Ayah = parent-0, Ibu = parent-1
+    let m = id.match(/^self-ortu-parent-(\d+)$/);
+    if (m) return `parent-${m[1]}`;
+    m = id.match(/^spouse-(\d+)-ortu-parent-(\d+)$/);
+    if (m) return `spouse-${m[1]}-parent-${m[2]}`;
+
+    // Grandparents — the Simbah bubble expands to whichever side exists
+    const gpSide = config.simbahP > 0 ? 'P' : 'M';
+    m = id.match(/^self-simbah-parent-(\d+)$/);
+    if (m) return `gp${gpSide}-${m[1]}`;
+    m = id.match(/^spouse-(\d+)-simbah-parent-(\d+)$/);
+    if (m) return `spouse-${m[1]}-gp${gpSide}-${m[2]}`;
+
+    // Siblings — the bubble packs the older ones first, then the younger ones
+    m = id.match(/^sib-self-saudara-(\d+)$/);
+    if (m) {
+      const i = Number(m[1]);
+      const older = members['self']?.familyConfig?.olderCount ?? config.olderCount;
+      return i < older ? `older-${i}` : `younger-${i - older}`;
+    }
+    m = id.match(/^sib-spouse-(\d+)-saudara-(\d+)$/);
+    if (m) {
+      const si = m[1];
+      const i = Number(m[2]);
+      const older = members[`spouse-${si}`]?.familyConfig?.olderCount ?? 0;
+      return i < older ? `spouse-${si}-older-${i}` : `spouse-${si}-younger-${i - older}`;
+    }
+
+    // Uncles/aunts — ayah's siblings are paternal (P), ibu's are maternal (M)
+    m = id.match(/^unc-self-paman-(ayah|ibu)-(\d+)$/);
+    if (m) {
+      const side = m[1] === 'ayah' ? 'P' : 'M';
+      const i = Number(m[2]);
+      const older = members[m[1] === 'ayah' ? 'parent-0' : 'parent-1']?.familyConfig?.olderCount ?? 0;
+      return i < older ? `uncle${side}o-${i}` : `uncle${side}y-${i - older}`;
+    }
+    m = id.match(/^unc-spouse-(\d+)-paman-(ayah|ibu)-(\d+)$/);
+    if (m) {
+      const si = m[1];
+      const side = m[2] === 'ayah' ? 'P' : 'M';
+      const i = Number(m[3]);
+      const older = members[`spouse-${si}-parent-${m[2] === 'ayah' ? 0 : 1}`]?.familyConfig?.olderCount ?? 0;
+      return i < older ? `spouse-${si}-uncle${side}o-${i}` : `spouse-${si}-uncle${side}y-${i - older}`;
+    }
+
+    return id;
+  };
+
   const resolve = (id: string, fallback: string) => {
-    const m = members[id];
+    const m = members[memberKeyFor(id)];
     const rawName = id === 'self' ? (m?.name || data?.owner?.name || 'Anda') : (m?.name || fallback);
     const name = m?.publicName || rawName;
     const photo = id === 'self' ? (m?.photo || data?.owner?.avatar || null) : (m?.photo || null);
@@ -1068,7 +1126,7 @@ export default function PublicFamilyPage() {
   };
 
   // Resolve member info for the selected node
-  const selectedMember = selectedNode ? members[selectedNode.id] : null;
+  const selectedMember = selectedNode ? members[memberKeyFor(selectedNode.id)] : null;
   const selectedResolved = selectedNode ? resolve(selectedNode.id, selectedNode.name) : null;
   const isVerifiedNode = selectedNode && selectedNode.id !== 'self' && (selectedMember?.verified || selectedMember?.linkedUserId);
   const isSelfNode = selectedNode?.id === 'self';
