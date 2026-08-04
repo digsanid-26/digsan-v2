@@ -53,6 +53,15 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 ### Darkmode Improvement
 - [ ] Masih ditemukan bug di dark mode: Pilih pekerjaan di Sidebar Edit Profil Detil
 
+### Header app.digsan.id
+- [ ] Tambahkan Block App version diikuti tombol Beta (background orange tua teks putih) di sebelah kiri Bell notifikasi. Bila tombol diklik akan memunculkan modal berisi heading App Version : Beta dengan diikuti deskripsi : Aplikasi ini masih dalam tahap beta dan dalam proses penyempurnaan fitur utama Tree. Ada saran atau menemukan bug/error, silahkan isikan di form berikut ini: Field Select Saran/Masukan | Bug/Error | Pertanyaan, field wysiwyg dan tombol Kirim. Pesan akan dikirim ke email admin.
+
+### Page app.digsan.id Improvement
+- [ ] Bagi page menjadi 3 kolom seperti page app.digsan.id/dashboard. 
+- [ ] Kolom pertama dengan Heading App Status diikuti tampilan tree yang ada sekarang di dalam kotak berborder mengelilinginya dan label TREE dengan tulisan Active ( background hijau dengan dot indikator hijau menyala dan tulisan Active berwarna putih);
+- [ ] Kolom kedua dengan Heading How To yang diikuti penjelasan judul dan sebuah player Youtube di bawahnya. List artikel berisi berbagai panduan yang mengarah ke halaman artikel tertentu di bawahnya, lalu diakhiri sebuah block CTA : Butuh bantuan? dan tombol Konsultasikan yang mengarah ke halaman Kontak Kami;
+- [ ] Kolom ketiga adalah History yang berisi rekam jejak aktivitas user terkait, dalam hal ini baru yang berkaitan dengan update tree keluarganya serta perolehan poin (gamification) yang didapatkannya (real, bukan dummy)
+
 ## Share, Like, Reaction, Comment System
 
 ## User Post System

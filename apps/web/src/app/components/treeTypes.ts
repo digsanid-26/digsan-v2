@@ -4,7 +4,7 @@ export type Group =
   | 'self' | 'spouse' | 'parent' | 'grandparent' | 'ancestor'
   | 'kakak' | 'adik' | 'child' | 'uncle';
 
-export interface TNode { id: string; name: string; role: string; x: number; y: number; group: Group; count?: number; tag?: string; }
+export interface TNode { id: string; name: string; role: string; x: number; y: number; group: Group; count?: number; tag?: string; expandable?: boolean; }
 export type Poly = { points: number[][]; marriage?: boolean; tag?: string };
 
 export interface TreeConfig {
