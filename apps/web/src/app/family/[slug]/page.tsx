@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -116,8 +116,6 @@ export default function PublicFamilyPage() {
   const [hoverLevel, setHoverLevel] = useState<'none' | 'spouse-level' | 'parent-level'>('none');
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [expandedParent, setExpandedParent] = useState<string | null>(null);
-  const [closedTags, setClosedTags] = useState<Set<string>>(new Set());
-  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Determine which parent tag a node id belongs to
   const getParentTag = (id: string): string | null => {
@@ -170,22 +168,12 @@ export default function PublicFamilyPage() {
   };
 
   const onNodeHover = useCallback((node: TNode | null) => {
-    if (fadeTimerRef.current) {
-      clearTimeout(fadeTimerRef.current);
-      fadeTimerRef.current = null;
-    }
     if (!node) {
-      // Start 2s fade timer
-      fadeTimerRef.current = setTimeout(() => {
-        setHoverTarget(null);
-        setHoverLevel('none');
-        setClosedTags(new Set());
-        fadeTimerRef.current = null;
-      }, 2000);
+      setHoverTarget(null);
+      setHoverLevel('none');
       return;
     }
     setHoverTarget(node.id);
-    setClosedTags(new Set());
 
     // Determine hover level based on what node is hovered
     const parentsTag = getParentsTagForNode(node.id);
@@ -759,15 +747,6 @@ export default function PublicFamilyPage() {
       }
     }
 
-    // Hide explicitly closed tags
-    for (const n of displayNodes) {
-      if (n.tag && closedTags.has(n.tag)) nOp[n.id] = 0;
-    }
-    for (let i = 0; i < displayLines.length; i++) {
-      const lt = displayLines[i].tag;
-      if (lt && closedTags.has(lt)) lOp[i] = 0;
-    }
-
     // All other tagged nodes/lines are hidden
     for (const n of displayNodes) {
       if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
@@ -778,7 +757,7 @@ export default function PublicFamilyPage() {
     }
 
     return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
-  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expandedGroup, expandedParent, closedTags]);
+  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expandedGroup, expandedParent]);
 
   // ─── Compute close button positions for expanded branches ───
   const closeButtons = useMemo(() => {
@@ -809,33 +788,18 @@ export default function PublicFamilyPage() {
       }
     }
 
-    // Uncles: when visible (not closed), place at midpoint of uncle horizontal line
-    const uncleTagsSeen = new Set<string>();
-    for (const line of displayLines) {
-      if (line.tag?.endsWith('-uncles') && !closedTags.has(line.tag) && visibleTags.has(line.tag) && !uncleTagsSeen.has(line.tag)) {
-        const [p0, p1] = line.points;
-        if (p0 && p1) {
-          const midX = (p0[0] + p1[0]) / 2;
-          const midY = (p0[1] + p1[1]) / 2;
-          buttons.push({ x: midX, y: midY, tag: line.tag });
-          uncleTagsSeen.add(line.tag);
-        }
-      }
-    }
-
     return buttons;
-  }, [expandedParent, expandedGroup, displayNodes, displayLines, closedTags, visibleTags, nodes]);
+  }, [expandedParent, expandedGroup, displayNodes, nodes]);
 
   const onCloseBranch = useCallback((tag: string) => {
     if (tag.endsWith('-parents')) {
-      // Collapse expanded Ortu back to bubble
       setExpandedParent(null);
+      setHoverTarget(null);
+      setHoverLevel('none');
     } else if (tag.endsWith('-siblings')) {
-      // Collapse expanded sibling group back to bubble
       setExpandedGroup(null);
-    } else if (tag.endsWith('-uncles')) {
-      // Hide uncle branch by adding to closedTags
-      setClosedTags(prev => { const next = new Set(prev); next.add(tag); return next; });
+      setHoverTarget(null);
+      setHoverLevel('none');
     }
   }, []);
 
@@ -848,14 +812,6 @@ export default function PublicFamilyPage() {
   };
 
   const onNodeClick = (node: TNode) => {
-    // Start fade timer on any node click (hover reveal fades after 2s)
-    if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
-    fadeTimerRef.current = setTimeout(() => {
-      setHoverTarget(null);
-      setHoverLevel('none');
-      setClosedTags(new Set());
-      fadeTimerRef.current = null;
-    }, 2000);
     // If a sibling group is expanded and user clicks an individual sibling circle → open modal
     if (expandedGroup && (node.id.startsWith('sib-') || node.id.startsWith('sib-spouse-'))) {
       setSelectedNode(node);
@@ -1152,13 +1108,8 @@ export default function PublicFamilyPage() {
                   closeButtons={closeButtons}
                   onCloseBranch={onCloseBranch}
                   onBackgroundClick={() => {
-                    if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
-                    fadeTimerRef.current = setTimeout(() => {
-                      setHoverTarget(null);
-                      setHoverLevel('none');
-                      setClosedTags(new Set());
-                      fadeTimerRef.current = null;
-                    }, 2000);
+                    setHoverTarget(null);
+                    setHoverLevel('none');
                   }}
                 />
               ) : (

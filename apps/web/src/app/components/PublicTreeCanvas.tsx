@@ -382,8 +382,8 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
               onCloseBranch?.(btn.tag);
             }}
           >
-            <circle r={12} fill="#ef4444" stroke="#fff" strokeWidth={2} />
-            <path d="M-5,-5 L5,5 M5,-5 L-5,5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" />
+            <circle r={8} fill="#ef4444" stroke="#fff" strokeWidth={1} style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.4))' }} />
+            <path d="M-3.5,-3.5 L3.5,3.5 M3.5,-3.5 L-3.5,3.5" stroke="#fff" strokeWidth={1.5} strokeLinecap="round" />
           </g>
         ))}
       </svg>
