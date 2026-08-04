@@ -116,6 +116,7 @@ export default function PublicFamilyPage() {
   const [hoverLevel, setHoverLevel] = useState<'none' | 'spouse-level' | 'parent-level'>('none');
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [expandedParent, setExpandedParent] = useState<string | null>(null);
+  const [closedTags, setClosedTags] = useState<Set<string>>(new Set());
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Determine which parent tag a node id belongs to
@@ -178,11 +179,13 @@ export default function PublicFamilyPage() {
       fadeTimerRef.current = setTimeout(() => {
         setHoverTarget(null);
         setHoverLevel('none');
+        setClosedTags(new Set());
         fadeTimerRef.current = null;
       }, 2000);
       return;
     }
     setHoverTarget(node.id);
+    setClosedTags(new Set());
 
     // Determine hover level based on what node is hovered
     const parentsTag = getParentsTagForNode(node.id);
@@ -756,6 +759,15 @@ export default function PublicFamilyPage() {
       }
     }
 
+    // Hide explicitly closed tags
+    for (const n of displayNodes) {
+      if (n.tag && closedTags.has(n.tag)) nOp[n.id] = 0;
+    }
+    for (let i = 0; i < displayLines.length; i++) {
+      const lt = displayLines[i].tag;
+      if (lt && closedTags.has(lt)) lOp[i] = 0;
+    }
+
     // All other tagged nodes/lines are hidden
     for (const n of displayNodes) {
       if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
@@ -766,7 +778,66 @@ export default function PublicFamilyPage() {
     }
 
     return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
-  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expandedGroup, expandedParent]);
+  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expandedGroup, expandedParent, closedTags]);
+
+  // ─── Compute close button positions for expanded branches ───
+  const closeButtons = useMemo(() => {
+    const buttons: { x: number; y: number; tag: string }[] = [];
+
+    // Parents: when expanded into Ayah/Ibu, place at trunk junction (midpoint, y=-105)
+    if (expandedParent) {
+      const ortuNode = nodes.find(n => n.id === expandedParent);
+      if (ortuNode?.tag) {
+        buttons.push({ x: ortuNode.x, y: -105, tag: ortuNode.tag });
+      }
+    }
+
+    // Siblings: when expanded into individual circles, place at outermost junction
+    if (expandedGroup) {
+      const sibNodes = displayNodes.filter(n => n.id.startsWith('sib-') && n.tag);
+      if (sibNodes.length > 0) {
+        const tag = sibNodes[0].tag;
+        // Find outermost sibling (furthest from trunk)
+        const trunkNode = expandedGroup.startsWith('grp-self-')
+          ? nodes.find(n => n.id === 'self')
+          : nodes.find(n => n.id === expandedGroup.replace(/^grp-(spouse-\d+)-saudara$/, '$1'));
+        const trunkX = trunkNode?.x ?? 0;
+        const outermost = sibNodes.reduce((prev, curr) =>
+          Math.abs(curr.x - trunkX) > Math.abs(prev.x - trunkX) ? curr : prev
+        );
+        buttons.push({ x: outermost.x, y: -105, tag });
+      }
+    }
+
+    // Uncles: when visible (not closed), place at midpoint of uncle horizontal line
+    const uncleTagsSeen = new Set<string>();
+    for (const line of displayLines) {
+      if (line.tag?.endsWith('-uncles') && !closedTags.has(line.tag) && visibleTags.has(line.tag) && !uncleTagsSeen.has(line.tag)) {
+        const [p0, p1] = line.points;
+        if (p0 && p1) {
+          const midX = (p0[0] + p1[0]) / 2;
+          const midY = (p0[1] + p1[1]) / 2;
+          buttons.push({ x: midX, y: midY, tag: line.tag });
+          uncleTagsSeen.add(line.tag);
+        }
+      }
+    }
+
+    return buttons;
+  }, [expandedParent, expandedGroup, displayNodes, displayLines, closedTags, visibleTags, nodes]);
+
+  const onCloseBranch = useCallback((tag: string) => {
+    if (tag.endsWith('-parents')) {
+      // Collapse expanded Ortu back to bubble
+      setExpandedParent(null);
+    } else if (tag.endsWith('-siblings')) {
+      // Collapse expanded sibling group back to bubble
+      setExpandedGroup(null);
+    } else if (tag.endsWith('-uncles')) {
+      // Hide uncle branch by adding to closedTags
+      setClosedTags(prev => { const next = new Set(prev); next.add(tag); return next; });
+    }
+  }, []);
 
   const resolve = (id: string, fallback: string) => {
     const m = members[id];
@@ -782,6 +853,7 @@ export default function PublicFamilyPage() {
     fadeTimerRef.current = setTimeout(() => {
       setHoverTarget(null);
       setHoverLevel('none');
+      setClosedTags(new Set());
       fadeTimerRef.current = null;
     }, 2000);
     // If a sibling group is expanded and user clicks an individual sibling circle → open modal
@@ -1077,11 +1149,14 @@ export default function PublicFamilyPage() {
                   nodeOpacity={nodeOpacity}
                   lineOpacity={lineOpacity}
                   hoveredNodeId={hoverTarget}
+                  closeButtons={closeButtons}
+                  onCloseBranch={onCloseBranch}
                   onBackgroundClick={() => {
                     if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
                     fadeTimerRef.current = setTimeout(() => {
                       setHoverTarget(null);
                       setHoverLevel('none');
+                      setClosedTags(new Set());
                       fadeTimerRef.current = null;
                     }, 2000);
                   }}

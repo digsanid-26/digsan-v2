@@ -46,6 +46,10 @@ interface Props {
   onBackgroundClick?: () => void;
   /** Node id currently hovered (for showing expand overlay). */
   hoveredNodeId?: string | null;
+  /** Close buttons to render at line junctions for expanded branches. */
+  closeButtons?: { x: number; y: number; tag: string }[];
+  /** Called when a close button is clicked. */
+  onCloseBranch?: (tag: string) => void;
 }
 
 const PAD = 80; // padding around the tree bounding box (tree coords)
@@ -54,7 +58,7 @@ const MAX_SCALE = 4;
 const INITIAL_SCALE = 1.5;
 
 /** Pannable, zoomable renderer for a family graph, focused on a given node. */
-export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className, visibleTags, onNodeHover, nodeOpacity, lineOpacity, anchorOnClick = true, onBackgroundClick, hoveredNodeId }: Props) {
+export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, onUnclaimedClick, onGroupClick, highlightId, focusId, className, visibleTags, onNodeHover, nodeOpacity, lineOpacity, anchorOnClick = true, onBackgroundClick, hoveredNodeId, closeButtons, onCloseBranch }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
   const movedRef = useRef(false);
@@ -365,6 +369,23 @@ export default function PublicTreeCanvas({ nodes, lines, resolve, onNodeClick, o
             </g>
           );
         })}
+
+        {/* Close buttons for expanded branches */}
+        {closeButtons?.map((btn) => (
+          <g
+            key={`close-${btn.tag}`}
+            transform={`translate(${btn.x}, ${btn.y})`}
+            style={{ cursor: 'pointer' }}
+            pointerEvents="all"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCloseBranch?.(btn.tag);
+            }}
+          >
+            <circle r={12} fill="#ef4444" stroke="#fff" strokeWidth={2} />
+            <path d="M-5,-5 L5,5 M5,-5 L-5,5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" />
+          </g>
+        ))}
       </svg>
 
       {/* Zoom controls */}
