@@ -1190,6 +1190,72 @@ export class TreeService {
   }
 
   /**
+   * Ancestry node ids that belong to a person's OWN tree and are therefore safe
+   * to project onto the shared page under a namespaced id.
+   *
+   * Deliberately excludes `self`, `spouse-*` and `child-*`: those describe the
+   * shared household itself (a wife's `spouse-0` IS the husband), so copying
+   * them across would duplicate or overwrite the couple's own circles.
+   */
+  private static readonly ANCESTRY_KEY_RE =
+    /^(parent|older|younger|gpP|gpM|unclePo|unclePy|uncleMo|uncleMy|ancP|ancM)-\d+$/;
+
+  /** Fields worth carrying across trees for display on the public page. */
+  private static readonly PROJECTED_MEMBER_FIELDS = [
+    'name',
+    'publicName',
+    'statusLabel',
+    'gender',
+    'alive',
+    'photo',
+    'verified',
+    'username',
+    'linkedUserId',
+    'familyConfig',
+  ] as const;
+
+  /**
+   * Copy a linked person's own ancestry records onto the shared layout using
+   * namespaced ids (`older-0` in the wife's tree becomes `spouse-0-older-0` on
+   * the husband's public page), which is what the public renderer looks up.
+   *
+   * Records already present on the shared layout win field-by-field, so a name
+   * typed directly on the family page is never clobbered by hydration.
+   */
+  private projectAncestryRecords(
+    out: Record<string, any>,
+    nodeId: string,
+    ownLayout: Record<string, any>,
+  ): number {
+    let projected = 0;
+
+    for (const [ownKey, ownMember] of Object.entries(ownLayout)) {
+      if (!TreeService.ANCESTRY_KEY_RE.test(ownKey)) continue;
+      if (!ownMember || typeof ownMember !== 'object') continue;
+
+      const targetKey = `${nodeId}-${ownKey}`;
+      const incoming: Record<string, any> = {};
+      for (const field of TreeService.PROJECTED_MEMBER_FIELDS) {
+        const v = (ownMember as Record<string, any>)[field];
+        if (v !== undefined && v !== null && v !== '') incoming[field] = v;
+      }
+      if (Object.keys(incoming).length === 0) continue;
+
+      // Existing values on the shared page take precedence.
+      const existing = (out[targetKey] as Record<string, any>) ?? {};
+      const merged: Record<string, any> = { ...incoming };
+      for (const [k, v] of Object.entries(existing)) {
+        if (v !== undefined && v !== null && v !== '') merged[k] = v;
+      }
+
+      out[targetKey] = merged;
+      projected += 1;
+    }
+
+    return projected;
+  }
+
+  /**
    * Cross-tree hydration.
    *
    * A person's ancestry (parents, siblings, grandparents) is the source of
@@ -1220,29 +1286,42 @@ export class TreeService {
     const trees = await this.prisma.familyTree
       .findMany({
         where: { userId: { in: [...nodesByUser.keys()] }, id: { not: anchorTreeId } },
-        select: { userId: true, layoutConfig: true },
+        select: { userId: true, layoutConfig: true, layoutMembers: true },
         orderBy: { createdAt: 'asc' },
       })
       .catch((err) => {
         this.logger.error(`Cross-tree hydration failed: ${err}`);
-        return [] as { userId: string; layoutConfig: any }[];
+        return [] as { userId: string; layoutConfig: any; layoutMembers: any }[];
       });
 
     // First tree per user wins (their oldest / primary tree).
     const configByUser = new Map<string, any>();
+    const membersByUser = new Map<string, any>();
     for (const t of trees) {
       if (!configByUser.has(t.userId)) configByUser.set(t.userId, t.layoutConfig ?? {});
+      if (!membersByUser.has(t.userId)) membersByUser.set(t.userId, t.layoutMembers ?? {});
     }
 
     const out: Record<string, any> = { ...layout };
     for (const [uid, nodeIds] of nodesByUser) {
       const derived = this.projectFamilyConfig(configByUser.get(uid) ?? {});
-      if (!derived) continue;
+      const ownLayout = (membersByUser.get(uid) as Record<string, any>) ?? {};
+
       for (const nodeId of nodeIds) {
-        out[nodeId] = {
-          ...out[nodeId],
-          familyConfig: { ...(out[nodeId]?.familyConfig ?? {}), ...derived },
-        };
+        if (derived) {
+          out[nodeId] = {
+            ...out[nodeId],
+            familyConfig: { ...(out[nodeId]?.familyConfig ?? {}), ...derived },
+          };
+        }
+
+        // Counts alone only draw empty bubbles with generic labels ("Kakak 1").
+        // Project the person's real ancestry records so their parents, siblings
+        // and grandparents show their actual names on the shared public page.
+        const count = this.projectAncestryRecords(out, nodeId, ownLayout);
+        if (count > 0) {
+          this.logger.debug(`Hydrated ${count} ancestry records for node "${nodeId}" from user ${uid}`);
+        }
       }
     }
     return out;
