@@ -435,24 +435,56 @@ export default function TreeExplorer() {
     const { config: cfg, members: mem, changedIds } = payload;
 
     if (isSliceMember && mem && changedIds?.length) {
+      // Only send nodes that exist in the shared Family Node tree to the slice
+      // endpoint. Personal-tree-only nodes (siblings, parents, grandparents)
+      // would collide with the head's same-named IDs and corrupt their data.
+      // Remap: personal 'self' → anchor nodeId in shared tree; child-* and
+      // their explicit descendants keep the same ID.
+      const anchorId = familyNode!.nodeId;
+      const sharedIds = new Set<string>(['self']);
+      // Grow shared set with descendants of self/child-* from the members map
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const [id, m] of Object.entries(mem)) {
+          if (sharedIds.has(id)) continue;
+          const pid = (m as any)?.parentId;
+          if (pid && sharedIds.has(pid)) {
+            sharedIds.add(id);
+            grew = true;
+          }
+          // Also include child-* (config-driven children, parentId='self')
+          if (id.startsWith('child-') && !sharedIds.has(id)) {
+            sharedIds.add(id);
+            grew = true;
+          }
+        }
+      }
       const patch: Record<string, unknown> = {};
       for (const id of changedIds) {
-        if (mem[id] !== undefined) patch[id] = mem[id];
+        if (mem[id] === undefined) continue;
+        if (!sharedIds.has(id)) continue; // personal-tree-only — skip slice
+        const sharedId = id === 'self' ? anchorId : id;
+        patch[sharedId] = mem[id];
       }
-      treeApi.saveFamilyNodeSlice<Members>(patch)
-        .then((res) => {
-          setSaveError(null);
-          setIdentity((prev) => ({ ...prev, slug: res.slug ?? prev.slug }));
-        })
-        .catch((e: Error & { status?: number }) => {
-          setSaveError(e?.status === 403
-            ? e.message
-            : 'Gagal menyimpan ke Family Node bersama. Perubahan tersimpan lokal.');
-        });
-      if (!cfg) return;
+      if (Object.keys(patch).length > 0) {
+        treeApi.saveFamilyNodeSlice<Members>(patch)
+          .then((res) => {
+            setSaveError(null);
+            setIdentity((prev) => ({ ...prev, slug: res.slug ?? prev.slug }));
+          })
+          .catch((e: Error & { status?: number }) => {
+            setSaveError(e?.status === 403
+              ? e.message
+              : 'Gagal menyimpan ke Family Node bersama. Perubahan tersimpan lokal.');
+          });
+      }
     }
 
-    treeApi.saveLayout({ config: cfg, members: isSliceMember && changedIds?.length ? undefined : mem })
+    // Always save members to the personal tree — the user owns their own tree
+    // regardless of Family Node membership. This was previously skipped for
+    // slice members, causing personal edits (e.g. siblings) to never persist.
+    treeApi.saveLayout({ config: cfg, members: mem })
       // The server generates/returns the family slug + owner username here, so
       // refresh identity to activate the public link without needing a reload.
       .then((res) => setIdentity({ treeId: res.treeId, slug: res.slug, username: res.owner?.username ?? null }))
