@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useApi } from '@/lib/hooks';
-import { getTokens } from '@/lib/auth';
+import { treeApi } from '@/lib/tree';
 import { useAuth } from '@/components/providers/auth-provider';
 import { TreePine, Search, ChevronLeft, ChevronRight, Link2, ExternalLink, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -35,17 +35,15 @@ export default function AdminTreesPage() {
     setRecovering(true);
     setRecoverMsg('');
     try {
-      const tokens = getTokens();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/trees/recover-slugs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokens?.accessToken}` },
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.message || 'Gagal recover slug');
+      const body = await treeApi.recoverSlugs();
       setRecoverMsg(`Berhasil recover ${body.recovered} slug`);
       refetch();
     } catch (e: any) {
-      setRecoverMsg(e.message || 'Gagal recover slug');
+      setRecoverMsg(
+        e?.status === 401
+          ? 'Sesi Anda sudah berakhir. Silakan login ulang.'
+          : e.message || 'Gagal recover slug',
+      );
     } finally {
       setRecovering(false);
     }

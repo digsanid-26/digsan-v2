@@ -192,6 +192,12 @@ export const treeApi = {
       method: 'POST',
     }),
 
+  /** Admin: re-mint slugs for trees whose slug was wiped. */
+  recoverSlugs: () =>
+    authRequest<{ recovered: number; details: { treeId: string; slug: string }[] }>('/trees/recover-slugs', {
+      method: 'POST',
+    }),
+
   /** Write back only the caller's own slice of the shared Family Node layout. */
   saveFamilyNodeSlice: <M = unknown>(members: Record<string, unknown>) =>
     authRequest<{ treeId: string; slug: string | null; nodeId: string; isHead: boolean; members: M }>('/trees/family-node/slice', {

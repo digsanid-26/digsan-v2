@@ -425,14 +425,51 @@ export class TreeService {
   }
 
   /**
+   * Whether a user is the head of a Family Node that other people belong to.
+   *
+   * Such a user owns a live public family page. They must never be demoted
+   * into somebody else's node, because that retires the slug the whole
+   * household depends on.
+   */
+  private async isFamilyNodeHead(userId: string): Promise<boolean> {
+    const ownedTrees = await this.prisma.familyTree.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    if (ownedTrees.length === 0) return false;
+    const ownedIds = ownedTrees.map((t) => t.id);
+
+    const dependents = await this.prisma.familyNodeMember.count({
+      where: { treeId: { in: ownedIds }, userId: { not: userId } },
+    });
+    return dependents > 0;
+  }
+
+  /**
    * Record that a user belongs to a Family Node, and retire any competing slug
    * on their personal tree so the household keeps exactly one public page.
+   *
+   * A user who already heads a Family Node with other members is left untouched:
+   * pulling them in would wipe the slug their own household publishes on.
    */
   async joinFamilyNode(treeId: string, userId: string, nodeId: string, role = 'member') {
+    // Joining your own anchor tree is a no-op reshuffle; allow it.
+    const ownsTarget = await this.prisma.familyTree.findFirst({
+      where: { id: treeId, userId },
+      select: { id: true },
+    });
+
+    if (!ownsTarget && (await this.isFamilyNodeHead(userId))) {
+      this.logger.warn(
+        `Refusing to join user ${userId} into family node ${treeId}: they already head a family node with members`,
+      );
+      return;
+    }
+
     await this.prisma.familyNodeMember.upsert({
       where: { userId },
-      update: { treeId, nodeId, role },
-      create: { treeId, userId, nodeId, role },
+      update: { treeId, nodeId, role, isHead: !!ownsTarget },
+      create: { treeId, userId, nodeId, role, isHead: !!ownsTarget },
     });
 
     // Retire the joiner's own slug — the anchor tree owns the public page now.
@@ -626,16 +663,42 @@ export class TreeService {
     // anchored on another tree, that anchor's slug is their public page and we
     // must never mint a second one.
     const anchor = await this.getAnchorFor(tree.userId);
-    if (anchor && anchor.treeId !== tree.id && anchor.tree?.slug) {
-      if (slug && slug !== anchor.tree.slug) {
+    const anchoredElsewhere = !!anchor && anchor.treeId !== tree.id && !!anchor.tree?.slug;
+    // A user who heads their own Family Node keeps their own page. Without this
+    // guard a wrongly-recorded anchor would silently retire every slug they try
+    // to set, so the family page could never be recreated.
+    const headsOwnNode = anchoredElsewhere ? await this.isFamilyNodeHead(tree.userId) : false;
+
+    if (anchoredElsewhere && headsOwnNode) {
+      this.logger.warn(
+        `Tree ${tree.id} owner ${tree.userId} heads their own family node but is anchored to ${anchor!.treeId}; dropping the stale anchor`,
+      );
+      await this.prisma.familyNodeMember
+        .deleteMany({ where: { userId: tree.userId, treeId: anchor!.treeId } })
+        .catch((err) => this.logger.error(`Failed to drop stale anchor for ${tree.userId}: ${err}`));
+
+      // The legacy marker points at the other household's page — clear it so a
+      // fresh slug is minted below instead of adopting theirs.
+      if (sharedFamilySlug) {
+        await this.prisma.familyTree
+          .update({
+            where: { id: tree.id },
+            data: { layoutConfig: { ...(tree.layoutConfig ?? {}), sharedFamilySlug: null } as any },
+          })
+          .catch((err) => this.logger.error(`Failed to clear stale sharedFamilySlug on tree ${tree.id}: ${err}`));
+      }
+    }
+
+    if (anchoredElsewhere && !headsOwnNode) {
+      if (slug && slug !== anchor!.tree!.slug) {
         await this.prisma.familyTree
           .update({ where: { id: tree.id }, data: { slug: null } })
           .catch((err) => this.logger.error(`Failed to retire duplicate slug on tree ${tree.id}: ${err}`));
-        this.logger.log(`Retired duplicate slug "${slug}" on tree ${tree.id} (anchored to "${anchor.tree.slug}")`);
+        this.logger.log(`Retired duplicate slug "${slug}" on tree ${tree.id} (anchored to "${anchor!.tree!.slug}")`);
       }
-      slug = anchor.tree.slug;
+      slug = anchor!.tree!.slug;
     } else if (!slug) {
-      if (sharedFamilySlug) {
+      if (sharedFamilySlug && !headsOwnNode) {
         // Legacy path for data created before FamilyNodeMember existed.
         slug = sharedFamilySlug;
       } else {
@@ -686,8 +749,20 @@ export class TreeService {
       // that is exactly how duplicate family pages were created.
       const anchor = await this.getAnchorFor(tree.userId);
       if (anchor && anchor.treeId !== tree.id) {
-        this.logger.log(`Skipping slug recovery for tree ${tree.id} (member of family node ${anchor.treeId})`);
-        continue;
+        // Unless they actually head their own node: an earlier bug could
+        // demote a head into somebody else's node and wipe the slug their
+        // household publishes on. Drop the bad anchor and recover.
+        if (await this.isFamilyNodeHead(tree.userId)) {
+          this.logger.log(
+            `Dropping bad anchor ${anchor.treeId} for head ${tree.userId} and recovering slug for tree ${tree.id}`,
+          );
+          await this.prisma.familyNodeMember
+            .deleteMany({ where: { userId: tree.userId, treeId: anchor.treeId } })
+            .catch((err) => this.logger.error(`Failed to drop bad anchor for ${tree.userId}: ${err}`));
+        } else {
+          this.logger.log(`Skipping slug recovery for tree ${tree.id} (member of family node ${anchor.treeId})`);
+          continue;
+        }
       }
 
       const config = (tree.layoutConfig as any) ?? {};
@@ -825,6 +900,12 @@ export class TreeService {
     }
     for (const linkedUserId of linkedUserIds) {
       try {
+        // Never retire the slug of someone who heads their own Family Node —
+        // that page belongs to their household, not to this one.
+        if (await this.isFamilyNodeHead(linkedUserId)) {
+          this.logger.log(`Skipping slug propagation to ${linkedUserId}: they head their own family node`);
+          continue;
+        }
         const linkedTree = await this.prisma.familyTree.findFirst({ where: { userId: linkedUserId } });
         if (linkedTree && linkedTree.userId === linkedUserId) {
           const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
