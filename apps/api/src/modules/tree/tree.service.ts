@@ -451,10 +451,23 @@ export class TreeService {
 
   /**
    * The set of node ids a member owns inside a shared layout: their own circle
-   * plus everything descending from it. Grown iteratively so arbitrarily deep
-   * descendant chains are covered.
+   * plus everything descending from it. Spouse links are treated as
+   * co-ownership, so a child whose ``parentId`` points to the partner is
+   * included in the other parent's slice as well. Grown iteratively so
+   * arbitrarily deep descendant chains are covered.
    */
   private collectOwnSlice(layout: Record<string, any>, rootNodeId: string): Set<string> {
+    // Build a bidirectional spouse map so we can treat a partner's children
+    // as our own.
+    const spouseOf = new Map<string, string>();
+    for (const [id, m] of Object.entries(layout)) {
+      const sp = m?.spouseId;
+      if (sp && typeof sp === 'string') {
+        spouseOf.set(id, sp);
+        spouseOf.set(sp, id);
+      }
+    }
+
     const own = new Set<string>([rootNodeId]);
     let grew = true;
     while (grew) {
@@ -462,7 +475,7 @@ export class TreeService {
       for (const [id, m] of Object.entries(layout)) {
         if (own.has(id)) continue;
         const parent = m?.parentId;
-        if (parent && own.has(parent)) {
+        if (parent && (own.has(parent) || (spouseOf.has(parent) && own.has(spouseOf.get(parent)!)))) {
           own.add(id);
           grew = true;
         }
@@ -479,7 +492,7 @@ export class TreeService {
    * head keeps ownership of everything else, so a shared page stays coherent
    * while each person remains the author of their own branch.
    */
-  async saveFamilyNodeSlice(userId: string, patch: Record<string, any>) {
+  async saveFamilyNodeSlice(userId: string, patch: Record<string, any>, roles?: string[]) {
     const anchor = await this.getAnchorFor(userId);
     if (!anchor) {
       throw new NotFoundException('Anda belum tergabung dalam Family Node manapun');
@@ -490,7 +503,8 @@ export class TreeService {
 
     const layout = (tree.layoutMembers as Record<string, any>) ?? {};
     const isHead = tree.userId === userId;
-    const allowed = isHead ? null : this.collectOwnSlice(layout, anchor.nodeId);
+    const isSuperUser = roles?.includes('super_user') || roles?.includes('super_admin') || roles?.includes('admin');
+    const allowed = (isHead || isSuperUser) ? null : this.collectOwnSlice(layout, anchor.nodeId);
 
     const rejected = allowed
       ? Object.keys(patch).filter((nodeId) => !allowed.has(nodeId))

@@ -113,7 +113,7 @@ export default function PublicFamilyPage() {
   // hoverTarget: which node is currently hovered
   // hoverLevel: 'none' | 'spouse-level' (parents faint) | 'parent-level' (parents solid + siblings faint)
   // expansionStack: LIFO stack of expanded branches — only the last one can be closed
-  type Expansion = { id: string; tag: string; kind: 'parent' | 'sibling' | 'uncle' | 'grandparent' | 'grandparent-side' };
+  type Expansion = { id: string; tag: string; kind: 'parent' | 'sibling' | 'uncle' | 'grandparent-side' };
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
   const [hoverLevel, setHoverLevel] = useState<'none' | 'spouse-level' | 'parent-level'>('none');
   const [expansionStack, setExpansionStack] = useState<Expansion[]>([]);
@@ -122,7 +122,6 @@ export default function PublicFamilyPage() {
   const expandedParent = expansionStack.find(e => e.kind === 'parent')?.id ?? null;
   const expandedGroup = expansionStack.find(e => e.kind === 'sibling')?.id ?? null;
   const expandedUncle = expansionStack.find(e => e.kind === 'uncle')?.id ?? null;
-  const expandedGrandparent = expansionStack.find(e => e.kind === 'grandparent')?.id ?? null;
   const expandedGrandparentSide = expansionStack.find(e => e.kind === 'grandparent-side')?.id ?? null;
 
   // Determine which "side" a node belongs to: 'self' or 'spouse-N'
@@ -134,6 +133,35 @@ export default function PublicFamilyPage() {
   };
   const activeSide = expansionStack.length > 0 ? getSide(expansionStack[0].id) : null;
 
+  // Track which parent side ('P' = ayah, 'M' = ibu) has active expansions.
+  // Used to block hover/click on the opposite side's Simbah or uncles.
+  const activeParentSide = (() => {
+    for (const exp of expansionStack) {
+      if (exp.kind === 'grandparent-side') {
+        if (exp.id.endsWith('-P')) return 'P' as const;
+        if (exp.id.endsWith('-M')) return 'M' as const;
+      }
+      if (exp.kind === 'uncle') {
+        if (exp.id.includes('-paman-ayah')) return 'P' as const;
+        if (exp.id.includes('-paman-ibu')) return 'M' as const;
+      }
+    }
+    return null;
+  })();
+
+  // Extract the parent side ('P' or 'M') from a Simbah or uncle node ID.
+  const getParentSide = (id: string): 'P' | 'M' | null => {
+    let m = id.match(/^self-simbah-([PM])(?:-parent-\d+)?$/);
+    if (m) return m[1] as 'P' | 'M';
+    m = id.match(/^spouse-\d+-simbah-([PM])(?:-parent-\d+)?$/);
+    if (m) return m[1] as 'P' | 'M';
+    if (/^(?:grp|unc)-self-paman-ayah/.test(id)) return 'P';
+    if (/^(?:grp|unc)-self-paman-ibu/.test(id)) return 'M';
+    m = id.match(/^(?:grp|unc)-spouse-\d+-paman-(ayah|ibu)/);
+    if (m) return m[1] === 'ayah' ? 'P' : 'M';
+    return null;
+  };
+
   // Determine which parent tag a node id belongs to
   const getParentTag = (id: string): string | null => {
     if (id === 'self-ortu' || id.startsWith('self-ortu-parent-')) return 'self-parents';
@@ -144,8 +172,8 @@ export default function PublicFamilyPage() {
 
   // Determine which grandparent tag a node id belongs to
   const getGrandparentTag = (id: string): string | null => {
-    if (/^self-simbah(-[PM])?$/.test(id)) return 'self-grandparents';
-    const m = id.match(/^spouse-(\d+)-simbah(?:-[PM])?$/);
+    if (/^self-simbah-[PM](?:-parent-\d+)?$/.test(id)) return 'self-grandparents';
+    const m = id.match(/^spouse-(\d+)-simbah-[PM](?:-parent-\d+)?$/);
     if (m) return `spouse-${m[1]}-grandparents`;
     return null;
   };
@@ -209,6 +237,12 @@ export default function PublicFamilyPage() {
     if (activeSide && getSide(node.id) !== activeSide) {
       return;
     }
+    // Parent-side isolation: if Ayah's side has active expansions, block
+    // hover on Ibu's Simbah/uncles, and vice versa.
+    const hoveredPs = getParentSide(node.id);
+    if (hoveredPs && activeParentSide && hoveredPs !== activeParentSide) {
+      return;
+    }
     setHoverTarget(node.id);
 
     // Determine hover level based on what node is hovered
@@ -237,7 +271,7 @@ export default function PublicFamilyPage() {
     }
     // Hovering any other node (child, etc.) → reset
     setHoverLevel('none');
-  }, [expansionStack.length, activeSide]);
+  }, [expansionStack.length, activeSide, activeParentSide]);
 
   // ─── Family Node Tree data (L103) ───────────────────────────
   const familyNodeTree = useMemo(() => {
@@ -456,20 +490,24 @@ export default function PublicFamilyPage() {
         ls.push({ points: [[sibX, 0], [sibX, sibTrunkY], [selfX, sibTrunkY]], tag: 'self-siblings' });
       }
 
-      // Self's grandparents (tag: 'self-grandparents') — one "Simbah" bubble
-      // carrying the combined count of both the paternal and maternal lines.
-      const totalSimbah = cfg.simbahP + cfg.simbahM;
-      if (totalSimbah > 0) {
-        const simbahY = -420;
-        ns.push({ id: 'self-simbah', name: `Simbah ${totalSimbah}`, role: 'group', x: selfX, y: simbahY, group: 'grandparent', count: totalSimbah, tag: 'self-grandparents', expandable: true });
-        ls.push({ points: [[selfX, -210], [selfX, simbahY]], tag: 'self-grandparents' });
+      // Self's grandparents — directly rendered as two separate bubbles:
+      // Simbah Ayah above the Ayah column, Simbah Ibu above the Ibu column.
+      // Each has its own vertical line and is independently expandable.
+      const ayahColX = selfX - PARENT_SPACING / 2;
+      const ibuColX = selfX + PARENT_SPACING / 2;
+      const uncleMidY = -315; // midway between the parent row (-210) and Simbah (-420)
+      const simbahY = -420;
+      if (cfg.simbahP > 0) {
+        ns.push({ id: 'self-simbah-P', name: `Simbah Ayah ${cfg.simbahP}`, role: 'group', x: ayahColX, y: simbahY, group: 'grandparent', count: cfg.simbahP, tag: 'self-grandparents', expandable: true });
+        ls.push({ points: [[ayahColX, -210], [ayahColX, simbahY]], tag: 'self-grandparents' });
+      }
+      if (cfg.simbahM > 0) {
+        ns.push({ id: 'self-simbah-M', name: `Simbah Ibu ${cfg.simbahM}`, role: 'group', x: ibuColX, y: simbahY, group: 'grandparent', count: cfg.simbahM, tag: 'self-grandparents', expandable: true });
+        ls.push({ points: [[ibuColX, -210], [ibuColX, simbahY]], tag: 'self-grandparents' });
       }
 
       // Self's uncles — they sit on the SAME row as Ayah/Ibu and branch off the
       // midpoint of that parent's vertical line up to their Simbah.
-      const ayahColX = selfX - PARENT_SPACING / 2;
-      const ibuColX = selfX + PARENT_SPACING / 2;
-      const uncleMidY = -315; // midway between the parent row (-210) and Simbah (-420)
       const ayahMember = members['parent-0'];
       const ayahUncleOlder = ayahMember?.familyConfig?.olderCount ?? 0;
       const ayahUncleYounger = ayahMember?.familyConfig?.youngerCount ?? 0;
@@ -518,20 +556,23 @@ export default function PublicFamilyPage() {
           ls.push({ points: [[sibX, 0], [sibX, sibTrunkY], [sx, sibTrunkY]], tag: sibTag });
         }
 
-        // Spouse's grandparents — one "Simbah" bubble with the combined count
-        const spTotalSimbah = cfg.simbahP + cfg.simbahM;
-        if (spTotalSimbah > 0) {
-          const gpTag = `spouse-${si}-grandparents`;
-          const simbahY = -420;
-          ns.push({ id: `spouse-${si}-simbah`, name: `Simbah ${spTotalSimbah}`, role: 'group', x: sx, y: simbahY, group: 'grandparent', count: spTotalSimbah, tag: gpTag, expandable: true });
-          ls.push({ points: [[sx, -210], [sx, simbahY]], tag: gpTag });
+        // Spouse's grandparents — directly two separate bubbles
+        const spAyahColX = sx - PARENT_SPACING / 2;
+        const spIbuColX = sx + PARENT_SPACING / 2;
+        const spUncleMidY = -315;
+        const spGpTag = `spouse-${si}-grandparents`;
+        const spSimbahY = -420;
+        if (cfg.simbahP > 0) {
+          ns.push({ id: `spouse-${si}-simbah-P`, name: `Simbah Ayah ${cfg.simbahP}`, role: 'group', x: spAyahColX, y: spSimbahY, group: 'grandparent', count: cfg.simbahP, tag: spGpTag, expandable: true });
+          ls.push({ points: [[spAyahColX, -210], [spAyahColX, spSimbahY]], tag: spGpTag });
+        }
+        if (cfg.simbahM > 0) {
+          ns.push({ id: `spouse-${si}-simbah-M`, name: `Simbah Ibu ${cfg.simbahM}`, role: 'group', x: spIbuColX, y: spSimbahY, group: 'grandparent', count: cfg.simbahM, tag: spGpTag, expandable: true });
+          ls.push({ points: [[spIbuColX, -210], [spIbuColX, spSimbahY]], tag: spGpTag });
         }
 
         // Spouse's uncles — same row as their Ayah/Ibu, branching off the
         // midpoint of that parent's vertical line up to their Simbah.
-        const spAyahColX = sx - PARENT_SPACING / 2;
-        const spIbuColX = sx + PARENT_SPACING / 2;
-        const spUncleMidY = -315;
         const spAyahMember = members[`spouse-${si}-parent-0`];
         const spAyahUncleOlder = spAyahMember?.familyConfig?.olderCount ?? 0;
         const spAyahUncleYounger = spAyahMember?.familyConfig?.youngerCount ?? 0;
@@ -645,58 +686,37 @@ export default function PublicFamilyPage() {
       }
     }
 
-    // ── Expand the Simbah bubble into "Simbah Ayah" + "Simbah Ibu" ──
-    // Each side sits directly above its parent's column, so the vertical line
-    // between a parent and their Simbah is exactly where the Paman/Bibi branch
-    // taps off at its midpoint.
-    if (expandedGrandparent) {
-      const gpNode = curNodes.find(n => n.id === expandedGrandparent);
-      if (gpNode?.tag) {
-        const gpTag = gpNode.tag;
-        const gx = gpNode.x;
-        const gy = gpNode.y; // -420
-        const ayahColX = gx - PARENT_SPACING / 2;
-        const ibuColX = gx + PARENT_SPACING / 2;
-        const sideNodes: TNode[] = [];
-        if (config.simbahP > 0) {
-          sideNodes.push({ id: `${expandedGrandparent}-P`, name: `Simbah Ayah ${config.simbahP}`, role: 'group', x: ayahColX, y: gy, group: 'grandparent', count: config.simbahP, tag: gpTag, expandable: true });
-        }
-        if (config.simbahM > 0) {
-          sideNodes.push({ id: `${expandedGrandparent}-M`, name: `Simbah Ibu ${config.simbahM}`, role: 'group', x: ibuColX, y: gy, group: 'grandparent', count: config.simbahM, tag: gpTag, expandable: true });
-        }
-        if (sideNodes.length > 0) {
-          curNodes = curNodes.filter(n => n.id !== expandedGrandparent).concat(sideNodes);
-          curLines = curLines.filter(l => l.tag !== gpTag).concat(
-            sideNodes.map(sn => ({ points: [[sn.x, -210], [sn.x, gy]], tag: gpTag })),
+    // ── Expand a Simbah side bubble into individual Kakung + Putri ──
+    // The Simbah Ayah / Simbah Ibu bubbles are now directly in the layout;
+    // this only handles the click-to-expand-into-individuals step.
+    if (expandedGrandparentSide) {
+      const sideNode = curNodes.find(n => n.id === expandedGrandparentSide);
+      if (sideNode?.tag) {
+        const gpTag = sideNode.tag;
+        const gy = sideNode.y; // -420
+        const cnt = sideNode.count ?? 0;
+        const labels = ['Simbah Kakung', 'Simbah Putri'];
+        const xs = cnt >= 2
+          ? [sideNode.x - GP_SPACING / 2, sideNode.x + GP_SPACING / 2]
+          : [sideNode.x];
+        const people: TNode[] = xs.map((x, i) => ({
+          id: `${sideNode.id}-parent-${i}`,
+          name: labels[i] ?? `Simbah ${i + 1}`,
+          role: 'Simbah',
+          x,
+          y: gy,
+          group: 'grandparent',
+          tag: gpTag,
+        }));
+        curNodes = curNodes.filter(n => n.id !== sideNode.id).concat(people);
+        // Replace the single vertical line for this side with a branching pattern
+        curLines = curLines
+          .filter(l => !(l.tag === gpTag && l.points[0][0] === sideNode.x))
+          .concat(
+            [{ points: [[sideNode.x, -210], [sideNode.x, -315]], tag: gpTag }],
+            xs.length > 1 ? [{ points: [[xs[0], -315], [xs[1], -315]], tag: gpTag }] : [],
+            xs.map(x => ({ points: [[x, -315], [x, gy]], tag: gpTag })),
           );
-
-          // ── Expand one side further into its individual Kakung + Putri ──
-          const sideNode = sideNodes.find(sn => sn.id === expandedGrandparentSide);
-          if (sideNode) {
-            const cnt = sideNode.count ?? 0;
-            const labels = ['Simbah Kakung', 'Simbah Putri'];
-            const xs = cnt >= 2
-              ? [sideNode.x - GP_SPACING / 2, sideNode.x + GP_SPACING / 2]
-              : [sideNode.x];
-            const people: TNode[] = xs.map((x, i) => ({
-              id: `${sideNode.id}-parent-${i}`,
-              name: labels[i] ?? `Simbah ${i + 1}`,
-              role: 'Simbah',
-              x,
-              y: gy,
-              group: 'grandparent',
-              tag: gpTag,
-            }));
-            curNodes = curNodes.filter(n => n.id !== sideNode.id).concat(people);
-            curLines = curLines
-              .filter(l => !(l.tag === gpTag && l.points[0][0] === sideNode.x))
-              .concat(
-                [{ points: [[sideNode.x, -210], [sideNode.x, -315]], tag: gpTag }],
-                xs.length > 1 ? [{ points: [[xs[0], -315], [xs[1], -315]], tag: gpTag }] : [],
-                xs.map(x => ({ points: [[x, -315], [x, gy]], tag: gpTag })),
-              );
-          }
-        }
       }
     }
 
@@ -751,19 +771,28 @@ export default function PublicFamilyPage() {
     );
 
     return { displayNodes: newNodes, displayLines: newLines };
-  }, [nodes, lines, expandedGroup, expandedParent, expandedUncle, expandedGrandparent, expandedGrandparentSide, members, config.olderCount, config.simbahP, config.simbahM]);
+  }, [nodes, lines, expandedGroup, expandedParent, expandedUncle, expandedGrandparentSide, members, config.olderCount, config.simbahP, config.simbahM]);
 
   // Compute visible tags and opacity overrides based on hover state
   const { visibleTags, nodeOpacity, lineOpacity } = useMemo(() => {
     const vTags = new Set<string>();
+    // Expanded branches are always visible — add their tags up front so the
+    // "hide untagged" loop at the end never zeroes them out.
+    for (const exp of expansionStack) {
+      vTags.add(exp.tag);
+    }
+    // Simbah bubbles are now always in the layout (tag: 'self-grandparents')
+    // but should only be visible when Ortu is expanded. Derive the grandparent
+    // tag from the parent tag so they appear automatically.
+    if (vTags.has('self-parents')) vTags.add('self-grandparents');
+    for (let si = 0; si < config.spouseCount; si++) {
+      if (vTags.has(`spouse-${si}-parents`)) vTags.add(`spouse-${si}-grandparents`);
+    }
     const nOp: Record<string, number> = {};
     const lOp: number[] = displayLines.map(() => 1);
 
     if (hoverLevel === 'none' || !hoverTarget) {
       // Show all expanded branches with opacity 1
-      for (const exp of expansionStack) {
-        vTags.add(exp.tag);
-      }
       for (const n of displayNodes) {
         if (n.tag && vTags.has(n.tag)) nOp[n.id] = 1;
         else if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
@@ -911,7 +940,7 @@ export default function PublicFamilyPage() {
     }
 
     return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
-  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expansionStack]);
+  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expansionStack, config.spouseCount]);
 
   // ─── Compute close button position for the last-expanded branch only (LIFO) ───
   const closeButtons = useMemo(() => {
@@ -953,7 +982,7 @@ export default function PublicFamilyPage() {
       }
     }
 
-    if (last.kind === 'grandparent' || last.kind === 'grandparent-side') {
+    if (last.kind === 'grandparent-side') {
       const anchor = nodes.find(n => n.id === last.id)
         ?? displayNodes.find(n => n.id === last.id)
         ?? displayNodes.find(n => n.id.startsWith(`${last.id}-parent-`));
@@ -1335,7 +1364,6 @@ export default function PublicFamilyPage() {
                     // Sibling group bubbles → expand (push to stack)
                     if (n.id.startsWith('grp-self-saudara') || n.id.match(/^grp-spouse-\d+-saudara/)) {
                       if (n.tag) {
-                        // Block if a different side already has active expansions
                         if (activeSide && getSide(n.id) !== activeSide) return;
                         setExpansionStack(prev =>
                           prev.some(e => e.id === n.id) ? prev : [...prev, { id: n.id, tag: n.tag!, kind: 'sibling' as const }]
@@ -1347,28 +1375,22 @@ export default function PublicFamilyPage() {
                     if (n.id.startsWith('grp-self-paman') || n.id.match(/^grp-spouse-\d+-paman/)) {
                       if (n.tag) {
                         if (activeSide && getSide(n.id) !== activeSide) return;
+                        const side = n.id.includes('-paman-ayah') ? 'P' : 'M';
+                        if (activeParentSide && activeParentSide !== side) return;
                         setExpansionStack(prev =>
                           prev.some(e => e.id === n.id) ? prev : [...prev, { id: n.id, tag: n.tag!, kind: 'uncle' as const }]
                         );
                       }
                       return;
                     }
-                    // A single Simbah side → expand into its Kakung + Putri
+                    // A Simbah side bubble → expand into its Kakung + Putri
                     if (/-simbah-[PM]$/.test(n.id)) {
                       if (n.tag) {
                         if (activeSide && getSide(n.id) !== activeSide) return;
+                        const side = n.id.endsWith('-P') ? 'P' : 'M';
+                        if (activeParentSide && activeParentSide !== side) return;
                         setExpansionStack(prev =>
                           prev.some(e => e.id === n.id) ? prev : [...prev, { id: n.id, tag: n.tag!, kind: 'grandparent-side' as const }]
-                        );
-                      }
-                      return;
-                    }
-                    // Simbah bubble → split into Simbah Ayah + Simbah Ibu
-                    if (/-simbah$/.test(n.id)) {
-                      if (n.tag) {
-                        if (activeSide && getSide(n.id) !== activeSide) return;
-                        setExpansionStack(prev =>
-                          prev.some(e => e.id === n.id) ? prev : [...prev, { id: n.id, tag: n.tag!, kind: 'grandparent' as const }]
                         );
                       }
                       return;

@@ -85,9 +85,10 @@ export class TreeController {
   @ApiOperation({ summary: 'Write back the caller\'s own slice of the shared Family Node layout' })
   async saveFamilyNodeSlice(
     @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[] = [],
     @Body() dto: SaveFamilyNodeSliceDto,
   ) {
-    return this.treeService.saveFamilyNodeSlice(userId, dto.members);
+    return this.treeService.saveFamilyNodeSlice(userId, dto.members, roles);
   }
 
   @Delete('family-node/membership')
