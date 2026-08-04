@@ -122,6 +122,15 @@ export default function PublicFamilyPage() {
   const expandedGroup = expansionStack.find(e => e.kind === 'sibling')?.id ?? null;
   const expandedUncle = expansionStack.find(e => e.kind === 'uncle')?.id ?? null;
 
+  // Determine which "side" a node belongs to: 'self' or 'spouse-N'
+  // Only same-side expansions are allowed simultaneously.
+  const getSide = (id: string): string => {
+    if (id === 'self' || id.startsWith('self-') || id.startsWith('grp-self-') || id.startsWith('sib-self-') || id.startsWith('unc-self-')) return 'self';
+    const m = id.match(/^spouse-(\d+)/) || id.match(/^grp-spouse-(\d+)/) || id.match(/^sib-spouse-(\d+)/) || id.match(/^unc-spouse-(\d+)/);
+    return m ? `spouse-${m[1]}` : 'self';
+  };
+  const activeSide = expansionStack.length > 0 ? getSide(expansionStack[0].id) : null;
+
   // Determine which parent tag a node id belongs to
   const getParentTag = (id: string): string | null => {
     if (id === 'self-ortu' || id.startsWith('self-ortu-parent-')) return 'self-parents';
@@ -904,6 +913,8 @@ export default function PublicFamilyPage() {
     }
     // Ortu bubble click → expand into Ayah + Ibu (push to stack, do NOT toggle)
     if (node.name === 'Ortu' && node.tag) {
+      // Block if a different side already has active expansions
+      if (activeSide && getSide(node.id) !== activeSide) return;
       setExpansionStack(prev =>
         prev.some(e => e.id === node.id) ? prev : [...prev, { id: node.id, tag: node.tag!, kind: 'parent' as const }]
       );
@@ -1165,6 +1176,8 @@ export default function PublicFamilyPage() {
                     // Sibling group bubbles → expand (push to stack)
                     if (n.id.startsWith('grp-self-saudara') || n.id.match(/^grp-spouse-\d+-saudara/)) {
                       if (n.tag) {
+                        // Block if a different side already has active expansions
+                        if (activeSide && getSide(n.id) !== activeSide) return;
                         setExpansionStack(prev =>
                           prev.some(e => e.id === n.id) ? prev : [...prev, { id: n.id, tag: n.tag!, kind: 'sibling' as const }]
                         );
@@ -1174,6 +1187,7 @@ export default function PublicFamilyPage() {
                     // Uncle group bubbles → expand (push to stack)
                     if (n.id.startsWith('grp-self-paman') || n.id.match(/^grp-spouse-\d+-paman/)) {
                       if (n.tag) {
+                        if (activeSide && getSide(n.id) !== activeSide) return;
                         setExpansionStack(prev =>
                           prev.some(e => e.id === n.id) ? prev : [...prev, { id: n.id, tag: n.tag!, kind: 'uncle' as const }]
                         );
