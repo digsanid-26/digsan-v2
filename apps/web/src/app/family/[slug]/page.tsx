@@ -108,14 +108,19 @@ export default function PublicFamilyPage() {
   );
   const members: Members = useMemo(() => data?.members ?? {}, [data?.members]);
 
-  // ─── Hover state machine for progressive reveal of parents/siblings ───
-  // hoverTarget: which node is currently hovered ('self', 'spouse-0', 'self-parent-0', etc.)
+  // ─── Hover + expansion state ───
+  // hoverTarget: which node is currently hovered
   // hoverLevel: 'none' | 'spouse-level' (parents faint) | 'parent-level' (parents solid + siblings faint)
-  // expandedGroup: which sibling group bubble was clicked to expand into individual circles
+  // expansionStack: LIFO stack of expanded branches — only the last one can be closed
+  type Expansion = { id: string; tag: string; kind: 'parent' | 'sibling' | 'uncle' };
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
   const [hoverLevel, setHoverLevel] = useState<'none' | 'spouse-level' | 'parent-level'>('none');
-  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-  const [expandedParent, setExpandedParent] = useState<string | null>(null);
+  const [expansionStack, setExpansionStack] = useState<Expansion[]>([]);
+
+  // Derived expansion state
+  const expandedParent = expansionStack.find(e => e.kind === 'parent')?.id ?? null;
+  const expandedGroup = expansionStack.find(e => e.kind === 'sibling')?.id ?? null;
+  const expandedUncle = expansionStack.find(e => e.kind === 'uncle')?.id ?? null;
 
   // Determine which parent tag a node id belongs to
   const getParentTag = (id: string): string | null => {
@@ -169,8 +174,11 @@ export default function PublicFamilyPage() {
 
   const onNodeHover = useCallback((node: TNode | null) => {
     if (!node) {
-      setHoverTarget(null);
-      setHoverLevel('none');
+      // Don't clear hover if there are active expansions — expanded branches persist
+      if (expansionStack.length === 0) {
+        setHoverTarget(null);
+        setHoverLevel('none');
+      }
       return;
     }
     setHoverTarget(node.id);
@@ -201,7 +209,7 @@ export default function PublicFamilyPage() {
     }
     // Hovering any other node (child, etc.) → reset
     setHoverLevel('none');
-  }, []);
+  }, [expansionStack.length]);
 
   // ─── Family Node Tree data (L103) ───────────────────────────
   const familyNodeTree = useMemo(() => {
@@ -555,6 +563,45 @@ export default function PublicFamilyPage() {
       }
     }
 
+    // ── Expand uncle group bubbles ──
+    if (expandedUncle) {
+      const uncNode = curNodes.find(n => n.id === expandedUncle);
+      if (uncNode) {
+        const uncTag = uncNode.tag;
+        const uncCount = uncNode.count ?? 0;
+        if (uncTag && uncCount > 0) {
+          const UNC_SPACING = 90;
+          const ux = uncNode.x;
+          const uy = uncNode.y;
+          const isLeft = ux < 0 || expandedUncle.includes('-ayah');
+          const uncPrefix = expandedUncle.replace('grp-', 'unc-');
+          const uncXs = isLeft
+            ? Array.from({ length: uncCount }, (_, i) => ux - i * UNC_SPACING)
+            : Array.from({ length: uncCount }, (_, i) => ux + i * UNC_SPACING);
+          const uncNodes: TNode[] = uncXs.map((x, i) => ({
+            id: `${uncPrefix}-${i}`,
+            name: `Paman/Bibi ${i + 1}`,
+            role: 'Paman/Bibi',
+            x,
+            y: uy,
+            group: 'uncle',
+            tag: uncTag,
+          }));
+          curNodes = curNodes.filter(n => n.id !== expandedUncle).concat(uncNodes);
+          // Trunk point is the Ortu/self position at y=-210
+          const trunkX = (() => {
+            if (expandedUncle.startsWith('grp-self-')) return nodes.find(n => n.id === 'self-ortu')?.x ?? 0;
+            const m = expandedUncle.match(/^grp-spouse-(\d+)-paman/);
+            if (m) return nodes.find(n => n.id === `spouse-${m[1]}-ortu`)?.x ?? 0;
+            return ux;
+          })();
+          curLines = curLines.filter(l => l.tag !== uncTag).concat(
+            uncXs.map(x => ({ points: [[x, uy], [trunkX, uy]], tag: uncTag }))
+          );
+        }
+      }
+    }
+
     // ── Expand sibling group bubbles ──
     if (!expandedGroup) return { displayNodes: curNodes, displayLines: curLines };
     const grpNode = curNodes.find(n => n.id === expandedGroup);
@@ -602,7 +649,7 @@ export default function PublicFamilyPage() {
     );
 
     return { displayNodes: newNodes, displayLines: newLines };
-  }, [nodes, lines, expandedGroup, expandedParent]);
+  }, [nodes, lines, expandedGroup, expandedParent, expandedUncle]);
 
   // Compute visible tags and opacity overrides based on hover state
   const { visibleTags, nodeOpacity, lineOpacity } = useMemo(() => {
@@ -611,20 +658,18 @@ export default function PublicFamilyPage() {
     const lOp: number[] = displayLines.map(() => 1);
 
     if (hoverLevel === 'none' || !hoverTarget) {
-      // Keep expanded parent tag visible even without hover
-      if (expandedParent) {
-        const ortuNode = displayNodes.find(n => n.id.startsWith(expandedParent + '-parent-'));
-        if (ortuNode?.tag) vTags.add(ortuNode.tag);
+      // Show all expanded branches with opacity 1
+      for (const exp of expansionStack) {
+        vTags.add(exp.tag);
       }
-      // Everything tagged is hidden unless in vTags
       for (const n of displayNodes) {
-        if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
-        else if (n.tag && vTags.has(n.tag)) nOp[n.id] = 1;
+        if (n.tag && vTags.has(n.tag)) nOp[n.id] = 1;
+        else if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
       }
       for (let i = 0; i < displayLines.length; i++) {
         const lt = displayLines[i].tag;
-        if (lt && !vTags.has(lt)) lOp[i] = 0;
-        else if (lt && vTags.has(lt)) lOp[i] = 1;
+        if (lt && vTags.has(lt)) lOp[i] = 1;
+        else if (lt && !vTags.has(lt)) lOp[i] = 0;
       }
       return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
     }
@@ -747,6 +792,16 @@ export default function PublicFamilyPage() {
       }
     }
 
+    // Override: expanded branches always get opacity 1 regardless of hover
+    for (const exp of expansionStack) {
+      for (const n of displayNodes) {
+        if (n.tag === exp.tag) nOp[n.id] = 1;
+      }
+      for (let i = 0; i < displayLines.length; i++) {
+        if (displayLines[i].tag === exp.tag) lOp[i] = 1;
+      }
+    }
+
     // All other tagged nodes/lines are hidden
     for (const n of displayNodes) {
       if (n.tag && !vTags.has(n.tag)) nOp[n.id] = 0;
@@ -757,50 +812,58 @@ export default function PublicFamilyPage() {
     }
 
     return { visibleTags: vTags, nodeOpacity: nOp, lineOpacity: lOp };
-  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expandedGroup, expandedParent]);
+  }, [hoverTarget, hoverLevel, displayNodes, displayLines, expansionStack]);
 
-  // ─── Compute close button positions for expanded branches ───
+  // ─── Compute close button position for the last-expanded branch only (LIFO) ───
   const closeButtons = useMemo(() => {
-    const buttons: { x: number; y: number; tag: string }[] = [];
+    if (expansionStack.length === 0) return [];
+    const last = expansionStack[expansionStack.length - 1];
 
-    // Parents: when expanded into Ayah/Ibu, place at trunk junction (midpoint, y=-105)
-    if (expandedParent) {
-      const ortuNode = nodes.find(n => n.id === expandedParent);
+    if (last.kind === 'parent') {
+      const ortuNode = nodes.find(n => n.id === last.id);
       if (ortuNode?.tag) {
-        buttons.push({ x: ortuNode.x, y: -105, tag: ortuNode.tag });
+        return [{ x: ortuNode.x, y: -105, tag: ortuNode.tag }];
       }
     }
 
-    // Siblings: when expanded into individual circles, place at outermost junction
-    if (expandedGroup) {
-      const sibNodes = displayNodes.filter(n => n.id.startsWith('sib-') && n.tag);
-      if (sibNodes.length > 0 && sibNodes[0].tag) {
-        const tag: string = sibNodes[0].tag;
-        // Find outermost sibling (furthest from trunk)
-        const trunkNode = expandedGroup.startsWith('grp-self-')
+    if (last.kind === 'sibling') {
+      const sibNodes = displayNodes.filter(n => n.id.startsWith('sib-') && n.tag === last.tag);
+      if (sibNodes.length > 0) {
+        const trunkNode = last.id.startsWith('grp-self-')
           ? nodes.find(n => n.id === 'self')
-          : nodes.find(n => n.id === expandedGroup.replace(/^grp-(spouse-\d+)-saudara$/, '$1'));
+          : nodes.find(n => n.id === last.id.replace(/^grp-(spouse-\d+)-saudara$/, '$1'));
         const trunkX = trunkNode?.x ?? 0;
         const outermost = sibNodes.reduce((prev, curr) =>
           Math.abs(curr.x - trunkX) > Math.abs(prev.x - trunkX) ? curr : prev
         );
-        buttons.push({ x: outermost.x, y: -105, tag });
+        return [{ x: outermost.x, y: -105, tag: last.tag }];
       }
     }
 
-    return buttons;
-  }, [expandedParent, expandedGroup, displayNodes, nodes]);
+    if (last.kind === 'uncle') {
+      const uncNodes = displayNodes.filter(n => n.id.startsWith('unc-') && n.tag === last.tag);
+      if (uncNodes.length > 0) {
+        const trunkNode = last.id.startsWith('grp-self-')
+          ? nodes.find(n => n.id === 'self-ortu')
+          : nodes.find(n => n.id === last.id.replace(/^grp-(spouse-\d+)-paman.*$/, 'spouse-$1-ortu'));
+        const trunkX = trunkNode?.x ?? 0;
+        const outermost = uncNodes.reduce((prev, curr) =>
+          Math.abs(curr.x - trunkX) > Math.abs(prev.x - trunkX) ? curr : prev
+        );
+        return [{ x: outermost.x, y: -210, tag: last.tag }];
+      }
+    }
+
+    return [];
+  }, [expansionStack, displayNodes, nodes]);
 
   const onCloseBranch = useCallback((tag: string) => {
-    if (tag.endsWith('-parents')) {
-      setExpandedParent(null);
-      setHoverTarget(null);
-      setHoverLevel('none');
-    } else if (tag.endsWith('-siblings')) {
-      setExpandedGroup(null);
-      setHoverTarget(null);
-      setHoverLevel('none');
-    }
+    setExpansionStack(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      if (last.tag !== tag) return prev; // LIFO: only close the last-opened branch
+      return prev.slice(0, -1);
+    });
   }, []);
 
   const resolve = (id: string, fallback: string) => {
@@ -830,9 +893,20 @@ export default function PublicFamilyPage() {
       setEaOpen(false);
       return;
     }
-    // Ortu bubble click → toggle expansion into Ayah + Ibu (do NOT open modal)
-    if (node.name === 'Ortu') {
-      setExpandedParent(prev => prev === node.id ? null : node.id);
+    // If an uncle group is expanded and user clicks an individual uncle circle → open modal
+    if (expandedUncle && node.id.startsWith('unc-')) {
+      setSelectedNode(node);
+      setClaimError(null);
+      setEaError('');
+      setEaSuccess('');
+      setEaOpen(false);
+      return;
+    }
+    // Ortu bubble click → expand into Ayah + Ibu (push to stack, do NOT toggle)
+    if (node.name === 'Ortu' && node.tag) {
+      setExpansionStack(prev =>
+        prev.some(e => e.id === node.id) ? prev : [...prev, { id: node.id, tag: node.tag!, kind: 'parent' as const }]
+      );
       return;
     }
     // All nodes → open unified modal
@@ -1088,9 +1162,22 @@ export default function PublicFamilyPage() {
                   resolve={resolve}
                   onNodeClick={onNodeClick}
                   onGroupClick={(n) => {
-                    // Sibling group bubbles → toggle expansion
-                    if (n.id.startsWith('grp-self-saudara') || n.id.startsWith('grp-spouse-')) {
-                      setExpandedGroup(prev => prev === n.id ? null : n.id);
+                    // Sibling group bubbles → expand (push to stack)
+                    if (n.id.startsWith('grp-self-saudara') || n.id.match(/^grp-spouse-\d+-saudara/)) {
+                      if (n.tag) {
+                        setExpansionStack(prev =>
+                          prev.some(e => e.id === n.id) ? prev : [...prev, { id: n.id, tag: n.tag!, kind: 'sibling' as const }]
+                        );
+                      }
+                      return;
+                    }
+                    // Uncle group bubbles → expand (push to stack)
+                    if (n.id.startsWith('grp-self-paman') || n.id.match(/^grp-spouse-\d+-paman/)) {
+                      if (n.tag) {
+                        setExpansionStack(prev =>
+                          prev.some(e => e.id === n.id) ? prev : [...prev, { id: n.id, tag: n.tag!, kind: 'uncle' as const }]
+                        );
+                      }
                       return;
                     }
                     if (n.id === 'grp-kb') {
@@ -1108,8 +1195,10 @@ export default function PublicFamilyPage() {
                   closeButtons={closeButtons}
                   onCloseBranch={onCloseBranch}
                   onBackgroundClick={() => {
-                    setHoverTarget(null);
-                    setHoverLevel('none');
+                    if (expansionStack.length === 0) {
+                      setHoverTarget(null);
+                      setHoverLevel('none');
+                    }
                   }}
                 />
               ) : (
