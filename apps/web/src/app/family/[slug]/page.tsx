@@ -170,11 +170,22 @@ export default function PublicFamilyPage() {
     return null;
   };
 
-  // Determine which grandparent tag a node id belongs to
+  // Determine which grandparent tag a node id belongs to (per-side: P or M)
   const getGrandparentTag = (id: string): string | null => {
-    if (/^self-simbah-[PM](?:-parent-\d+)?$/.test(id)) return 'self-grandparents';
-    const m = id.match(/^spouse-(\d+)-simbah-[PM](?:-parent-\d+)?$/);
-    if (m) return `spouse-${m[1]}-grandparents`;
+    let m = id.match(/^self-simbah-([PM])(?:-parent-\d+)?$/);
+    if (m) return `self-grandparents-${m[1]}`;
+    m = id.match(/^spouse-(\d+)-simbah-([PM])(?:-parent-\d+)?$/);
+    if (m) return `spouse-${m[1]}-grandparents-${m[2]}`;
+    return null;
+  };
+
+  // Extract the parent side ('P' = ayah, 'M' = ibu) from a parent node ID.
+  // parent-0 is always Ayah (P), parent-1 is always Ibu (M).
+  const getParentSideFromId = (id: string): 'P' | 'M' | null => {
+    let m = id.match(/^self-ortu-parent-(\d+)$/);
+    if (m) return Number(m[1]) === 0 ? 'P' : 'M';
+    m = id.match(/^spouse-(\d+)-ortu-parent-(\d+)$/);
+    if (m) return Number(m[2]) === 0 ? 'P' : 'M';
     return null;
   };
 
@@ -498,12 +509,12 @@ export default function PublicFamilyPage() {
       const uncleMidY = -315; // midway between the parent row (-210) and Simbah (-420)
       const simbahY = -420;
       if (cfg.simbahP > 0) {
-        ns.push({ id: 'self-simbah-P', name: `Simbah Ayah ${cfg.simbahP}`, role: 'group', x: ayahColX, y: simbahY, group: 'grandparent', count: cfg.simbahP, tag: 'self-grandparents', expandable: true });
-        ls.push({ points: [[ayahColX, -210], [ayahColX, simbahY]], tag: 'self-grandparents' });
+        ns.push({ id: 'self-simbah-P', name: `Simbah Ayah ${cfg.simbahP}`, role: 'group', x: ayahColX, y: simbahY, group: 'grandparent', count: cfg.simbahP, tag: 'self-grandparents-P', expandable: true });
+        ls.push({ points: [[ayahColX, -210], [ayahColX, simbahY]], tag: 'self-grandparents-P' });
       }
       if (cfg.simbahM > 0) {
-        ns.push({ id: 'self-simbah-M', name: `Simbah Ibu ${cfg.simbahM}`, role: 'group', x: ibuColX, y: simbahY, group: 'grandparent', count: cfg.simbahM, tag: 'self-grandparents', expandable: true });
-        ls.push({ points: [[ibuColX, -210], [ibuColX, simbahY]], tag: 'self-grandparents' });
+        ns.push({ id: 'self-simbah-M', name: `Simbah Ibu ${cfg.simbahM}`, role: 'group', x: ibuColX, y: simbahY, group: 'grandparent', count: cfg.simbahM, tag: 'self-grandparents-M', expandable: true });
+        ls.push({ points: [[ibuColX, -210], [ibuColX, simbahY]], tag: 'self-grandparents-M' });
       }
 
       // Self's uncles — they sit on the SAME row as Ayah/Ibu and branch off the
@@ -563,12 +574,12 @@ export default function PublicFamilyPage() {
         const spGpTag = `spouse-${si}-grandparents`;
         const spSimbahY = -420;
         if (cfg.simbahP > 0) {
-          ns.push({ id: `spouse-${si}-simbah-P`, name: `Simbah Ayah ${cfg.simbahP}`, role: 'group', x: spAyahColX, y: spSimbahY, group: 'grandparent', count: cfg.simbahP, tag: spGpTag, expandable: true });
-          ls.push({ points: [[spAyahColX, -210], [spAyahColX, spSimbahY]], tag: spGpTag });
+          ns.push({ id: `spouse-${si}-simbah-P`, name: `Simbah Ayah ${cfg.simbahP}`, role: 'group', x: spAyahColX, y: spSimbahY, group: 'grandparent', count: cfg.simbahP, tag: `${spGpTag}-P`, expandable: true });
+          ls.push({ points: [[spAyahColX, -210], [spAyahColX, spSimbahY]], tag: `${spGpTag}-P` });
         }
         if (cfg.simbahM > 0) {
-          ns.push({ id: `spouse-${si}-simbah-M`, name: `Simbah Ibu ${cfg.simbahM}`, role: 'group', x: spIbuColX, y: spSimbahY, group: 'grandparent', count: cfg.simbahM, tag: spGpTag, expandable: true });
-          ls.push({ points: [[spIbuColX, -210], [spIbuColX, spSimbahY]], tag: spGpTag });
+          ns.push({ id: `spouse-${si}-simbah-M`, name: `Simbah Ibu ${cfg.simbahM}`, role: 'group', x: spIbuColX, y: spSimbahY, group: 'grandparent', count: cfg.simbahM, tag: `${spGpTag}-M`, expandable: true });
+          ls.push({ points: [[spIbuColX, -210], [spIbuColX, spSimbahY]], tag: `${spGpTag}-M` });
         }
 
         // Spouse's uncles — same row as their Ayah/Ibu, branching off the
@@ -781,12 +792,28 @@ export default function PublicFamilyPage() {
     for (const exp of expansionStack) {
       vTags.add(exp.tag);
     }
-    // Simbah bubbles are now always in the layout (tag: 'self-grandparents')
-    // but should only be visible when Ortu is expanded. Derive the grandparent
-    // tag from the parent tag so they appear automatically.
-    if (vTags.has('self-parents')) vTags.add('self-grandparents');
-    for (let si = 0; si < config.spouseCount; si++) {
-      if (vTags.has(`spouse-${si}-parents`)) vTags.add(`spouse-${si}-grandparents`);
+    // Simbah bubbles are per-side (self-grandparents-P / -M). They only
+    // appear when the corresponding parent (Ayah/Ibu) is hovered — NOT
+    // automatically when Ortu is expanded.
+    //
+    // Exception: if an uncle expansion is active, the simbah line for that
+    // side must be visible so the uncle branch connects to something.
+    for (const exp of expansionStack) {
+      if (exp.kind === 'uncle') {
+        if (exp.id.includes('-paman-ayah')) {
+          if (exp.id.startsWith('grp-self-') || exp.id.startsWith('unc-self-')) vTags.add('self-grandparents-P');
+          else {
+            const m = exp.id.match(/^(?:grp|unc)-spouse-(\d+)-paman-ayah/);
+            if (m) vTags.add(`spouse-${m[1]}-grandparents-P`);
+          }
+        } else if (exp.id.includes('-paman-ibu')) {
+          if (exp.id.startsWith('grp-self-') || exp.id.startsWith('unc-self-')) vTags.add('self-grandparents-M');
+          else {
+            const m = exp.id.match(/^(?:grp|unc)-spouse-(\d+)-paman-ibu/);
+            if (m) vTags.add(`spouse-${m[1]}-grandparents-M`);
+          }
+        }
+      }
     }
     const nOp: Record<string, number> = {};
     const lOp: number[] = displayLines.map(() => 1);
@@ -835,22 +862,23 @@ export default function PublicFamilyPage() {
           if (m) activeSibTag = `spouse-${m[1]}-siblings`;
         }
       }
-      // Derive the grandparent tag from the parent tag. Uncles are NOT derived
-      // here — they stay hidden until a per-side Simbah bubble is hovered.
-      if (activeParentTag === 'self-parents') {
-        activeGpTag = 'self-grandparents';
-      } else if (activeParentTag) {
+      // Derive the per-side grandparent tag from the hovered parent node.
+      // Only the Simbah on the hovered parent's side (Ayah→P, Ibu→M) appears.
+      const hoveredPs = getParentSideFromId(hoverTarget);
+      if (activeParentTag === 'self-parents' && hoveredPs) {
+        activeGpTag = `self-grandparents-${hoveredPs}`;
+      } else if (activeParentTag && hoveredPs) {
         const m = activeParentTag.match(/^spouse-(\d+)-parents$/);
-        if (m) activeGpTag = `spouse-${m[1]}-grandparents`;
+        if (m) activeGpTag = `spouse-${m[1]}-grandparents-${hoveredPs}`;
       }
       // If hovering grandparent or uncle directly, derive from those
       if (!activeParentTag) {
         const gpTag = getGrandparentTag(hoverTarget);
         if (gpTag) {
           activeGpTag = gpTag;
-          if (gpTag === 'self-grandparents') activeParentTag = 'self-parents';
+          if (gpTag.startsWith('self-grandparents')) activeParentTag = 'self-parents';
           else {
-            const m = gpTag.match(/^spouse-(\d+)-grandparents$/);
+            const m = gpTag.match(/^spouse-(\d+)-grandparents/);
             if (m) activeParentTag = `spouse-${m[1]}-parents`;
           }
         }
@@ -983,10 +1011,16 @@ export default function PublicFamilyPage() {
     }
 
     if (last.kind === 'grandparent-side') {
-      const anchor = nodes.find(n => n.id === last.id)
-        ?? displayNodes.find(n => n.id === last.id)
-        ?? displayNodes.find(n => n.id.startsWith(`${last.id}-parent-`));
-      if (anchor) return [{ x: anchor.x, y: -350, tag: last.tag }];
+      // The close button sits at the junction where the vertical line from the
+      // parent meets the horizontal bar connecting Simbah Kakung + Putri.
+      // That junction is at y=-315 (midway between parent row -210 and simbah -420).
+      // The x is the parent column (Ayah or Ibu), NOT the simbah bubble itself.
+      const simbahNode = nodes.find(n => n.id === last.id);
+      if (simbahNode) {
+        // Derive the parent column x from the simbah's x — they share the same
+        // column. The simbah bubble sits directly above its parent.
+        return [{ x: simbahNode.x, y: -315, tag: last.tag }];
+      }
     }
 
     return [];
