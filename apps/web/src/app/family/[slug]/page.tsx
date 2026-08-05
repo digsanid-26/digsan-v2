@@ -149,7 +149,8 @@ export default function PublicFamilyPage() {
     return null;
   })();
 
-  // Extract the parent side ('P' or 'M') from a Simbah or uncle node ID.
+  // Extract the parent side ('P' = ayah, 'M' = ibu) from a Simbah, uncle,
+  // or individual parent node ID. Used for hover-side isolation.
   const getParentSide = (id: string): 'P' | 'M' | null => {
     let m = id.match(/^self-simbah-([PM])(?:-parent-\d+)?$/);
     if (m) return m[1] as 'P' | 'M';
@@ -159,6 +160,11 @@ export default function PublicFamilyPage() {
     if (/^(?:grp|unc)-self-paman-ibu/.test(id)) return 'M';
     m = id.match(/^(?:grp|unc)-spouse-\d+-paman-(ayah|ibu)/);
     if (m) return m[1] === 'ayah' ? 'P' : 'M';
+    // Individual parent nodes: parent-0 = Ayah (P), parent-1 = Ibu (M)
+    m = id.match(/^self-ortu-parent-(\d+)$/);
+    if (m) return Number(m[1]) === 0 ? 'P' : 'M';
+    m = id.match(/^spouse-\d+-ortu-parent-(\d+)$/);
+    if (m) return Number(m[1]) === 0 ? 'P' : 'M';
     return null;
   };
 
