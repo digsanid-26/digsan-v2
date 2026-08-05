@@ -55,4 +55,13 @@ export class UserController {
   async getPublicProfile(@Param('id') id: string) {
     return this.userService.getPublicProfile(id);
   }
+
+  @Post('feedback')
+  @ApiOperation({ summary: 'Submit beta app feedback (saran/bug/pertanyaan)' })
+  async submitFeedback(
+    @CurrentUser('id') userId: string,
+    @Body() body: { category: string; message: string },
+  ) {
+    return this.userService.submitFeedback(userId, body.category, body.message);
+  }
 }

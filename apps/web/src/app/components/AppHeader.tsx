@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import HeaderNav from './HeaderNav';
 import ThemeToggle from './ThemeToggle';
 import NotificationBell from './NotificationBell';
+import BetaFeedbackModal from './BetaFeedbackModal';
 import { useTheme } from './ThemeProvider';
 
 const NAV = [
@@ -19,6 +21,7 @@ export default function AppHeader() {
   const pathname = usePathname();
   const { theme } = useTheme();
   const dark = theme === 'dark';
+  const [betaOpen, setBetaOpen] = useState(false);
 
   return (
     <header className="flex items-center justify-between gap-4 px-6 py-4 border-b transition-colors
@@ -68,10 +71,19 @@ export default function AppHeader() {
       </div>
 
       <div className="flex items-center gap-3">
+        <button
+          onClick={() => setBetaOpen(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 transition-colors"
+          title="App Version: Beta — Kirim saran atau lapor bug"
+        >
+          Beta
+        </button>
         <NotificationBell dark={dark} />
         <ThemeToggle />
         <HeaderNav />
       </div>
+
+      {betaOpen && <BetaFeedbackModal onClose={() => setBetaOpen(false)} />}
     </header>
   );
 }

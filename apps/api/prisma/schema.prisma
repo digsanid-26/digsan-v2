@@ -75,6 +75,9 @@ model User {
   adBanners     AdBanner[]
   adAssignments AdAssignment[]
 
+  // Feedback
+  feedbacks Feedback[]
+
   @@map("users")
 }
 
@@ -544,6 +547,22 @@ model RedeemRequest {
   reward Reward  @relation(fields: [rewardId], references: [id], onDelete: Cascade)
 
   @@map("redeem_requests")
+}
+
+// ================================================================
+// FEEDBACK (Beta app feedback form)
+// ================================================================
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  category  String   // 'saran' | 'bug' | 'pertanyaan'
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("feedbacks")
 }
 
 // ================================================================

@@ -223,4 +223,17 @@ export class UserService {
 
     return { users };
   }
+
+  async submitFeedback(userId: string, category: string, message: string) {
+    if (!message?.trim()) throw new BadRequestException('Pesan tidak boleh kosong');
+    const valid = ['saran', 'bug', 'pertanyaan'];
+    if (!valid.includes(category)) throw new BadRequestException('Kategori tidak valid');
+
+    const feedback = await this.prisma.feedback.create({
+      data: { userId, category, message: message.trim() },
+    });
+
+    this.logger.log(`Feedback from ${userId}: [${category}] ${message.slice(0, 60)}...`);
+    return { id: feedback.id, success: true };
+  }
 }

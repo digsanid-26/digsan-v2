@@ -62,7 +62,7 @@ async function tryRefreshToken(): Promise<boolean> {
   return refreshingPromise;
 }
 
-async function authRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function authRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const tokens = getTokens();
   if (!tokens?.accessToken) {
     const err = new Error('Tidak terautentikasi') as Error & { status: number };

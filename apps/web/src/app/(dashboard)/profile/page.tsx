@@ -243,7 +243,7 @@ export default function ProfilePage() {
             <div className="relative">
               <Briefcase size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40" />
               <select value={form.occupation} onChange={(e) => setForm({ ...form, occupation: e.target.value })}
-                className={`${inputCls} pl-10 appearance-none cursor-pointer`}>
+                className={`${inputCls} pl-10 appearance-none cursor-pointer dark:[color-scheme:dark]`}>
                 <option value="">Pilih pekerjaan</option>
                 {JOBS.map((j) => <option key={j} value={j}>{j}</option>)}
               </select>
