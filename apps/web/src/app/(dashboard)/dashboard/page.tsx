@@ -303,7 +303,7 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-400 dark:text-white/40 text-center py-3 mb-4">
                 Belum ada poin yang diperoleh
               </p>
-            )
+            )}
 
             {/* Quick stats */}
             <div className="flex items-center justify-between text-sm pt-3 border-t border-slate-100 dark:border-white/5">
