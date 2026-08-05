@@ -108,8 +108,17 @@ export default function PublicProfilePage() {
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Column 1: ID Card + Profile Details + CTA */}
             <div className="space-y-6">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden relative">
                 <div className="h-24 bg-gradient-to-r from-blue-600/30 to-purple-600/30" />
+                {isLoggedIn && isOwnProfile && (
+                  <button
+                    onClick={() => setViewSettingsOpen(true)}
+                    className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors backdrop-blur-sm"
+                    title="Pengaturan tampilan profil"
+                  >
+                    <Settings size={16} />
+                  </button>
+                )}
                 <div className="px-6 pb-6 -mt-12">
                   <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-[#05050f] bg-slate-700 flex items-center justify-center">
                     {data.profile.avatar ? (
@@ -146,17 +155,10 @@ export default function PublicProfilePage() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-white">Detail Profil</h2>
                   {isLoggedIn && isOwnProfile && (
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setViewSettingsOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/15 text-white transition-colors"
-                        title="Pengaturan View">
-                        <Settings size={13} /> View
-                      </button>
-                      <button onClick={() => setProfileModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/15 text-white transition-colors">
-                        <Edit size={13} /> Edit Profil
-                      </button>
-                    </div>
+                    <button onClick={() => setProfileModalOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/15 text-white transition-colors">
+                      <Edit size={13} /> Edit Profil
+                    </button>
                   )}
                 </div>
                 {data.profile.birthPlace && visibility.birthPlace && (
