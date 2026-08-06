@@ -41,7 +41,8 @@ export default function PublicProfilePage() {
         setIsOwnProfile(me.username === username);
       }).catch(() => {});
     }
-  }, [username, request]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username]);
 
   useEffect(() => {
     if (!slug || !username) return;
