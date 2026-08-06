@@ -20,6 +20,7 @@ export class UserService {
         id: true,
         email: true,
         name: true,
+        username: true,
         avatar: true,
         bio: true,
         phone: true,
