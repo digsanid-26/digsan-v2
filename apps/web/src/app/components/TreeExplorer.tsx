@@ -16,7 +16,7 @@ import type { Region } from './InvitationStudio';
 import OnboardingModal from './OnboardingModal';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Trash2, BadgeCheck,
+  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Edit, Trash2, BadgeCheck,
 } from 'lucide-react';
 import UserProfileModal from './UserProfileModal';
 
