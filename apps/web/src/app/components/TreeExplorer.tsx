@@ -16,7 +16,7 @@ import type { Region } from './InvitationStudio';
 import OnboardingModal from './OnboardingModal';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, BadgeCheck,
+  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Trash2, BadgeCheck,
 } from 'lucide-react';
 import UserProfileModal from './UserProfileModal';
 
@@ -642,7 +642,51 @@ export default function TreeExplorer() {
     setPanel('member');
   };
 
-  // ─── Recursive circle add/delete removed (was super_user only) ──
+  // ─── Delete circle (super_user, from sidebar) ───────────────
+  const BASE_RE = /^(self|spouse-\d+|parent-\d+|older-\d+|younger-\d+|child-\d+|gpP-\d+|gpM-\d+|ancP-\d+|ancM-\d+|uncle[PM][oy]-\d+)$/;
+  const isBaseNode = (id: string) => BASE_RE.test(id);
+
+  const deleteNode = (nodeId: string) => {
+    if (nodeId === selfNodeId || nodeId === 'self') return;
+
+    if (!isBaseNode(nodeId)) {
+      const next: Members = { ...members };
+      const g = configToGraph(config, members, me?.name || 'Anda', selfNodeId);
+      const toRemove = new Set<string>([nodeId]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const [id, m] of Object.entries(g)) {
+          if (!toRemove.has(id) && m.parentId && toRemove.has(m.parentId)) { toRemove.add(id); grew = true; }
+        }
+      }
+      for (const id of toRemove) delete next[id];
+      for (const [id, m] of Object.entries(next)) {
+        if (m.spouseId && toRemove.has(m.spouseId)) next[id] = { ...m, spouseId: null };
+      }
+      saveMembers(next);
+      setPanel('none');
+      return;
+    }
+
+    const match = /^(spouse|child|older|younger)-(\d+)$/.exec(nodeId);
+    if (!match) { setPanel('none'); return; }
+    const [, prefix, idxStr] = match;
+    const index = parseInt(idxStr, 10);
+    const countKey = ({ spouse: 'spouseCount', child: 'childCount', older: 'olderCount', younger: 'youngerCount' } as const)[prefix as 'spouse' | 'child' | 'older' | 'younger'];
+    const count = config[countKey];
+    const next: Members = { ...members };
+    for (let i = index; i < count - 1; i++) {
+      if (next[`${prefix}-${i + 1}`]) next[`${prefix}-${i}`] = next[`${prefix}-${i + 1}`];
+      else delete next[`${prefix}-${i}`];
+    }
+    delete next[`${prefix}-${count - 1}`];
+    setMembers(next);
+    try { localStorage.setItem(`digsan_tree_mem_${uidRef.current}`, JSON.stringify(next)); } catch { /* ignore */ }
+    saveConfig({ ...config, [countKey]: Math.max(0, count - 1) });
+    pushLayout({ members: next });
+    setPanel('none');
+  };
 
   const strokeMarriage = dark ? 'rgba(147,197,253,0.55)' : 'rgba(37,99,235,0.45)';
   const strokeNormal = dark ? 'rgba(255,255,255,0.22)' : 'rgba(51,65,85,0.28)';
