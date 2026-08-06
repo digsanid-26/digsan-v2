@@ -35,6 +35,7 @@ interface User {
   name: string;
   avatar: string | null;
   roles?: string[];
+  status?: string;
 }
 
 interface AuthContextType {

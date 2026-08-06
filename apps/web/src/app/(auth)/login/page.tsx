@@ -7,49 +7,85 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { auth, saveTokens, saveUser } from '@/lib/auth';
 import { treeApi, getPendingClaim, clearPendingClaim } from '@/lib/tree';
 
+type LoginTab = 'email' | 'whatsapp';
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect');
+  const [tab, setTab] = useState<LoginTab>('email');
   const [form, setForm] = useState({ email: '', password: '' });
+  const [waForm, setWaForm] = useState({ phone: '', otp: '' });
+  const [waStep, setWaStep] = useState<'phone' | 'otp'>('phone');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [info, setInfo] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLoginSuccess = (res: any) => {
+    saveTokens({ accessToken: res.accessToken, refreshToken: res.refreshToken });
+    saveUser(res.user);
+
+    const pending = getPendingClaim();
+    if (pending) {
+      try {
+        treeApi.claimNode(pending.slug, pending.nodeId);
+      } catch {
+      } finally {
+        clearPendingClaim();
+      }
+      router.push(`/family/${pending.slug}`);
+      return;
+    }
+
+    const roles = res.user?.roles || [];
+    if (redirect) {
+      router.push(redirect);
+    } else if (roles.includes('super_admin') || roles.includes('admin')) {
+      router.push('/admin');
+    } else {
+      router.push('/');
+    }
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const res = await auth.login(form);
-      saveTokens({ accessToken: res.accessToken, refreshToken: res.refreshToken });
-      saveUser(res.user);
-
-      // If the user arrived here from a public family tree's "Apakah ini
-      // Anda?" prompt, finish claiming that node now that they're logged in.
-      const pending = getPendingClaim();
-      if (pending) {
-        try {
-          await treeApi.claimNode(pending.slug, pending.nodeId);
-        } catch {
-          // Non-fatal — the tree page will still load; claim can be retried.
-        } finally {
-          clearPendingClaim();
-        }
-        router.push(`/family/${pending.slug}`);
-        return;
-      }
-
-      const roles = res.user?.roles || [];
-      if (redirect) {
-        router.push(redirect);
-      } else if (roles.includes('super_admin') || roles.includes('admin')) {
-        router.push('/admin');
-      } else {
-        router.push('/');
-      }
+      handleLoginSuccess(res);
     } catch (err: any) {
       setError(err.message || 'Login gagal');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setInfo('');
+    setLoading(true);
+    try {
+      const res = await auth.sendWhatsappOtp(waForm.phone);
+      setInfo(res.message);
+      setWaStep('otp');
+    } catch (err: any) {
+      setError(err.message || 'Gagal mengirim OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await auth.verifyWhatsappLogin(waForm.phone, waForm.otp);
+      handleLoginSuccess(res);
+    } catch (err: any) {
+      setError(err.message || 'Verifikasi gagal');
     } finally {
       setLoading(false);
     }
@@ -58,75 +94,217 @@ function LoginForm() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex justify-center">
-            <Image src="/logo-white.svg" alt="Digsan" width={140} height={44} priority className="h-11 w-auto" />
+    <div className="min-h-screen flex">
+      {/* ─── LEFT: Hero panel ─────────────────────────────── */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900">
+        {/* Decorative background */}
+        <div className="absolute inset-0 opacity-20" style={{
+          backgroundImage: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%233b82f6" fill-opacity="0.15"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+        }} />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-slate-900/40" />
+
+        <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 w-full">
+          {/* Logo */}
+          <Link href="/" className="inline-flex">
+            <Image src="/logo-white.svg" alt="Digsan" width={160} height={50} priority className="h-12 w-auto" />
           </Link>
-          <p className="text-slate-400 mt-4">Masuk ke akun Anda</p>
-        </div>
 
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/10">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="bg-red-500/20 border border-red-500/50 text-red-200 text-sm rounded-lg p-3">
-                {error}
+          {/* Hero content */}
+          <div className="max-w-md">
+            <h1 className="text-3xl xl:text-4xl font-bold text-white leading-tight"
+              style={{ fontFamily: 'var(--font-space-grotesk, Space Grotesk, sans-serif)' }}>
+              Silsilah Keluarga Digital
+            </h1>
+            <p className="text-slate-300 mt-4 text-lg leading-relaxed">
+              Bangun, kelola, dan bagikan silsilah keluarga Anda dengan mudah.
+              Hubungkan generasi, lestarikan warisan.
+            </p>
+            <div className="flex items-center gap-4 mt-8">
+              <div className="flex -space-x-2">
+                {['from-blue-400 to-blue-600', 'from-emerald-400 to-emerald-600', 'from-amber-400 to-orange-500', 'from-purple-400 to-purple-600'].map((g, i) => (
+                  <div key={i} className={`w-10 h-10 rounded-full bg-gradient-to-br ${g} border-2 border-slate-900`} />
+                ))}
               </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
-              <input
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="email@example.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="••••••••"
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <Link href="/forgot-password" className="text-sm text-blue-400 hover:text-blue-300">
-                Lupa password?
-              </Link>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-semibold rounded-lg transition"
-            >
-              {loading ? 'Memproses...' : 'Masuk'}
-            </button>
-          </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-transparent text-slate-500">atau</span>
+              <p className="text-sm text-slate-400">Bergabung dengan keluarga lainnya</p>
             </div>
           </div>
 
+          {/* Footer */}
+          <p className="text-xs text-slate-500">
+            &copy; {new Date().getFullYear()} Digsan.id — Silsilah Keluarga Digital
+          </p>
+        </div>
+      </div>
+
+      {/* ─── RIGHT: Form panel ────────────────────────────── */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 bg-slate-50 dark:bg-[#05050f]">
+        <div className="w-full max-w-md">
+          {/* Mobile logo */}
+          <div className="lg:hidden text-center mb-8">
+            <Link href="/" className="inline-flex justify-center">
+              <Image src="/logo-white.svg" alt="Digsan" width={120} height={38} priority className="h-10 w-auto" />
+            </Link>
+          </div>
+
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1"
+            style={{ fontFamily: 'var(--font-space-grotesk, Space Grotesk, sans-serif)' }}>
+            Masuk
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-white/50 mb-6">
+            Pilih metode login Anda
+          </p>
+
+          {/* Tabs */}
+          <div className="flex gap-1 p-1 bg-slate-100 dark:bg-white/5 rounded-lg mb-6">
+            <button
+              onClick={() => { setTab('email'); setError(''); setInfo(''); }}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                tab === 'email'
+                  ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-white/50 hover:text-slate-700 dark:hover:text-white/70'
+              }`}
+            >
+              Email
+            </button>
+            <button
+              onClick={() => { setTab('whatsapp'); setError(''); setInfo(''); setWaStep('phone'); }}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                tab === 'whatsapp'
+                  ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-white/50 hover:text-slate-700 dark:hover:text-white/70'
+              }`}
+            >
+              WhatsApp
+            </button>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-300 text-sm rounded-lg p-3 mb-4">
+              {error}
+            </div>
+          )}
+          {info && (
+            <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-sm rounded-lg p-3 mb-4">
+              {info}
+            </div>
+          )}
+
+          {/* Email form */}
+          {tab === 'email' && (
+            <form onSubmit={handleEmailSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1.5">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="email@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1.5">Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <Link href="/forgot-password" className="text-sm text-blue-500 dark:text-blue-400 hover:underline">
+                  Lupa password?
+                </Link>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-semibold rounded-lg transition"
+              >
+                {loading ? 'Memproses...' : 'Masuk'}
+              </button>
+            </form>
+          )}
+
+          {/* WhatsApp form */}
+          {tab === 'whatsapp' && (
+            <form onSubmit={waStep === 'phone' ? handleSendOtp : handleVerifyOtp} className="space-y-5">
+              {waStep === 'phone' ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1.5">
+                    Nomor WhatsApp
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={waForm.phone}
+                    onChange={(e) => setWaForm({ ...waForm, phone: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="6281234567890"
+                  />
+                  <p className="text-xs text-slate-400 dark:text-white/40 mt-1.5">
+                    Masukkan nomor dengan kode negara (contoh: 62...)
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-white/70 mb-1.5">
+                    Kode OTP
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={waForm.otp}
+                    onChange={(e) => setWaForm({ ...waForm, otp: e.target.value.replace(/\D/g, '') })}
+                    className="w-full px-4 py-3 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest"
+                    placeholder="000000"
+                    autoFocus
+                  />
+                  <p className="text-xs text-slate-400 dark:text-white/40 mt-1.5">
+                    Masukkan 6 digit kode yang dikirim ke WhatsApp Anda
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setWaStep('phone'); setWaForm({ ...waForm, otp: '' }); setInfo(''); }}
+                    className="text-sm text-blue-500 dark:text-blue-400 hover:underline mt-2"
+                  >
+                    Ubah nomor
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white font-semibold rounded-lg transition"
+              >
+                {loading ? 'Memproses...' : waStep === 'phone' ? 'Kirim Kode OTP' : 'Verifikasi & Masuk'}
+              </button>
+            </form>
+          )}
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200 dark:border-white/10"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-slate-50 dark:bg-[#05050f] text-slate-400 dark:text-white/40">atau</span>
+            </div>
+          </div>
+
+          {/* Google OAuth */}
           <a
             href={`${API_URL}/auth/google`}
-            className="w-full flex items-center justify-center gap-3 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white transition"
+            className="w-full flex items-center justify-center gap-3 py-3 bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg text-slate-700 dark:text-white transition"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
@@ -137,9 +315,9 @@ function LoginForm() {
             Masuk dengan Google
           </a>
 
-          <p className="text-center text-sm text-slate-400 mt-6">
+          <p className="text-center text-sm text-slate-500 dark:text-white/50 mt-6">
             Belum punya akun?{' '}
-            <Link href="/register" className="text-blue-400 hover:text-blue-300 font-medium">
+            <Link href="/register" className="text-blue-500 dark:text-blue-400 hover:underline font-medium">
               Daftar
             </Link>
           </p>
@@ -153,8 +331,8 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#05050f]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
       }
     >

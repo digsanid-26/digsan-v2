@@ -61,6 +61,28 @@ export class AuthController {
     return this.authService.resendWhatsappOtp(body.userId);
   }
 
+  // ─── WHATSAPP LOGIN ────────────────────────────────────────
+
+  @Post('whatsapp/send-otp')
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @ApiOperation({ summary: 'Send WhatsApp OTP for login' })
+  async sendWhatsappOtp(@Body() body: { phone: string }, @Req() req: Request) {
+    return this.authService.sendWhatsappLoginOTP(body.phone, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @Post('whatsapp/verify')
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @ApiOperation({ summary: 'Verify WhatsApp OTP and login' })
+  async verifyWhatsapp(@Body() body: { phone: string; otp: string }, @Req() req: Request) {
+    return this.authService.verifyWhatsappLogin(body.phone, body.otp, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
   @Post('forgot-password')
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @ApiOperation({ summary: 'Request password reset email' })

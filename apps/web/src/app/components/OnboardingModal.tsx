@@ -175,8 +175,8 @@ export default function OnboardingModal({
                   <Search size={22} className={dark ? 'text-blue-400' : 'text-blue-600'} />
                 </div>
                 <div className="text-left flex-1">
-                  <p className={`font-semibold ${textMain}`}>Mencari Keluarga</p>
-                  <p className={`text-xs ${textMuted}`}>Cari keluarga atau orang yang sudah terdaftar di Digsan</p>
+                  <p className={`font-semibold ${textMain}`}>Mencari Anggota Keluarga</p>
+                  <p className={`text-xs ${textMuted}`}>Cari orang yang sudah terdaftar di Digsan</p>
                 </div>
                 <ArrowRight size={18} className={textMuted} />
               </button>
@@ -208,7 +208,7 @@ export default function OnboardingModal({
               <button onClick={() => setStep('choice')} className={`w-8 h-8 flex items-center justify-center rounded-full ${dark ? 'hover:bg-white/10 text-white/60' : 'hover:bg-slate-100 text-slate-400'}`}>
                 <ArrowLeft size={18} />
               </button>
-              <h2 className={`text-lg font-bold ${textMain}`}>Cari Keluarga</h2>
+              <h2 className={`text-lg font-bold ${textMain}`}>Mencari Anggota Keluarga</h2>
             </div>
 
             <div className="relative mb-4">
@@ -217,7 +217,7 @@ export default function OnboardingModal({
                 autoFocus
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Ketik minimal 3 huruf nama orang atau keluarga..."
+                placeholder="Ketik minimal 3 huruf nama orang..."
                 className={`${inputCls} pl-10`}
               />
               {searching && (
@@ -255,7 +255,7 @@ export default function OnboardingModal({
             {searchQuery.trim().length >= 3 && (
               <div>
                 <p className={`text-xs font-semibold mb-2 ${textMuted}`}>Hasil Pencarian</p>
-                {searchResults.users.length === 0 && searchResults.families.length === 0 && !searching && (
+                {searchResults.users.length === 0 && !searching && (
                   <p className={`text-sm ${textMuted} text-center py-4`}>Tidak ada hasil ditemukan</p>
                 )}
                 <div className="space-y-2">
@@ -267,16 +267,6 @@ export default function OnboardingModal({
                         {u.username && <p className={`text-xs ${textMuted}`}>@{u.username}</p>}
                       </div>
                       <div className={`text-xs ${textMuted} italic opacity-0 group-hover:opacity-100 transition-opacity`}>Anggota keluarga Anda?</div>
-                    </div>
-                  ))}
-                  {searchResults.families.map((f) => (
-                    <div key={f.id} onClick={() => selectItem('family', f)} className={`${cardCls} group`}>
-                      <Avatar src={f.user.avatar} name={f.user.name} />
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-semibold text-sm ${textMain}`}>{f.name}</p>
-                        <p className={`text-xs ${textMuted}`}>Pemilik: {f.user.name}</p>
-                      </div>
-                      <div className={`text-xs ${textMuted} italic opacity-0 group-hover:opacity-100 transition-opacity`}>Keluarga Anda?</div>
                     </div>
                   ))}
                 </div>
@@ -293,10 +283,9 @@ export default function OnboardingModal({
     const isInvitation = selectedItem.type === 'invitation';
     const inv = isInvitation ? selectedItem.data as PendingInvitation : null;
     const user = selectedItem.type === 'user' ? selectedItem.data as SearchUser : null;
-    const family = selectedItem.type === 'family' ? selectedItem.data as SearchFamily : null;
-    const displayName = inv?.tree.user.name || user?.name || family?.user.name || '';
-    const displayAvatar = inv?.tree.user.avatar || user?.avatar || family?.user.avatar || null;
-    const treeName = inv?.tree.name || family?.name || '';
+    const displayName = inv?.tree.user.name || user?.name || '';
+    const displayAvatar = inv?.tree.user.avatar || user?.avatar || null;
+    const treeName = inv?.tree.name || '';
 
     return (
       <div className={overlay} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
@@ -345,13 +334,25 @@ export default function OnboardingModal({
                 {accepting ? 'Memproses...' : (<><Check size={16} />Simpan dan Sesuaikan</>)}
               </button>
             ) : (
-              <div className={`p-3 rounded-lg mb-4 text-sm ${dark ? 'bg-amber-900/20 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
-                Untuk bergabung dengan keluarga {displayName}, Anda perlu diundang terlebih dahulu. Minta {displayName} mengirim undangan ke email Anda.
-              </div>
+              <>
+                <div className={`p-4 rounded-lg mb-4 text-sm ${dark ? 'bg-blue-900/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
+                  Pastikan orang tersebut benar adalah {displayName}. Anda {relationship || '...'}, konfirmasi akan dikirim kepada yang bersangkutan.
+                </div>
+                <button
+                  onClick={() => setStep('search')}
+                  disabled={!relationship}
+                  className={`${btnPrimary} ${!relationship ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Check size={16} /> Konfirmasi
+                </button>
+                <p className={`text-xs ${textMuted} text-center mt-3`}>
+                  Koneksi akan terverifikasi setelah permintaan diterima.
+                </p>
+              </>
             )}
 
             {!isInvitation && (
-              <button onClick={() => setStep('search')} className={btnSecondary}>
+              <button onClick={() => setStep('search')} className={`${btnSecondary} mt-3`}>
                 Kembali
               </button>
             )}

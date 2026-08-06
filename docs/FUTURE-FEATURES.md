@@ -70,6 +70,8 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 - [ ]
 
 ## Chat System
+### Minichat
+- [ ] Saya ingin disediakan fitur minichat agar user bisa mengakses fitur chat di halaman user selain app.digsan.chat. Minichat berupa icon di pojok kanan bawah halaman yang bila diklik muncul jendela chat versi mini;
 
 ## Sistem navigasi dan halaman detil
 - [x] Membuat halaman Family | tree/nama-keluarga (misal tree/farisma-fam) : berisi keluarga kecil ayah, ibu, anak-anak saja dengan konten yang lebih lengkap dan personal (untuk dikembangkan lebih lanjut nanti);
@@ -137,12 +139,13 @@ Mengatur perijinan dari member / anggota digsan.
  
 
 ### User (user)
-- [ ] Ubah layout Login dan register menjadi dua kolom bersebelahan dengan hero mengisi kolom pertama dan form mengisi kolom kedua. Buat dua opsi login yaitu Email (email/gmail), Whatsapp, atau keduanya baik pada registrasi maupun login dengan mengisi nomor whatsapp menjadi wajib ketika opsi login Whatsapp dipilih. Email membutuhkan verifikasi email dan Whatsapp memerlukan verifikasi mencocokkan token;
+- [x] Ubah layout Login dan register menjadi dua kolom bersebelahan dengan elegan hero (dengan heading, subheading, dan desc) mengisi kolom pertama dan form mengisi kolom kedua. Buat dua opsi login yaitu Email (email/gmail), Whatsapp, atau keduanya baik pada registrasi maupun login dengan mengisi nomor whatsapp menjadi wajib ketika opsi login Whatsapp dipilih. Email membutuhkan verifikasi email dan Whatsapp memerlukan verifikasi mencocokkan token;
 - [x] Setelah berhasil login dan menverifikasi keanggotaannya, otomatis role user didapatkan. Keanggotaan aktif setelah user menverifikasi dengan mengklik verifikasi link (email) atau whatsapp (token). Dari sana dia dapat membuat tree baru atau melakukan klaim terhadap node yang dibuat oleh user lain untuk kemudian bila klaim diterima dia dapat melakukan pengaturan jumlah node keluarga utama miliknya hingga keluarga simbahnya;
 - [x] User dapat menjadi super_user dengan syarat memiliki kemampuan dan kemauan mengembangkan tree yang dibuatnya;
 - [x] Disediakan tombol Upgrade super_user yang akan memunculkan modal request form yang ditujukan ke super admin (via email dan bel notifikasi) untuk menjadikan dirinya sebagai super_user. Di Modal tersebut dijelaskan secara ringkas fungsi dan akses yang dimiliki super_user.
-- [ ] Posisi sudah login user baru yang mengakses menggunakan username dan password yang dibuat dengan fitur Early Access oleh pengundang/super_user akan menerima modal Mulai membangun silsilah. Ketika opsi Mencari Keluarga yang dipilih, lalu memilih dari daftar yang ditemukan, pesan yang muncul harusnya: Pastikan orang tersebut benar adalah .... Anda (tergantung pilihan yang dipilih), konfirmasi akan dikirim kepada yang bersangkutan. Klik Konfirmasi. Koneksi akan terverifikasi setelah permintaan diterima. 
-- [ ] Pada modal Mulai Membangun Silsilah, step Mencari Keluarga yang benar adalah Mencari Anggota Keluarga dan fungsi search hanya mencari user/member saja, tidak termasuk family node;
+- [x] Posisi sudah login user baru yang mengakses menggunakan username dan password yang dibuat dengan fitur Early Access oleh pengundang/super_user akan menerima modal Mulai membangun silsilah. Ketika opsi Mencari Anggota Keluarga yang dipilih, lalu memilih dari daftar yang ditemukan, pesan yang muncul harusnya: Pastikan orang tersebut benar adalah .... Anda (tergantung pilihan yang dipilih), konfirmasi akan dikirim kepada yang bersangkutan. Klik Konfirmasi. Koneksi akan terverifikasi setelah permintaan diterima. 
+- [x] Pada modal Mulai Membangun Silsilah, step Mencari Keluarga yang benar adalah Mencari Anggota Keluarga dan fungsi search hanya mencari user/member saja, tidak termasuk family node;
+- [x] Role super_user harusnya tidak otomatis didapatkan ketika user terdaftar apalagi yang menggunakan Early Access. 
 
 
 ### World Tree

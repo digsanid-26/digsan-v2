@@ -11,6 +11,7 @@ interface AuthUser {
   name: string;
   avatar: string | null;
   roles?: string[];
+  status?: string;
 }
 
 interface LoginResponse extends AuthTokens {
@@ -43,6 +44,18 @@ export const auth = {
     request<LoginResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  sendWhatsappOtp: (phone: string) =>
+    request<{ message: string }>('/auth/whatsapp/send-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    }),
+
+  verifyWhatsappLogin: (phone: string, otp: string) =>
+    request<LoginResponse>('/auth/whatsapp/verify', {
+      method: 'POST',
+      body: JSON.stringify({ phone, otp }),
     }),
 
   verifyEmail: (token: string) =>

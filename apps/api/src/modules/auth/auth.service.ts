@@ -179,6 +179,107 @@ export class AuthService {
     };
   }
 
+  // ─── WHATSAPP LOGIN ────────────────────────────────────────
+
+  /**
+   * Sends a WhatsApp OTP to the given phone number for login.
+   * The user must already exist with that phone number.
+   */
+  async sendWhatsappLoginOTP(phone: string, meta?: { ip?: string; userAgent?: string }) {
+    const user = await this.prisma.user.findUnique({ where: { phone } });
+    if (!user) {
+      throw new UnauthorizedException('Nomor WhatsApp tidak ditemukan');
+    }
+
+    if (user.status === 'SUSPENDED' || user.status === 'BANNED') {
+      throw new UnauthorizedException('Akun Anda telah ditangguhkan');
+    }
+
+    if (user.status === 'PENDING') {
+      throw new UnauthorizedException('Akun belum diverifikasi');
+    }
+
+    const otp = this.whatsappService.generateOTP(6);
+    await this.prisma.verificationToken.create({
+      data: {
+        userId: user.id,
+        token: otp,
+        type: 'WHATSAPP',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      },
+    });
+
+    this.whatsappService
+      .sendOTP(phone, otp, user.name)
+      .catch((err) => this.logger.error(`Failed to send WA login OTP: ${err.message}`));
+
+    await this.logLogin(user.id, user.email, 'ATTEMPT', 'WA OTP sent', meta);
+
+    return { message: 'Kode OTP telah dikirim ke WhatsApp Anda' };
+  }
+
+  /**
+   * Verifies the WhatsApp OTP and logs the user in.
+   */
+  async verifyWhatsappLogin(phone: string, otp: string, meta?: { ip?: string; userAgent?: string }) {
+    const user = await this.prisma.user.findUnique({ where: { phone } });
+    if (!user) {
+      throw new UnauthorizedException('Nomor WhatsApp tidak ditemukan');
+    }
+
+    const verification = await this.prisma.verificationToken.findFirst({
+      where: {
+        userId: user.id,
+        token: otp,
+        type: 'WHATSAPP',
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!verification) {
+      throw new UnauthorizedException('Kode OTP salah atau kadaluarsa');
+    }
+
+    // Delete used token
+    await this.prisma.verificationToken.delete({ where: { id: verification.id } });
+
+    if (user.status !== 'ACTIVE' && user.status !== 'EARLY_ACCESS') {
+      throw new UnauthorizedException('Akun tidak aktif');
+    }
+
+    const tokens = await this.generateTokens(user.id, user.email);
+    await this.storeRefreshToken(user.id, tokens.refreshToken);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    await this.logLogin(user.id, user.email, 'SUCCESS', 'WhatsApp OTP login', meta);
+
+    this.gamification.awardLoginPoints(user.id).catch((err) => {
+      this.logger.error(`Failed to award login points: ${err}`);
+    });
+
+    const userRoles = await this.prisma.userRole.findMany({
+      where: { userId: user.id },
+      include: { role: { select: { name: true } } },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        status: user.status,
+        roles: userRoles.map((ur) => ur.role.name),
+      },
+      ...tokens,
+    };
+  }
+
   // ─── VERIFY EMAIL ──────────────────────────────────────────
 
   async verifyEmail(token: string) {

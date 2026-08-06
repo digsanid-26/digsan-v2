@@ -2753,47 +2753,28 @@ export class TreeService {
     const q = query.trim();
     if (q.length < 3) return { users: [], families: [] };
 
-    const [users, families] = await Promise.all([
-      this.prisma.user.findMany({
-        where: {
-          id: { not: currentUserId },
-          OR: [
-            { name: { contains: q, mode: 'insensitive' } },
-            { username: { contains: q, mode: 'insensitive' } },
-            { email: { contains: q, mode: 'insensitive' } },
-          ],
-        },
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          avatar: true,
-          email: true,
-        },
-        take: 10,
-      }),
-      this.prisma.familyTree.findMany({
-        where: {
-          userId: { not: currentUserId },
-          OR: [
-            { name: { contains: q, mode: 'insensitive' } },
-            { slug: { contains: q, mode: 'insensitive' } },
-          ],
-        },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          userId: true,
-          user: { select: { id: true, name: true, avatar: true } },
-        },
-        take: 10,
-      }),
-    ]);
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { not: currentUserId },
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { username: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        avatar: true,
+        email: true,
+      },
+      take: 10,
+    });
 
     return {
       users: users.map((u) => ({ ...u, type: 'user' as const })),
-      families: families.map((f) => ({ ...f, type: 'family' as const })),
+      families: [],
     };
   }
 
