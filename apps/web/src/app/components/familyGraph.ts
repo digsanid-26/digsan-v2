@@ -250,6 +250,128 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
   buildParentSiblings('parent-0', 'P');
   buildParentSiblings('parent-1', 'M');
 
+  // ─── Per-node familyConfig sub-trees (super_user on unclaimed nodes) ───
+  // For any node that has a familyConfig override, build spouses, children,
+  // parents, and siblings attached to that node. This generalises the
+  // parent-sibling logic above to ALL node types (grandparents, ancestors,
+  // children, siblings, etc.).
+  const buildFamilyConfigSubtree = (nodeId: string) => {
+    const node = g[nodeId];
+    const o = ov(nodeId);
+    if (!node || !o) return;
+    const fc = o.familyConfig;
+    if (!fc) return;
+
+    // Spouses
+    const spouseCount = fc.spouseCount ?? 0;
+    for (let i = 0; i < spouseCount; i++) {
+      const sid = `${nodeId}-fc-spouse-${i}`;
+      if (g[sid]) continue;
+      add({
+        id: sid,
+        name: spouseCount > 1 ? `Pasangan ${i + 1}` : 'Pasangan',
+        gender: '',
+        alive: true,
+        photo: null,
+        verified: false,
+        role: 'Suami / Istri',
+        group: 'spouse',
+        parentId: null,
+        spouseId: nodeId,
+      });
+      if (!node.spouseId) node.spouseId = sid;
+    }
+
+    // Children
+    const childCount = fc.childCount ?? 0;
+    for (let i = 0; i < childCount; i++) {
+      const cid = `${nodeId}-fc-child-${i}`;
+      if (g[cid]) continue;
+      add({
+        id: cid,
+        name: `Anak ${i + 1}`,
+        gender: '',
+        alive: true,
+        photo: null,
+        verified: false,
+        role: 'Keturunan',
+        group: 'child',
+        parentId: nodeId,
+        spouseId: null,
+      });
+    }
+
+    // Parents (only if node doesn't already have one)
+    const parentCount = fc.parentCount ?? 0;
+    if (parentCount > 0 && !node.parentId) {
+      const pids: string[] = [];
+      for (let i = 0; i < parentCount; i++) {
+        const pid = `${nodeId}-fc-parent-${i}`;
+        if (g[pid]) { pids.push(pid); continue; }
+        const labels = parentCount === 2 ? ['Ayah', 'Ibu'] : [`Orang Tua ${i + 1}`];
+        add({
+          id: pid,
+          name: labels[i] || `Orang Tua ${i + 1}`,
+          gender: i === 0 ? 'L' : 'P',
+          alive: true,
+          photo: null,
+          verified: false,
+          role: 'Orang Tua',
+          group: 'parent',
+          parentId: null,
+          spouseId: null,
+        });
+        pids.push(pid);
+      }
+      if (parentCount >= 2) { g[pids[0]].spouseId = pids[1]; g[pids[1]].spouseId = pids[0]; }
+      node.parentId = pids[0];
+    }
+
+    // Siblings (older + younger) — share the same parentId.
+    // Skip for parent-0/parent-1 since buildParentSiblings already handles those.
+    if (nodeId === 'parent-0' || nodeId === 'parent-1') return;
+    const older = fc.olderCount ?? fc.siblingCount ?? 0;
+    const younger = fc.youngerCount ?? 0;
+    const sibParent = node.parentId;
+    for (let i = 0; i < older; i++) {
+      const sid = `${nodeId}-fc-older-${i}`;
+      if (g[sid]) continue;
+      add({
+        id: sid,
+        name: `Kakak ${i + 1}`,
+        gender: '',
+        alive: true,
+        photo: null,
+        verified: false,
+        role: 'Saudara Tua',
+        group: 'kakak',
+        parentId: sibParent,
+        spouseId: null,
+      });
+    }
+    for (let i = 0; i < younger; i++) {
+      const sid = `${nodeId}-fc-younger-${i}`;
+      if (g[sid]) continue;
+      add({
+        id: sid,
+        name: `Adik ${i + 1}`,
+        gender: '',
+        alive: true,
+        photo: null,
+        verified: false,
+        role: 'Saudara Muda',
+        group: 'adik',
+        parentId: sibParent,
+        spouseId: null,
+      });
+    }
+  };
+
+  // Apply familyConfig sub-trees to all base-graph nodes that have overrides.
+  for (const id of Object.keys(g)) {
+    buildFamilyConfigSubtree(id);
+  }
+
   // ─── Explicitly-added circles (recursive, graph-based) ───
   // Any member override carrying an explicit `group` + relation fields is a
   // circle added via the tree UI (super_user). These reference base ids or

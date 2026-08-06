@@ -1561,18 +1561,24 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
         )}
 
         {/* Family setup — guardian manages a member's own network.
-            Deceased direct relative: unlocked. Living member: requires consent. */}
-        {!isSelf && (node.group === 'parent' || node.group === 'spouse') && (() => {
+            Deceased direct relative: unlocked. Living member: requires consent.
+            Super_user on unclaimed nodes: full controls for all node types. */}
+        {!isSelf && node.role !== 'group' && (() => {
           const deceased = !form.alive;
           const granted = consent?.status === 'GRANTED';
-          const unlocked = isSuperUser || (deceased ? canEdit : granted) || node.group === 'spouse';
+          const isUnclaimed = !form.linkedUserId && !form.verified;
+          const isSuperUnclaimed = isSuperUser && isUnclaimed;
+          const unlocked = isSuperUnclaimed || (deceased ? canEdit : granted) || node.group === 'spouse';
+          const showFullControls = isSuperUnclaimed;
           return (
             <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-4">
               <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-1">
                 {deceased ? 'Atur Keluarga (Alm.)' : 'Atur Keluarga'}
               </p>
               <p className="text-xs text-slate-500 dark:text-white/50 mb-3 leading-snug">
-                {deceased
+                {isSuperUnclaimed
+                  ? <>Sebagai super user, Anda dapat menata keluarga anggota ini tanpa perlu izin.</>
+                  : deceased
                   ? <>Karena anggota ini telah meninggal, Anda sebagai wali dapat menata keluarganya. Menambah saudara akan memunculkan cabang paman/bibi yang tersambung ke kakek-nenek (terlihat saat <b>Expand All</b>).</>
                   : node.group === 'spouse'
                     ? <>Atur jumlah saudara dari pasangan ini. Data ini akan tampil di pohon keluarga publik.</>
@@ -1610,6 +1616,25 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
               )}
 
               <div className={unlocked ? '' : 'opacity-40 pointer-events-none select-none'}>
+                {showFullControls && (
+                  <>
+                    <NumField
+                      label="Jumlah Pasangan (Suami/Istri)"
+                      value={form.familyConfig?.spouseCount ?? 0}
+                      onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, spouseCount: v } }))}
+                    />
+                    <NumField
+                      label="Jumlah Anak"
+                      value={form.familyConfig?.childCount ?? 0}
+                      onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, childCount: v } }))}
+                    />
+                    <NumField
+                      label="Jumlah Orang Tua"
+                      value={form.familyConfig?.parentCount ?? 0}
+                      onChange={(v) => setForm((f) => ({ ...f, familyConfig: { ...f.familyConfig, parentCount: v } }))}
+                    />
+                  </>
+                )}
                 <NumField
                   label={deceased ? 'Jumlah Kakak (dari alm.)' : 'Jumlah Kakak'}
                   value={form.familyConfig?.olderCount ?? form.familyConfig?.siblingCount ?? 0}
