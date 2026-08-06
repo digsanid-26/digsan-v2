@@ -14,6 +14,7 @@ const NAV = [
   { label: 'Home', href: '/dashboard' },
   { label: 'About', href: '/about' },
   { label: 'Tree', href: '/tree' },
+  { label: 'Chat', href: '/chat' },
   { label: 'Aktivitas', href: '/activity' },
 ];
 

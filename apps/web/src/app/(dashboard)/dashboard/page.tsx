@@ -160,12 +160,15 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Chat — Inactive */}
-          <StatusBox
-            label="Aplikasi Chat"
-            description="Chat real-time dengan kerabat dan keluarga"
-            icon={MessageCircle}
-          />
+          {/* Chat — Active */}
+          <Link href="/chat" className="block">
+            <StatusBox
+              label="Aplikasi Chat"
+              description="Chat real-time dengan kerabat dan keluarga"
+              active
+              icon={MessageCircle}
+            />
+          </Link>
 
           {/* Doa Leluhur — Inactive */}
           <StatusBox
