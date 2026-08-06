@@ -76,7 +76,7 @@ export class AuthController {
   @Post('whatsapp/verify')
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Verify WhatsApp OTP and login' })
-  async verifyWhatsapp(@Body() body: { phone: string; otp: string }, @Req() req: Request) {
+  async verifyWhatsappLogin(@Body() body: { phone: string; otp: string }, @Req() req: Request) {
     return this.authService.verifyWhatsappLogin(body.phone, body.otp, {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
