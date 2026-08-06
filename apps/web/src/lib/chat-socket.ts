@@ -4,7 +4,7 @@ import { io, Socket } from 'socket.io-client';
 import { getTokens } from './auth';
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://localhost:4000';
 
 let socket: Socket | null = null;
 
@@ -15,7 +15,7 @@ function getSocket(): Socket | null {
 
   socket = io(`${SOCKET_URL}/chat`, {
     auth: { token: tokens.accessToken },
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionAttempts: 5,

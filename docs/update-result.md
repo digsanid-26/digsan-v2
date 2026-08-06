@@ -282,3 +282,73 @@ Garis pernikahan jadi lebih panjang saat kedua pihak punya silsilah lengkap. Ini
 Perubahan sudah lolos `npx tsc --noEmit --incremental false` dan pemeriksaan geometri numerik, tapi **belum dilihat di browser**. Tampilan visual pada data nyata perlu dicek manual.
 
 **Catatan alat:** `npx tsc --noEmit` tanpa `--incremental false` **tidak bisa dipercaya** di repo ini — `tsconfig.json` memakai `"incremental": true`, dan cache `.tsbuildinfo` pernah melaporkan sukses pada kode yang sebenarnya gagal di build produksi.
+
+---
+
+## 2026-08-04 — Perbaikan Nama & Foto Anggota di Halaman Publik
+
+**Commit:** `631ac71`
+
+**Masalah:** Nama lengkap/nama publik dan foto Ayah, Ibu, Saudara, maupun Paman/Bibi tidak muncul di halaman publik keluarga — masih menampilkan label bawaan ("Ayah", "Adik 1", dll.) tanpa foto.
+
+### Akar Masalah
+
+Lingkaran yang dirender di halaman publik memakai **ID layout-specific** (`self-ortu-parent-0`, `sib-self-saudara-2`, `unc-self-paman-ayah-1`), tapi `resolve()` mencari data anggota dengan ID tersebut di `members[id]`. Editor pohon menyimpan record anggota dengan **ID kanonis** (`parent-0`, `older-2`, `unclePo-1`). Karena tidak pernah cocok, `members[id]` selalu `undefined` → fallback ke label generik.
+
+Selain itu, tampilan Familymember (mode "Keluarga Besar") memakai kunci `kakak-${i}` / `adik-${i}` yang tidak ada — seharusnya `older-${i}` / `younger-${i}`.
+
+### Solusi
+
+1. **Fungsi `memberKeyFor(id)`** ditambahkan di `apps/web/src/app/family/[slug]/page.tsx`. Menerjemahkan setiap ID lingkaran yang diperluas kembali ke kunci kanonis:
+   - `self-ortu-parent-N` → `parent-N`
+   - `sib-self-saudara-N` → `older-N` atau `younger-N` (berdasarkan split older/younger)
+   - `unc-self-paman-ayah-N` → `unclePo-N` atau `unclePy-N`
+   - `self-simbah-P-parent-N` → `gpP-N` (jalur ayah), `gpM-N` (jalur ibu)
+   - Pola yang sama untuk sisi pasangan (`spouse-N-...`)
+2. **`resolve()`** kini memanggil `members[memberKeyFor(id)]` bukan `members[id]`.
+3. **`selectedMember`** (untuk modal detail) juga dirutekan melalui `memberKeyFor` — sebelumnya `verified` / `linkedUserId` / early-access salah untuk setiap lingkaran yang diperluas.
+4. **Familymember view:** `kakak-${i}` → `older-${i}`, `adik-${i}` → `younger-${i}`.
+5. **Label fallback saudara** diperbaiki dari generik `Saudara N` menjadi `Kakak N` / `Adik N` sesuai urutan older/younger.
+
+### Keterbatasan Tersisa
+
+Silsilah pasangan (selain node `spouse-N` itu sendiri) tidak di-hydrate lintas-pohon di API. `hydrateLinkedFamilyConfigs` hanya memproyeksikan *counts* ke node `spouse-N`, bukan anggota individual pasangan. Jadi ortu/saudara/simbah dari sisi pasangan tetap memakai label fallback tanpa foto, kecuali jika data tersebut eksplisit ditambahkan ke `layoutMembers` pemilik pohon.
+
+---
+
+## 2026-08-04 — Redesain Simbah & Paman/Bibi: Hitungan Gabungan, Ekspansi Dua Tahap, Paman Sejajar Ortu
+
+**Commit:** `5f257a1`
+
+**Masalah yang dilaporkan:**
+1. Lingkaran Simbah belum menunjukkan jumlah total (gabungan jalur ayah + ibu).
+2. Hover Simbah belum memunculkan label "Buka" maupun jalur Paman/Bibi.
+3. Klik Simbah langsung memunculkan Simbah Kakung + Putri, tanpa memisahkan jalur ayah/ibu terlebih dahulu.
+4. Posisi Paman/Bibi terlalu jauh di atas — seharusnya satu baris horizontal dengan Ayah/Ibu.
+
+### Solusi
+
+**1. Simbah sebagai grup berhitungan gabungan.** Lingkaran `self-simbah` kini berperan sebagai group bubble dengan nama `Simbah {simbahP + simbahM}` di `y=-420`, ditandai `expandable: true`. Overlay "Buka" di `PublicTreeCanvas` digeneralisasi untuk semua node `expandable` (sebelumnya hanya `Ortu` dan `Saudara`).
+
+**2. Ekspansi Simbah dua tahap.**
+- **Tahap 1:** Klik Simbah utama → pecah menjadi `Simbah Ayah {simbahP}` dan `Simbah Ibu {simbahM}`, masing-masing tepat di atas kolom Ayah (`x - PARENT_SPACING/2`) dan Ibu (`x + PARENT_SPACING/2`) di `y=-420`. Jenis ekspansi baru: `grandparent`.
+- **Tahap 2:** Klik salah satu → pecah lagi menjadi `Simbah Kakung` + `Simbah Putri` (atau satu lingkaran jika count=1). Jenis ekspansi: `grandparent-side`. Kedua tahap dilacak di `expansionStack` LIFO.
+
+**3. Paman/Bibi sejajar orang tua.** Group bubble Paman/Bibi dipindah dari `y=-420` ke `y=-210` (sama seperti Ayah/Ibu). Garis koneksi bercabang dari titik tengah (`y=-315`) antara orang tua dan Simbah — yaitu pertengahan garis vertikal Ayah→Simbah atau Ibu→Simbah. Paman ayah di kiri (`x - UNCLE_OFFSET`), paman ibu di kanan (`x + UNCLE_OFFSET`).
+
+**4. Hover Paman/Bibi spesifik per sisi.** Tag paman dipecah: `self-uncles-P` (jalur ayah) dan `self-uncles-M` (jalur ibu), demikian juga untuk pasangan. Uncles **tidak lagi** terungkap saat hover Ortu atau Simbah utama — hanya saat hover `Simbah Ayah` atau `Simbah Ibu` yang bersangkutan, via helper baru `getUncleTagForSimbahSide()`.
+
+**5. `memberKeyFor` diperbarui** untuk ID baru: `self-simbah-P-parent-N` → `gpP-N`, `self-simbah-M-parent-N` → `gpM-N`.
+
+**6. Konstanta baru:** `GP_SPACING = 110` untuk jarak Kakung↔Putri saat Simbah sisi diekspansi.
+
+### Berkas Terdampak
+
+- `apps/web/src/app/components/treeTypes.ts` — `expandable?: boolean` pada `TNode`.
+- `apps/web/src/app/components/PublicTreeCanvas.tsx` — overlay "Buka" digeneralisasi.
+- `apps/web/src/app/family/[slug]/page.tsx` — logika layout, ekspansi, hover, klik, `memberKeyFor`, `closeButtons`, helper tag.
+
+### Konsekuensi yang Perlu Disadari
+
+- `GP_SPACING` (110) < `PARENT_SPACING` (130), jadi hanya satu sisi Simbah yang bisa diekspansi pada satu waktu tanpa risiko tumpang tindih. Jika kedua sisi dibuka bersamaan, perlu melebar.
+- Spouse-side Simbah masih memakai `cfg.simbahP + cfg.simbahM` dari pemilik slug, bukan dari pohon pribadi pasangan — sama seperti keterbatasan pada catatan sebelumnya.

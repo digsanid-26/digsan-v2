@@ -51,16 +51,17 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 
 ## Page dan Style
 ### Darkmode Improvement
-- [ ] Masih ditemukan bug di dark mode: Pilih pekerjaan di Sidebar Edit Profil Detil
+- [ ] Masih ditemukan bug di dark mode: Pilih pekerjaan di Sidebar Edit Profil Detil warna select field teks putih background putih, harusnya background hitam/gelap agar teks terlihat;
+- [ ] app.digsan.id/gamification belum full support dark mode;
 
 ### Header app.digsan.id
-- [ ] Tambahkan Block App version diikuti tombol Beta (background orange tua teks putih) di sebelah kiri Bell notifikasi. Bila tombol diklik akan memunculkan modal berisi heading App Version : Beta dengan diikuti deskripsi : Aplikasi ini masih dalam tahap beta dan dalam proses penyempurnaan fitur utama Tree. Ada saran atau menemukan bug/error, silahkan isikan di form berikut ini: Field Select Saran/Masukan | Bug/Error | Pertanyaan, field wysiwyg dan tombol Kirim. Pesan akan dikirim ke email admin.
+- [x] Tambahkan Block App version diikuti tombol Beta (background orange tua teks putih) di sebelah kiri Bell notifikasi. Bila tombol diklik akan memunculkan modal berisi heading App Version : Beta dengan diikuti deskripsi : Aplikasi ini masih dalam tahap beta dan dalam proses penyempurnaan fitur utama Tree. Ada saran atau menemukan bug/error, silahkan isikan di form berikut ini: Field Select Saran/Masukan | Bug/Error | Pertanyaan, field wysiwyg dan tombol Kirim. Pesan akan dikirim ke email admin.
 
 ### Page app.digsan.id Improvement
-- [ ] Bagi page menjadi 3 kolom seperti page app.digsan.id/dashboard. 
-- [ ] Kolom pertama dengan Heading App Status diikuti tampilan tree yang ada sekarang di dalam kotak berborder mengelilinginya dan label TREE dengan tulisan Active ( background hijau dengan dot indikator hijau menyala dan tulisan Active berwarna putih);
-- [ ] Kolom kedua dengan Heading How To yang diikuti penjelasan judul dan sebuah player Youtube di bawahnya. List artikel berisi berbagai panduan yang mengarah ke halaman artikel tertentu di bawahnya, lalu diakhiri sebuah block CTA : Butuh bantuan? dan tombol Konsultasikan yang mengarah ke halaman Kontak Kami;
-- [ ] Kolom ketiga adalah History yang berisi rekam jejak aktivitas user terkait, dalam hal ini baru yang berkaitan dengan update tree keluarganya serta perolehan poin (gamification) yang didapatkannya (real, bukan dummy)
+- [x] Bagi page menjadi 3 kolom seperti page app.digsan.id/dashboard. 
+- [x] Kolom pertama dengan Heading App Status diikuti tampilan tree yang ada sekarang di dalam box/kotak berborder mengelilinginya dan label TREE dengan tulisan Active ( background hijau dengan dot indikator hijau menyala dan tulisan Active berwarna putih), di bawahnya dengan style border sama dengan label Aplikasi Chat diikuti deskripsi namun dengan tulisan Inactive (background hitam indikator abu-abu), kemudian box dengan label Doa Leluhur dengan deskripsi dan tulisan Inactive, kemudian box dengan label Digsan Membercard dan MMBC Membership dengan deskripsi dan tulisan Inactive;
+- [x] Kolom kedua dengan Heading How To yang diikuti penjelasan judul dan sebuah player Youtube di bawahnya. List artikel berisi berbagai panduan yang mengarah ke halaman artikel tertentu di bawahnya, lalu diakhiri sebuah block CTA : Butuh bantuan? dan tombol Konsultasikan yang mengarah ke halaman Kontak Kami;
+- [x] Kolom ketiga adalah Poin dan Aktivitas yang berisi real data total poin yang didapatkan (mirip yang ada di app.digsan.id/dashboard), diikuti list tipe poin dan perolehannya. Kemudian dibawahnya Heading Aktivitas berisi rekam jejak aktivitas user terkait, dalam hal ini baru yang berkaitan dengan update tree keluarganya serta perolehan poin (gamification) yang didapatkannya (real, bukan dummy)
 
 ## Share, Like, Reaction, Comment System
 
@@ -120,7 +121,7 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 
 
 ### Public Tree / Node Improvement
-- [ ] Ubah layout/model header public family menjadi sidebar (mirip sidebar detail profil di halaman /tree) namun di sebelah kiri yang bisa dishow-hide dengan toggle. Cover di bagian atas, sementara informasi teks di bawahnya dengan align rata kiri (tanpa gambar family image). 
+- [x] Ubah layout/model header public family menjadi sidebar (mirip sidebar detail profil di halaman /tree) namun di sebelah kiri yang bisa dishow-hide dengan toggle. Cover di bagian atas, sementara informasi teks di bawahnya dengan align rata kiri (tanpa gambar family image). 
 
 ## Role Improvement
 Mengatur perijinan dari member / anggota digsan.
@@ -136,9 +137,13 @@ Mengatur perijinan dari member / anggota digsan.
  
 
 ### User (user)
+- [ ] Ubah layout Login dan register menjadi dua kolom bersebelahan dengan hero mengisi kolom pertama dan form mengisi kolom kedua. Buat dua opsi login yaitu Email (email/gmail), Whatsapp, atau keduanya baik pada registrasi maupun login dengan mengisi nomor whatsapp menjadi wajib ketika opsi login Whatsapp dipilih. Email membutuhkan verifikasi email dan Whatsapp memerlukan verifikasi mencocokkan token;
 - [x] Setelah berhasil login dan menverifikasi keanggotaannya, otomatis role user didapatkan. Keanggotaan aktif setelah user menverifikasi dengan mengklik verifikasi link (email) atau whatsapp (token). Dari sana dia dapat membuat tree baru atau melakukan klaim terhadap node yang dibuat oleh user lain untuk kemudian bila klaim diterima dia dapat melakukan pengaturan jumlah node keluarga utama miliknya hingga keluarga simbahnya;
 - [x] User dapat menjadi super_user dengan syarat memiliki kemampuan dan kemauan mengembangkan tree yang dibuatnya;
 - [x] Disediakan tombol Upgrade super_user yang akan memunculkan modal request form yang ditujukan ke super admin (via email dan bel notifikasi) untuk menjadikan dirinya sebagai super_user. Di Modal tersebut dijelaskan secara ringkas fungsi dan akses yang dimiliki super_user.
+- [ ] Posisi sudah login user baru yang mengakses menggunakan username dan password yang dibuat dengan fitur Early Access oleh pengundang/super_user akan menerima modal Mulai membangun silsilah. Ketika opsi Mencari Keluarga yang dipilih, lalu memilih dari daftar yang ditemukan, pesan yang muncul harusnya: Pastikan orang tersebut benar adalah .... Anda (tergantung pilihan yang dipilih), konfirmasi akan dikirim kepada yang bersangkutan. Klik Konfirmasi. Koneksi akan terverifikasi setelah permintaan diterima. 
+- [ ] Pada modal Mulai Membangun Silsilah, step Mencari Keluarga yang benar adalah Mencari Anggota Keluarga dan fungsi search hanya mencari user/member saja, tidak termasuk family node;
+
 
 ### World Tree
 - Pelajari tentang D3.js dan apa saja kemampuan dan yang bisa dilakukannya dan bisakah membangun View Mode World Tree dengan konsep sbb:
@@ -179,16 +184,20 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 ### Spot Advertising
 - [x] Banner id dash-in disediakan untuk dapat menampung banner dengan ratio 3:1 pada app.digsan.id/dashboard box Informasi, diletakkan di bawah tulisan Informasi
 - [x] Banner Modal Left-Tree pada halaman app.digsan.id/tree dengan posisi top-left di bawah navigasi tree yang dapat diisi 3 Banner id ratio 1:1 tree-l-r1/1-01, tree-l-r1/1-02, tree-l-r1/1-03, atau dua banner id aspek rasio 1:2 tree-l-r1/2 dan aspek rasio 1:1 tree-l-1/1-01, atau 1 banner aspek rasio 1:3 tree-l-r1/3; 
-- [ ] Banner 3:1 di sidebar-left pada halaman app.digsan.id/family/nama-family sebelum block/section Bagaimana dari keluarga ini? 
-- [ ] Buat placeholder untuk masing-masing spot;
-- [ ] Ubah spot banner yang tersedia menjadi select / dropdown agar tidak perlu mengisi manual;
+- [x] Banner 3:1 di sidebar-left pada halaman app.digsan.id/family/nama-family sebelum block/section Bagaimana dari keluarga ini? 
+- [x] Buat placeholder untuk masing-masing spot;
+- [x] Ubah spot banner yang tersedia menjadi select / dropdown agar tidak perlu mengisi manual;
 
 ## Style Manager
 ### Style Improvement
-- [ ] Lakukan perubahan layout terhadap header /family/nama-family sbb: Buat header menjadi dua kolom. Kolom pertama berisi Image Cover Family Node dengan bentuk bulat (kalau sekarang kotak), sementara kolom kedua berisi informasi-informasi teks dengan dibuat rata kiri. Tambahkan toggle Show hide di pojok kanan header yang bisa menyembunyikan header;
+
 
 ## Sistem Ai 
+### Ai for Tree
+- [ ] Apa yang diperlukan agar aplikasi tree digsan.id melalui teknologi ai dapat merekonstruksi wajah almarhum / almarhumah berbasis wajah dari anak-anak (orang tua, simbah) atau cucu-cucunya (bapak, ibu)? Kebanyakan sudah tidak ada / ditemukan foto almarhum simbah, buyut, dst.
+
 ### Ai Watcher and Recommendater
+
 - [ ] Apa yang diperlukan agar aplikasi digsan.id memiliki fitur ai yang dapat menjalankan auto scan terhadap fitur-fitur yang sudah ada, perkembangan data, celah-celah keamanan yang muncul, akses-akses yang mencurigakan, serta hal lain yang berjalan di digsan.id?
 - [ ] Apa yang diperlukan agar aplikasi digsan.id memiliki fitur ai mampu memberikan saran perbaikan dan improvisasi terhadap fitur-fitur yang ada, menambal celah-celah keamanan yang muncul, serta mencegak akses-akses yang mencurigakan, dan saran atau masukan yang lain termasuk fitur baru kedepannya?
 
