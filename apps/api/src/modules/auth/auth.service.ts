@@ -213,7 +213,7 @@ export class AuthService {
       .sendOTP(phone, otp, user.name)
       .catch((err) => this.logger.error(`Failed to send WA login OTP: ${err.message}`));
 
-    await this.logLogin(user.id, user.email, 'ATTEMPT', 'WA OTP sent', meta);
+    await this.logLogin(user.id, user.email, 'SUCCESS', 'WA OTP sent', meta);
 
     return { message: 'Kode OTP telah dikirim ke WhatsApp Anda' };
   }
