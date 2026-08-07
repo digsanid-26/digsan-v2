@@ -197,7 +197,7 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 
 ## Sistem Ai 
 ### Ai for Tree
-- [ ] Apa yang diperlukan agar aplikasi tree digsan.id melalui teknologi ai dapat merekonstruksi wajah almarhum / almarhumah berbasis wajah dari anak-anak (orang tua, simbah) atau cucu-cucunya (bapak, ibu)? Kebanyakan sudah tidak ada / ditemukan foto almarhum simbah, buyut, dst.
+- [ ] Apa yang diperlukan agar aplikasi tree digsan.id melalui teknologi ai dapat merekonstruksi wajah almarhum / almarhumah berbasis wajah dari anak-anaknya (orang tua, simbah) atau cucu-cucunya (bapak, ibu)? Kebanyakan sudah tidak ada / ditemukan foto almarhum simbah, buyut, dst. Fitur ini khusus untuk super_user dan super admin, dapat ditambahkan di Sidebar Detail anggota di halaman /tree sebagai opsi baru dibawah Unggah Foto Profil dalam bentuk tombol Generate Foto Profil yang memunculkan modal yang berisi konfigurasi seperti usia, rambut, otomatis mengambil referensi wajah anak-anak yang masih hidup.  
 
 ### Ai Watcher and Recommendater
 

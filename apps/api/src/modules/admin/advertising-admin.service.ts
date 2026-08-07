@@ -296,14 +296,14 @@ export class AdvertisingAdminService {
     };
     const size = sizeMap[aspectRatio || '1:1'] || '1024x1024';
 
-    // Use selected model or default
-    const modelName = model || 'google/gemini-2.0-flash-exp:free';
+    // Use selected model or default — must be a model with image output modality
+    const modelName = model || 'google/gemini-2.5-flash-image';
 
     this.logger.log(`Generating AI image with model ${modelName}, prompt: ${fullPrompt.substring(0, 100)}...`);
 
     // Build message content — text prompt + optional attachment images
     const messageContent: any[] = [
-      { type: 'text', text: `Generate an advertisement banner image. ${fullPrompt}. Size: ${size}. Return only the image.` },
+      { type: 'text', text: `Generate an advertisement banner image. ${fullPrompt}. Return only the image.` },
     ];
     if (attachments && attachments.length > 0) {
       for (const url of attachments) {
@@ -328,7 +328,10 @@ export class AdvertisingAdminService {
             content: messageContent,
           },
         ],
-        response_format: { type: 'image' },
+        modalities: ['image', 'text'],
+        image_config: {
+          aspect_ratio: aspectRatio || '1:1',
+        },
       }),
     });
 

@@ -361,7 +361,7 @@ function BuilderTab() {
   const [colorScheme, setColorScheme] = useState('');
   const [aspectRatio, setAspectRatio] = useState('1:1');
   const [style, setStyle] = useState('');
-  const [model, setModel] = useState('google/gemini-2.0-flash-exp:free');
+  const [model, setModel] = useState('google/gemini-2.5-flash-image');
   const [attachments, setAttachments] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -375,39 +375,34 @@ function BuilderTab() {
   const inputCls = 'w-full px-3 py-2 rounded-lg text-sm outline-none border bg-white border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-[#0a0e1a] dark:border-white/15 dark:text-white';
 
   const aiModels = [
-    { value: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
-    { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { value: 'google/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
-    { value: 'google/gemini-2.5-flash-lite-preview', label: 'Gemini 2.5 Flash Lite Preview' },
-    { value: 'google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash 001' },
-    { value: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash Exp (Free)' },
-    { value: 'openai/gpt-4o', label: 'GPT-4o' },
-    { value: 'openai/gpt-4o-mini', label: 'GPT-4o Mini' },
-    { value: 'openai/gpt-4.1', label: 'GPT-4.1' },
-    { value: 'openai/gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-    { value: 'openai/gpt-4.1-nano', label: 'GPT-4.1 Nano' },
-    { value: 'openai/o3-mini', label: 'o3 Mini' },
-    { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
-    { value: 'anthropic/claude-3.5-haiku', label: 'Claude 3.5 Haiku' },
-    { value: 'anthropic/claude-sonnet-4', label: 'Claude Sonnet 4' },
-    { value: 'anthropic/claude-opus-4', label: 'Claude Opus 4' },
-    { value: 'meta-llama/llama-3.2-90b-vision-instruct', label: 'Llama 3.2 90B Vision' },
-    { value: 'meta-llama/llama-3.2-11b-vision-instruct', label: 'Llama 3.2 11B Vision' },
-    { value: 'meta-llama/llama-4-maverick', label: 'Llama 4 Maverick' },
-    { value: 'meta-llama/llama-4-scout', label: 'Llama 4 Scout' },
-    { value: 'qwen/qwen-2.5-vl-72b-instruct', label: 'Qwen 2.5 VL 72B' },
-    { value: 'qwen/qwen-2.5-vl-7b-instruct', label: 'Qwen 2.5 VL 7B' },
-    { value: 'qwen/qwq-32b', label: 'Qwen QwQ 32B' },
-    { value: 'mistralai/mistral-large', label: 'Mistral Large' },
-    { value: 'mistralai/mistral-small', label: 'Mistral Small' },
-    { value: 'microsoft/phi-4-multimodal-instruct', label: 'Phi-4 Multimodal' },
-    { value: 'amazon/nova-pro-v1', label: 'Amazon Nova Pro' },
-    { value: 'amazon/nova-lite-v1', label: 'Amazon Nova Lite' },
-    { value: 'x-ai/grok-2-vision', label: 'Grok 2 Vision' },
-    { value: 'x-ai/grok-vision-beta', label: 'Grok Vision Beta' },
-    { value: 'deepseek/deepseek-chat', label: 'DeepSeek Chat' },
-    { value: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
+    { value: 'google/gemini-2.5-flash-image', label: 'Google Gemini 2.5 Flash Image (Nano Banana)' },
+    { value: 'google/gemini-3.1-flash-image', label: 'Google Gemini 3.1 Flash Image (Nano Banana 2)' },
+    { value: 'google/gemini-3.1-flash-image-preview', label: 'Google Gemini 3.1 Flash Image Preview' },
+    { value: 'google/gemini-3.1-flash-lite-image', label: 'Google Gemini 3.1 Flash Lite Image' },
+    { value: 'google/gemini-3-pro-image', label: 'Google Gemini 3 Pro Image (Nano Banana Pro)' },
+    { value: 'google/gemini-3-pro-image-preview', label: 'Google Gemini 3 Pro Image Preview' },
+    { value: 'openai/gpt-image-1', label: 'OpenAI GPT Image 1' },
+    { value: 'openai/gpt-image-1-mini', label: 'OpenAI GPT Image 1 Mini' },
+    { value: 'openai/gpt-image-2', label: 'OpenAI GPT Image 2' },
+    { value: 'openai/gpt-5-image', label: 'OpenAI GPT-5 Image' },
+    { value: 'openai/gpt-5-image-mini', label: 'OpenAI GPT-5 Image Mini' },
+    { value: 'black-forest-labs/flux.2-pro', label: 'FLUX.2 Pro' },
+    { value: 'black-forest-labs/flux.2-flex', label: 'FLUX.2 Flex' },
+    { value: 'black-forest-labs/flux.2-max', label: 'FLUX.2 Max' },
+    { value: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX.2 Klein 4B' },
+    { value: 'qwen/qwen-image-3-pro', label: 'Qwen Image 3 Pro' },
+    { value: 'qwen/qwen-image-3', label: 'Qwen Image 3' },
+    { value: 'bytedance-seed/seedream-4.5', label: 'ByteDance Seedream 4.5' },
+    { value: 'recraft/recraft-v4.1-pro', label: 'Recraft V4.1 Pro' },
+    { value: 'recraft/recraft-v4.1', label: 'Recraft V4.1' },
+    { value: 'microsoft/mai-image-2.5-pro', label: 'Microsoft MAI Image 2.5 Pro' },
+    { value: 'microsoft/mai-image-2.5', label: 'Microsoft MAI Image 2.5' },
+    { value: 'krea/krea-2-large', label: 'Krea 2 Large' },
+    { value: 'krea/krea-2-medium', label: 'Krea 2 Medium' },
+    { value: 'krea/krea-2-medium-turbo', label: 'Krea 2 Medium Turbo' },
+    { value: 'sourceful/riverflow-v2.5-pro', label: 'Sourceful Riverflow V2.5 Pro' },
+    { value: 'sourceful/riverflow-v2.5-fast', label: 'Sourceful Riverflow V2.5 Fast' },
+    { value: 'x-ai/grok-imagine-image-quality', label: 'Grok Imagine Image Quality' },
   ];
 
   const handleUploadAttachments = async (files: FileList | null) => {
