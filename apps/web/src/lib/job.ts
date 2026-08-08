@@ -181,6 +181,28 @@ export const jobApi = {
 
   getWorkerProfile: (id: string) => jobRequest<JobWorkerProfile>(`/jobs/workers/profile/${id}`),
 
+  // Worker profile (auth)
+  getMyWorkerProfile: (token: string) =>
+    jobRequest<JobWorkerProfile>('/jobs/workers/me', {}, token),
+
+  registerWorker: (token: string, data: {
+    gender?: string;
+    age?: number;
+    whatsappNumber?: string;
+    idCardPhoto?: string;
+    profilePhoto?: string;
+    bio?: string;
+    intro?: string;
+    location?: string;
+    fullAddress?: string;
+    bankName?: string;
+    bankAccount?: string;
+    bankAccountName?: string;
+    skills: { subCategoryId: string; pricingType: string; rate: number; canProvideEquipment?: boolean; equipmentList?: string }[];
+    workSchedules?: { dayOfWeek: string; startTime: string; endTime: string }[];
+    serviceAreas?: { areaName: string }[];
+  }) => jobRequest<JobWorkerProfile>('/jobs/workers/register', { method: 'POST', body: JSON.stringify(data) }, token),
+
   // Orders (auth)
   getOrders: (token: string, params?: { role?: 'customer' | 'provider'; status?: string; page?: number; limit?: number }) => {
     const qs = new URLSearchParams();

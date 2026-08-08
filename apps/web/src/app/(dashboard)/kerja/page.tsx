@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { jobApi, JobCategory } from '@/lib/job';
+import { useAuth } from '@/components/providers/auth-provider';
+import { getTokens } from '@/lib/auth';
 import {
   Search,
   Briefcase,
@@ -18,6 +20,8 @@ import {
   Star,
   TrendingUp,
   ChevronRight,
+  HardHat,
+  Loader2,
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, any> = {
@@ -33,9 +37,11 @@ const ICON_MAP: Record<string, any> = {
 
 export default function KerjaHomePage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [categories, setCategories] = useState<JobCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [workerStatus, setWorkerStatus] = useState<'none' | 'pending' | 'approved' | 'rejected' | 'suspended' | 'loading'>('loading');
 
   useEffect(() => {
     jobApi
@@ -44,6 +50,17 @@ export default function KerjaHomePage() {
       .catch(() => setCategories([]))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!user) { setWorkerStatus('none'); return; }
+    const tokens = getTokens();
+    if (!tokens) { setWorkerStatus('none'); return; }
+    setWorkerStatus('loading');
+    jobApi
+      .getMyWorkerProfile(tokens.accessToken)
+      .then((profile) => setWorkerStatus(profile.providerStatus?.toLowerCase() as any || 'pending'))
+      .catch(() => setWorkerStatus('none'));
+  }, [user]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,6 +118,41 @@ export default function KerjaHomePage() {
         >
           <Briefcase size={16} /> Cari Pekerja
         </Link>
+
+        {/* Jadi Pekerja — only show if user has no worker profile */}
+        {workerStatus === 'none' && user && (
+          <Link
+            href="/kerja/register"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all
+              bg-amber-500 text-white border border-amber-500 hover:bg-amber-600 hover:border-amber-600
+              shadow-sm hover:shadow-md"
+          >
+            <HardHat size={16} /> Jadi Pekerja
+          </Link>
+        )}
+
+        {/* Worker status badge if already registered */}
+        {workerStatus !== 'none' && workerStatus !== 'loading' && user && (
+          <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+            ${workerStatus === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' :
+              workerStatus === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20' :
+              workerStatus === 'rejected' ? 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20' :
+              'bg-slate-50 text-slate-600 border border-slate-200 dark:bg-white/5 dark:text-white/50 dark:border-white/10'}`}
+          >
+            <HardHat size={16} />
+            {workerStatus === 'approved' ? 'Pekerja Terverifikasi' :
+             workerStatus === 'pending' ? 'Menunggu Verifikasi' :
+             workerStatus === 'rejected' ? 'Pendaftaran Ditolak' :
+             'Pekerja Suspended'}
+          </span>
+        )}
+
+        {workerStatus === 'loading' && user && (
+          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-50 text-slate-400 border border-slate-200 dark:bg-white/5 dark:text-white/30 dark:border-white/10">
+            <Loader2 size={16} className="animate-spin" />
+          </span>
+        )}
+
         <Link
           href="/kerja/orders"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
