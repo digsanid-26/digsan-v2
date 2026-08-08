@@ -1,21 +1,26 @@
 'use client';
 
-import { UserPlus, Heart, Image as ImageIcon, MessageSquare, CalendarDays, TreePine, Trophy } from 'lucide-react';
+import { UserPlus, Heart, Image as ImageIcon, MessageSquare, CalendarDays, TreePine, Trophy, Briefcase, Star, CheckCircle, Wrench } from 'lucide-react';
 
 const groups = [
   {
     date: 'Hari Ini',
     items: [
       { icon: UserPlus, color: 'text-blue-500', title: 'Ayah menambahkan anggota keluarga baru', meta: 'Silsilah Keluarga Besar', time: '5 menit lalu' },
+      { icon: CheckCircle, color: 'text-emerald-500', title: 'Pekerja "Budi Santoso" menyelesaikan order #JK-2401 (Cuci AC 1PK)', meta: 'Digsan Kerja', time: '32 menit lalu' },
+      { icon: Briefcase, color: 'text-blue-600', title: 'Pesanan baru #JK-2402: Tukang ledeng untuk perbaikan kran dapur', meta: 'Digsan Kerja', time: '1 jam lalu' },
       { icon: Heart, color: 'text-rose-500', title: 'Kakak menyukai foto kenangan Lebaran', meta: 'Album Kenangan', time: '1 jam lalu' },
       { icon: ImageIcon, color: 'text-emerald-500', title: 'Ibu mengunggah 3 foto baru', meta: 'Album Kenangan', time: '3 jam lalu' },
+      { icon: Star, color: 'text-amber-500', title: 'Ibu memberikan ulasan bintang 5 untuk jasa "Bersih Rumah"', meta: 'Digsan Kerja', time: '4 jam lalu' },
     ],
   },
   {
     date: 'Kemarin',
     items: [
       { icon: MessageSquare, color: 'text-indigo-500', title: 'Adik mengomentari silsilah keluarga', meta: 'Silsilah Keluarga', time: 'Kemarin, 20:14' },
+      { icon: Wrench, color: 'text-orange-500', title: 'Pekerja "Ahmad Yani" memulai pengerjaan order #JK-2398 (Servis Kipas Angin)', meta: 'Digsan Kerja', time: 'Kemarin, 16:45' },
       { icon: Trophy, color: 'text-amber-500', title: 'Anda memperoleh lencana "Perekat Keluarga"', meta: 'Gamifikasi', time: 'Kemarin, 18:02' },
+      { icon: Briefcase, color: 'text-blue-600', title: 'Admin menugaskan pekerja "Siti Aminah" untuk order #JK-2395', meta: 'Digsan Kerja', time: 'Kemarin, 14:20' },
       { icon: CalendarDays, color: 'text-orange-500', title: 'Pengingat ulang tahun Nenek ditambahkan', meta: 'Acara Keluarga', time: 'Kemarin, 09:30' },
     ],
   },
@@ -23,7 +28,9 @@ const groups = [
     date: 'Minggu Ini',
     items: [
       { icon: TreePine, color: 'text-teal-500', title: 'Cabang keluarga baru ditambahkan', meta: 'Silsilah Keluarga', time: '2 hari lalu' },
+      { icon: CheckCircle, color: 'text-emerald-500', title: 'Order #JK-2390 (Tukang Listrik) selesai dengan rating 4.8', meta: 'Digsan Kerja', time: '2 hari lalu' },
       { icon: UserPlus, color: 'text-blue-500', title: 'Paman bergabung ke keluarga', meta: 'Anggota', time: '4 hari lalu' },
+      { icon: Briefcase, color: 'text-blue-600', title: 'Pekerja baru "Dewi Lestari" mendaftar sebagai tukang cuci', meta: 'Digsan Kerja', time: '5 hari lalu' },
     ],
   },
 ];
