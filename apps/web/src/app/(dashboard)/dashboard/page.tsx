@@ -20,6 +20,7 @@ import {
   Gift,
   Users,
   LogIn,
+  Briefcase,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -167,6 +168,16 @@ export default function DashboardPage() {
               description="Chat real-time dengan kerabat dan keluarga"
               active
               icon={MessageCircle}
+            />
+          </Link>
+
+          {/* Kerja — Active */}
+          <Link href="/kerja" className="block">
+            <StatusBox
+              label="Aplikasi Kerja"
+              description="Marketplace jasa & pekerja untuk keluarga"
+              active
+              icon={Briefcase}
             />
           </Link>
 
