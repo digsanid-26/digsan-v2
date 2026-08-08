@@ -43,7 +43,8 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 - [ ] Notifikasi bel meminta konfirmasi jalinan keluarga dari user lain dengan tombol Konfirmasi. Isi Notifikasi : Anda dimasukkan sebagai (misal pasangan/istri, adik, kakak, anak, orangtua/ayah) oleh nama user (diikuti nama family);
 
 #### Notifikasi untuk super_user
-- [ ] Notifikasi klaim yang datang dari user terhadap node tree yang dikelolanya. Sediakan halaman Klaim untuk mencocokkan data serta menerima atau menolak klaim;
+- [ ] Cek alur bagaimana super_user role bisa mendapat notifikasi dan menyetujui / menolak klaim yang datang dari user terhadap lingkaran/node tree yang dikelolanya;
+- [ ] Sediakan halaman Klaim untuk mencocokkan data serta menerima atau menolak klaim;
 
 ### Perbaikan notifikasi
 - [x] Cek bubble notifikasi bel yang spertinya belum bekerja dengan baik. Di app.digsan.id/notifications terdapat notifikasi namun bubbe notifikasi bel tidak menunjukkannya.
@@ -51,7 +52,7 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 
 ## Page dan Style
 ### Darkmode Improvement
-- [ ] Masih ditemukan bug di dark mode: Pilih pekerjaan di Sidebar Edit Profil Detil warna select field teks putih background putih, harusnya background hitam/gelap agar teks terlihat;
+- [ ] Masih ditemukan bug di dark mode di beberapa tempat yang menggunakan select field pada formnya seperti Pilih pekerjaan di Sidebar Edit Profil Detil warna select field teks putih background putih, harusnya background hitam/gelap text putih agar teks terlihat, atau kalau misalnya sulit buat text hitam background tetap putih;
 - [ ] app.digsan.id/gamification belum full support dark mode;
 
 ### Header app.digsan.id
@@ -148,12 +149,12 @@ Mengatur perijinan dari member / anggota digsan.
 - [x] Role super_user harusnya tidak otomatis didapatkan ketika user terdaftar apalagi yang menggunakan Early Access. 
 
 
-### World Tree
+## World Tree
 - Pelajari tentang D3.js dan apa saja kemampuan dan yang bisa dilakukannya dan bisakah membangun View Mode World Tree dengan konsep sbb:
 - Pelajari Neo4j and PostgreSQL integrasi untuk mengakomodir jaringan rumit dan komplek hubungan keluarga nantinya. Dengan kemungkinan di masa depan aplikasi berkembang sangat masif dan membutuhkan pencarian silsilah yang super kompleks (misalnya: mencari hubungan sepupu derajat ke-12 secara instan), bisa menggunakan arsitektur Hybrid.PostgreSQL / MySQL: Digunakan sebagai database utama (Source of Truth). Menyimpan data pengguna, profil lengkap, foto, modul artikel, sistem langganan, dan data transaksi aplikasi. Neo4j (Graph DB): Digunakan hanya sebagai microservice khusus silsilah. Database ini hanya menyimpan ID, Nama, dan Hubungan (sangat ringan). Cara Kerjanya: Ketika pengguna membuka modul silsilah, backend aplikasi akan meminta peta struktur jaringan (node & edges) dari Neo4j, lalu mencocokkan ID tersebut ke PostgreSQL untuk mengambil data profil lengkap dan fotonya. ;
 - Saya ingin membangun mode view World Tree yang secara gambaran kasar menjadikan Adam dan Hawa sebagai node/lingkaran pusat dengan garis-garis konektor membentuk lingkaran ke luar sebagai ilustrasi. Lingkaran terluar akan diisi oleh user-user yang mendaftar di digsan.id yang bisa memperdalam koneksinya dengan mengisi node-node kosong seperti ayah ibu, kakek, nenek, kakek buyut, nenek buyut dan seterusnya. Pada saat ini dibuatkan dummy dulu dengan heading Future Concept
-
-### Sistem Perijinan
+## 
+## Sistem Perijinan
 - [x] Role super-user | Agar tidak bingung dalam menentukan kuasa terhadap silsilah keluarga, buatkan role tambahan dengan nama super-user yang otomatis dimiliki oleh user pembuat silsilah keluarganya yang pertama kali;
 - [x] Untuk orang tua, saudara orang tua, dan anak-anak yang secara usia belum cukup umur/belum memiliki identitas ktp, baik yang masih hidup maupun yang sudah meninggal dunia dapat dikelola dan diedit profil dan silsilahnya oleh orang yang membuat silsilah tanpa perlu meminta ijin (super-user) yang bersangkutan. Yang perlu ijin adalah ketika hendak mengedit silsilah atau detil anggota telah berstatus user aktif/menerima invitation; 
 
@@ -222,9 +223,9 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 - [ ] Chat Keluarga | Sistem percakapan antar anggota keluarga dari yang private antar anggota keluarga, antar anggota keluarga dalam keluarga besar, lintas keluarga besar, hingga keluarga simbah dan buyut, dengan pengaturan privasi dan allow/disallow, block dan unblock, show dan disable;
 - [ ] Digital Membercard multifungsi dengan foto profil, nomor keanggotaan, nama lengkap, alamat, qrcode yang bila discan mengarah ke profil public user tersebut atau untuk transaksi tukar poin antar anggota (bila fitur telah tersedia);
 - [ ] MMBC Membership | Diberikan gratis kepada anggota yang telah memiliki KTP dan smartphone. MMBC Tour & Travel adalah platform layanan digital yang memungkinkan Anda memesan tiket pesawat, hotel, kereta api, hingga mengurus pembayaran tagihan (PLN, PDAM, pulsa) dan transfer uang dalam satu aplikasi;
-- [ ] Doa Almarhum, berupa susunan nama-nama keluarga yang telah almarhum (nama almarhum binti orangtua) dari yang terdekat hingga yang terjauh, yang bisa diatur kedalamannya melalui filter yang komprehensif, bisa di atur font-size, ketebalan, perataan sebelum dicetak/download dalam bentuk print, jpg, maupun pdf | Otomatis aktif ketika lebih dari 5 Family tree terhubung;
+- [ ] Doa Arwah, berupa susunan nama-nama keluarga yang telah almarhum (nama almarhum binti orangtua) dari yang terdekat hingga yang terjauh, yang bisa diatur kedalamannya melalui filter yang komprehensif, bisa di atur font-size, ketebalan, perataan sebelum dicetak/download dalam bentuk print, jpg, maupun pdf | Otomatis aktif ketika lebih dari 5 Family tree terhubung;
 - [ ] Personal Channel | Personal Branding seperti Youtube channel namun lebih luas tidak terbatas hanya video, namun juga blog/artikel, update status, upload gambar/galeri, atau share lainnya. Fitur pengembangan halaman profil user;
-- [ ] Ibadahku | Sebuah area pribadi yang bisa digunakan user untuk mengatur jadwal ibadahnya baik eksternal maupun internal, kegiatan dan amalannya kepada Tuhan YME. Dilengkapi dengan jadwal ibadah (misal jadwal waktu Sholat), jadwal Sholat Berjamaah di masjid/tempat ibadah yang dilengkapi fitur alarm/pengingat | membuat target dan pencapaian harian dan bulanan dilengkapi area Pengakuan yang berisi pengakuan dosa/kesalahan sebagai pengingat untuk tidak diulang;
+- [ ] Ibadahku (app.digsan.id/ibadahku) | Sebuah area pribadi yang bisa digunakan user untuk mengatur jadwal ibadahnya baik eksternal maupun internal, kegiatan dan amalannya kepada Tuhan YME. Dilengkapi dengan jadwal ibadah (misal jadwal waktu Sholat untuk umat islam, misa untuk kristiani, dst), jadwal Sholat Berjamaah di masjid/tempat ibadah yang dilengkapi fitur alarm/pengingat | membuat target dan pencapaian harian dan bulanan dilengkapi area Pengakuan yang berisi pengakuan dosa/kesalahan sebagai pengingat untuk tidak diulang;
 - [ ] Arisan Keluarga | Fasilitas membuat arisan yang bisa diaktifkan ketika sebuah koneksi telah menghubungkan lebih dari 50 orang dengan user aktif mencapai 70% lebih;
 - [ ] Koperasi Keluarga | Fasilitas upgrade keanggotaan yang akan aktif dalam bentuk penawaran kepada user yang telah ber-ktp atau memiliki pekerjaan;
 - [ ] Digsan Komunitas | Memadukan kesenangan bersosial media seperti berbagi momen/status, kegiatan, kabar-kabar, informasi, dsb beserta interaksinya seperti like, reaction, share, comment kepada keluarga / lintas keluarga / umum; 

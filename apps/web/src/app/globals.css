@@ -80,3 +80,12 @@ body {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
+
+.dark select option {
+  background-color: #0a0e1a;
+  color: #fff;
+}
+
+.dark select {
+  color-scheme: dark;
+}

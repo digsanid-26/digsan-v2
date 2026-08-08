@@ -15,8 +15,8 @@ export default function GamificationPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Gamifikasi</h1>
-        <p className="text-slate-500 mt-1">Poin, badge, dan peringkat Anda</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Gamifikasi</h1>
+        <p className="text-slate-500 dark:text-white/50 mt-1">Poin, badge, dan peringkat Anda</p>
       </div>
 
       {/* Points balance */}
@@ -34,34 +34,34 @@ export default function GamificationPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Leaderboard */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
             <TrendingUp size={20} />
             Leaderboard
           </h2>
           {!leaderboard?.length ? (
-            <p className="text-sm text-slate-500 py-4 text-center">Belum ada data</p>
+            <p className="text-sm text-slate-500 dark:text-white/50 py-4 text-center">Belum ada data</p>
           ) : (
             <div className="space-y-2">
               {leaderboard.map((entry: any, i: number) => (
                 <div
                   key={entry.userId || i}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50"
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5"
                 >
                   <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                    i === 0 ? 'bg-amber-100 text-amber-700' :
-                    i === 1 ? 'bg-slate-100 text-slate-600' :
-                    i === 2 ? 'bg-orange-100 text-orange-700' :
-                    'bg-slate-50 text-slate-500'
+                    i === 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
+                    i === 1 ? 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70' :
+                    i === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' :
+                    'bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-white/50'
                   }`}>
                     {i + 1}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
                       {entry.user?.name || entry.name || 'User'}
                     </p>
                   </div>
-                  <span className="text-sm font-semibold text-amber-600">
+                  <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
                     {entry._sum?.amount ?? entry.totalPoints ?? 0}
                   </span>
                 </div>
@@ -71,13 +71,13 @@ export default function GamificationPage() {
         </div>
 
         {/* Badges */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
             <Award size={20} />
             Badge
           </h2>
           {!badges?.length ? (
-            <p className="text-sm text-slate-500 py-4 text-center">Belum ada badge</p>
+            <p className="text-sm text-slate-500 dark:text-white/50 py-4 text-center">Belum ada badge</p>
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {badges.map((badge: any) => {
@@ -87,15 +87,15 @@ export default function GamificationPage() {
                     key={badge.id}
                     className={`p-4 rounded-lg border text-center ${
                       earned
-                        ? 'border-amber-200 bg-amber-50'
-                        : 'border-slate-200 bg-slate-50 opacity-60'
+                        ? 'border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10'
+                        : 'border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5 opacity-60'
                     }`}
                   >
                     <div className="text-2xl mb-2">{badge.icon || '🏅'}</div>
-                    <p className="text-sm font-medium text-slate-900">{badge.name}</p>
-                    <p className="text-xs text-slate-500 mt-1">{badge.description}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{badge.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-white/50 mt-1">{badge.description}</p>
                     {earned && (
-                      <span className="inline-block mt-2 text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                      <span className="inline-block mt-2 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 px-2 py-0.5 rounded-full">
                         Diperoleh
                       </span>
                     )}
@@ -108,21 +108,21 @@ export default function GamificationPage() {
       </div>
 
       {/* Point History */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Riwayat Poin</h2>
+      <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-6">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Riwayat Poin</h2>
         {!history?.points?.length ? (
-          <p className="text-sm text-slate-500 py-4 text-center">Belum ada riwayat</p>
+          <p className="text-sm text-slate-500 dark:text-white/50 py-4 text-center">Belum ada riwayat</p>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 dark:divide-white/10">
             {history.points.map((p: any) => (
               <div key={p.id} className="flex items-center justify-between py-3">
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{p.description || p.type}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">{p.description || p.type}</p>
+                  <p className="text-xs text-slate-500 dark:text-white/50">
                     {new Date(p.createdAt).toLocaleDateString('id-ID')}
                   </p>
                 </div>
-                <span className={`text-sm font-semibold ${p.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                <span className={`text-sm font-semibold ${p.amount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                   {p.amount >= 0 ? '+' : ''}{p.amount}
                 </span>
               </div>
