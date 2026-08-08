@@ -16,9 +16,10 @@ import type { Region } from './InvitationStudio';
 import OnboardingModal from './OnboardingModal';
 import {
   Plus, Minus, Maximize2, Network, X, User, Settings,
-  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Edit, Trash2, BadgeCheck,
+  Share2, Upload, Check, Crop, Users, Link2, ExternalLink, Search, RefreshCw, Edit, Trash2, BadgeCheck, Heart,
 } from 'lucide-react';
 import UserProfileModal from './UserProfileModal';
+import DoaArwahModal from './DoaArwahModal';
 
 // ─── Styling per group ──────────────────────────────────────
 
@@ -304,6 +305,7 @@ export default function TreeExplorer() {
   const [selected, setSelected] = useState<TNode | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showStudio, setShowStudio] = useState(false);
+  const [showDoaArwah, setShowDoaArwah] = useState(false);
   const [inviteCtx, setInviteCtx] = useState<{ nodeId: string; name: string } | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [marquee, setMarquee] = useState<{ sx: number; sy: number; ex: number; ey: number } | null>(null);
@@ -735,6 +737,13 @@ export default function TreeExplorer() {
             <Crop size={15} />{selectMode ? 'Batal' : 'Pilih'}
           </button>
         )}
+        {config.configured && (
+          <button onClick={() => setShowDoaArwah(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg whitespace-nowrap
+              bg-emerald-600 text-white hover:bg-emerald-500">
+            <Heart size={15} />Doa Arwah
+          </button>
+        )}
       </div>
 
       {/* Left-Tree Ad Banners */}
@@ -983,6 +992,19 @@ export default function TreeExplorer() {
             setPanel('none');
             setExpanded(false);
           }}
+        />
+      )}
+
+      {showDoaArwah && (
+        <DoaArwahModal
+          open={showDoaArwah}
+          onClose={() => setShowDoaArwah(false)}
+          dark={dark}
+          config={config}
+          members={members}
+          selfName={me?.name || 'Anda'}
+          selfNodeId={selfNodeId}
+          treeName={me?.name || undefined}
         />
       )}
     </div>
