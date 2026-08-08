@@ -7,11 +7,13 @@ import { GamificationAdminController } from './gamification-admin.controller';
 import { GamificationAdminService } from './gamification-admin.service';
 import { AdvertisingAdminController } from './advertising-admin.controller';
 import { AdvertisingAdminService } from './advertising-admin.service';
+import { JobAdminController } from './job-admin.controller';
+import { JobAdminService } from './job-admin.service';
 import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [NotificationModule],
-  controllers: [AdminController, EmailSettingsController, GamificationAdminController, AdvertisingAdminController],
-  providers: [AdminService, EmailSettingsService, GamificationAdminService, AdvertisingAdminService],
+  controllers: [AdminController, EmailSettingsController, GamificationAdminController, AdvertisingAdminController, JobAdminController],
+  providers: [AdminService, EmailSettingsService, GamificationAdminService, AdvertisingAdminService, JobAdminService],
 })
 export class AdminModule {}
