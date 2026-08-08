@@ -27,6 +27,7 @@ export class JobAdminService {
         icon: dto.icon,
         image: dto.image,
         order: dto.order ?? 0,
+        isActive: dto.isActive ?? true,
       },
       include: { _count: { select: { subCategories: true } } },
     });
@@ -87,6 +88,7 @@ export class JobAdminService {
         icon: dto.icon,
         image: dto.image,
         order: dto.order ?? 0,
+        isActive: dto.isActive ?? true,
       },
       include: { category: { select: { id: true, name: true } }, _count: { select: { services: true } } },
     });
@@ -151,6 +153,7 @@ export class JobAdminService {
         duration: dto.duration,
         order: dto.order ?? 0,
         isFeatured: dto.isFeatured ?? false,
+        isActive: dto.isActive ?? true,
       },
       include: { subCategory: { select: { id: true, name: true, category: { select: { id: true, name: true } } } } },
     });

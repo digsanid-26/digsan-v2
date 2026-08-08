@@ -33,6 +33,11 @@ export class CreateCategoryDto {
   @Type(() => Number)
   @IsInt()
   order?: number;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateCategoryDto {
@@ -108,6 +113,11 @@ export class CreateSubCategoryDto {
   @Type(() => Number)
   @IsInt()
   order?: number;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateSubCategoryDto {
@@ -202,6 +212,11 @@ export class CreateServiceDto {
   @IsOptional()
   @IsBoolean()
   isFeatured?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateServiceDto {
