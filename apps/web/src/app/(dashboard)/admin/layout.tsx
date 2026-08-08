@@ -15,6 +15,8 @@ import {
   X,
   ArrowLeft,
   Megaphone,
+  FolderTree,
+  Package,
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/auth-provider';
 
@@ -22,7 +24,9 @@ const adminNav = [
   { href: '/admin', label: 'Dashboard', icon: Shield },
   { href: '/admin/users', label: 'Manajemen User', icon: Users },
   { href: '/admin/trees', label: 'Family Trees', icon: TreePine },
-  { href: '/admin/workers', label: 'Worker', icon: Briefcase },
+  { href: '/admin/workers', label: 'Pekerja', icon: Briefcase },
+  { href: '/admin/jobs', label: 'Katalog Kerja', icon: FolderTree },
+  { href: '/admin/orders', label: 'Manajemen Order', icon: Package },
   { href: '/admin/gamification', label: 'Gamification', icon: Trophy },
   { href: '/admin/advertising', label: 'Advertising', icon: Megaphone },
   { href: '/admin/settings', label: 'Pengaturan', icon: Settings },

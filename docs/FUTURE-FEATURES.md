@@ -209,7 +209,13 @@ Sistem untuk admin mengelola spot iklan yang bisa digunakan untuk mempromosikan 
 
 ## Digsan Profil
 ### Digsan Profile Completenest
+- [ ] Tentang Digsan. Kisah awal muasal lahirnya hoax, daya rusak, dan keprihatin membangkitkan gerakan bahaya laten internet yang akhirnya terciptanya gerakan Digital Santun yang disingkat Digsan. Perluas dan jabarkan ke dalam beberapa kalimat, tambahkan dengan fenomena sekarang dengan gencarnya kemajuan Ai yang seakan melegitimasi hoax sebagai karya seni;
+- [ ] Filosofi Digsan : Melindungi, Mengayomi, dan Mensejahterakan kelompok terkecil warga Indonesia yaitu Keluarga. Perlu dijabarkan makna melindungi, mengayomi, dan mensejahterakan;
+- [ ] Sifat dan Sikap : Sifat oleh keluarga, dari keluarga, untuk keluarga adalah dasar yang menjadi panduan organisasi, kegiatan, program, yang dibuat dan ada di dalam Digsan. Sikap menjadi pedoman keputusan dan ketegasan dalam mebuat keputusan, mencari solusi, dari masalah terkecil hingga terbesar. Terdiri atas 10 sifat, dan 10 Sikap;
+
+
 ### Digsan Profile Tree
+- [ ] Digsan Family : Family Tree yang akan diisi oleh mereka yang bersedia berdedikasi menumbuhkembangkan Digsan baik sebagai Penasehat (simbah), pembimbing (orang tua), Owner (suami), Supporter (istri), pengelola (paman dan bibi), pelaksana (anak-anak dan cucu-cucu). 
 ### Digsan Investment Area
 
 ## Fasilitas Digsan.id
