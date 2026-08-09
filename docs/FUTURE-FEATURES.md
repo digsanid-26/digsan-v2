@@ -40,11 +40,11 @@ Pada Sidebar Detil anggota (diri sendiri) di halaman /tree:
 
 ### Notifikasi Role
 #### Notifikasi untuk user
-- [ ] Notifikasi bel meminta konfirmasi jalinan keluarga dari user lain dengan tombol Konfirmasi. Isi Notifikasi : Anda dimasukkan sebagai (misal pasangan/istri, adik, kakak, anak, orangtua/ayah) oleh nama user (diikuti nama family);
+- [ ] Notifikasi bel klaim atas kepemilikan node/lingkaran jalinan keluarga dari user lain dengan tombol Konfirmasi. Isi Notifikasi : Klaim Anda terhadap node (nama) sebagai (misal pasangan/istri, adik, kakak, anak, orangtua/ayah) disetujui/ditolak;
 
 #### Notifikasi untuk super_user
-- [ ] Cek alur bagaimana super_user role bisa mendapat notifikasi dan menyetujui / menolak klaim yang datang dari user terhadap lingkaran/node tree yang dikelolanya;
-- [ ] Sediakan halaman Klaim untuk mencocokkan data serta menerima atau menolak klaim;
+- [ ] Cek alur bagaimana super_user role bisa mendapat notifikasi dan menyetujui / menolak klaim yang datang dari user terhadap lingkaran/node tree yang dikelolanya. Apakah push notifikasi sudah aktif? Bagaimana dengan Whatsapp Notifikasi?;
+- [ ] Sediakan halaman Klaim bagi super_user role untuk mencocokkan data dari pengklaim serta tombol untuk menerima atau menolak klaim;
 
 ### Perbaikan notifikasi
 - [x] Cek bubble notifikasi bel yang spertinya belum bekerja dengan baik. Di app.digsan.id/notifications terdapat notifikasi namun bubbe notifikasi bel tidak menunjukkannya.

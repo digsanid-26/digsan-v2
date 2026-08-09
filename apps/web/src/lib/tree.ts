@@ -114,6 +114,31 @@ export async function authRequest<T>(endpoint: string, options: RequestInit = {}
 
 export type ConsentStatus = 'PENDING' | 'GRANTED' | 'REJECTED' | 'REVOKED';
 
+export type NodeClaimStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface NodeClaimItem {
+  id: string;
+  treeId: string;
+  treeName: string;
+  treeSlug: string | null;
+  nodeId: string;
+  nodeName: string;
+  nodeRole: string | null;
+  nodeGender: string | null;
+  status: NodeClaimStatus;
+  note: string | null;
+  createdAt: string;
+  respondedAt: string | null;
+  claimant?: {
+    id: string;
+    name: string;
+    username: string | null;
+    email: string;
+    phone: string | null;
+    avatar: string | null;
+  };
+}
+
 export interface GuardianConsent {
   id: string;
   treeId: string;
@@ -265,10 +290,24 @@ export const treeApi = {
 
   // ─── Public-tree node claim ("Apakah ini Anda?") ────────────
   claimNode: (slug: string, nodeId: string) =>
-    authRequest<{ slug: string; nodeId: string; member: unknown }>('/trees/claim', {
+    authRequest<{ claimId: string; status: string; message: string }>('/trees/claim', {
       method: 'POST',
       body: JSON.stringify({ slug, nodeId }),
     }),
+
+  // ─── Super User: manage node claims ─────────────────────────
+  getPendingClaims: () =>
+    authRequest<NodeClaimItem[]>('/trees/super-user/claims'),
+
+  respondToClaim: (claimId: string, approve: boolean) =>
+    authRequest<{ claimId: string; status: string; message: string }>(`/trees/super-user/claims/${encodeURIComponent(claimId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ approve }),
+    }),
+
+  // ─── User: check own claim statuses ─────────────────────────
+  getMyClaims: () =>
+    authRequest<NodeClaimItem[]>('/trees/claims/me'),
 
   // ─── Super User: create early access for a layout node ──────
   createEarlyAccessForNode: (nodeId: string, email: string, password: string, phone?: string) =>

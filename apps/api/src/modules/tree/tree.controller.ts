@@ -184,6 +184,29 @@ export class TreeController {
     return this.treeService.getSuperUserNodes(userId, roles);
   }
 
+  @Get('super-user/claims')
+  @ApiOperation({ summary: 'Get all node claims on super_user trees' })
+  async getPendingClaims(@CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[]) {
+    return this.treeService.getPendingClaims(userId, roles);
+  }
+
+  @Patch('super-user/claims/:claimId')
+  @ApiOperation({ summary: 'Approve or reject a node claim (super_user only)' })
+  async respondToClaim(
+    @Param('claimId') claimId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[],
+    @Body() body: { approve: boolean },
+  ) {
+    return this.treeService.respondToClaim(claimId, userId, roles, body.approve);
+  }
+
+  @Get('claims/me')
+  @ApiOperation({ summary: 'Get current user\'s own claims with statuses' })
+  async getMyClaims(@CurrentUser('id') userId: string) {
+    return this.treeService.getMyClaims(userId);
+  }
+
   @Get('family-node/:id')
   @ApiOperation({ summary: 'Get Family Node profile data (for edit page)' })
   async getFamilyNode(@Param('id') id: string, @CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[]) {

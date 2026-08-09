@@ -78,6 +78,10 @@ model User {
   // Feedback
   feedbacks Feedback[]
 
+  // Node claims (user claims a circle on someone else's tree)
+  nodeClaims        NodeClaim[]      @relation("NodeClaimClaimant")
+  resolvedNodeClaims NodeClaim[]     @relation("NodeClaimResponder")
+
   @@map("users")
 }
 
@@ -240,6 +244,7 @@ model FamilyTree {
   invitations    TreeInvitation[]
   guardianConsents GuardianConsent[]
   nodeMembers    FamilyNodeMember[]
+  nodeClaims     NodeClaim[]
 
   @@map("family_trees")
 }
@@ -420,6 +425,36 @@ enum ConsentStatus {
   REVOKED
 }
 
+// ─── Node claims ───────────────────────────────────────────────
+// A logged-in user claims an unclaimed circle on someone else's
+// public family tree ("Apakah ini Anda?"). The tree owner (super_user)
+// must approve or reject the claim before the node is linked.
+model NodeClaim {
+  id          String      @id @default(cuid())
+  treeId      String      @map("tree_id")
+  nodeId      String      @map("node_id")
+  claimantId  String      @map("claimant_id")
+  status      ClaimStatus @default(PENDING)
+  note        String?
+  responderId String?     @map("responder_id")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  respondedAt DateTime?   @map("responded_at")
+
+  tree     FamilyTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+  claimant User       @relation("NodeClaimClaimant", fields: [claimantId], references: [id], onDelete: Cascade)
+  responder User?     @relation("NodeClaimResponder", fields: [responderId], references: [id])
+
+  @@unique([treeId, nodeId, claimantId])
+  @@index([treeId, status])
+  @@map("node_claims")
+}
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ================================================================
 // GAMIFICATION
 // ================================================================
@@ -592,6 +627,8 @@ enum NotificationType {
   BADGE_EARNED
   POINT_RECEIVED
   SYSTEM
+  NODE_CLAIM
+  CLAIM_RESULT
   // Job/Medja
   ORDER_CREATED
   ORDER_CONFIRMED

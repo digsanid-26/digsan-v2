@@ -1412,8 +1412,8 @@ export class TreeService {
 
   /**
    * A logged-in user claims an unclaimed node on someone else's public
-   * family tree (via the "Apakah ini Anda?" flow). Marks the layout member
-   * slot as verified and links it to the claiming user's account.
+   * family tree (via the "Apakah ini Anda?" flow). Creates a PENDING
+   * NodeClaim record and notifies the tree owner (super_user) for approval.
    */
   async claimNode(userId: string, slug: string, nodeId: string) {
     if (nodeId === 'self') {
@@ -1426,6 +1426,11 @@ export class TreeService {
     }
     if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
 
+    // Don't allow claiming your own tree's nodes
+    if (tree.userId === userId) {
+      throw new BadRequestException('Anda tidak dapat mengklaim node di pohon Anda sendiri');
+    }
+
     const members = { ...((tree.layoutMembers as any) ?? {}) } as Record<string, any>;
     const existing = members[nodeId] ?? {};
 
@@ -1433,14 +1438,180 @@ export class TreeService {
       throw new ConflictException('Bagian silsilah ini sudah diklaim oleh orang lain');
     }
 
-    members[nodeId] = { ...existing, verified: true, claimedByUserId: userId };
+    // Check for existing pending claim by same user on same node
+    const existingClaim = await this.prisma.nodeClaim.findFirst({
+      where: { treeId: tree.id, nodeId, claimantId: userId, status: 'PENDING' },
+    });
+    if (existingClaim) {
+      throw new ConflictException('Anda sudah memiliki klaim tertunda untuk node ini');
+    }
 
-    await this.prisma.familyTree.update({
-      where: { id: tree.id },
-      data: { layoutMembers: members as any },
+    const claimant = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, username: true, email: true, phone: true, avatar: true },
+    });
+    if (!claimant) throw new NotFoundException('User tidak ditemukan');
+
+    const nodeName = existing.name || nodeId;
+
+    // Create pending claim
+    const claim = await this.prisma.nodeClaim.create({
+      data: {
+        treeId: tree.id,
+        nodeId,
+        claimantId: userId,
+        status: 'PENDING',
+      },
     });
 
-    return { slug: tree.slug, nodeId, member: members[nodeId] };
+    // Notify the tree owner (super_user)
+    await this.notifications.create({
+      userId: tree.userId,
+      type: 'NODE_CLAIM' as any,
+      title: 'Klaim Node Baru',
+      message: `${claimant.name} mengklaim node "${nodeName}" di pohon keluarga "${tree.name}".`,
+      data: { claimId: claim.id, treeId: tree.id, nodeId, nodeName, claimantName: claimant.name },
+    });
+    this.notifications.sendPushSafe(
+      tree.userId,
+      'Klaim Node Baru',
+      `${claimant.name} mengklaim node "${nodeName}" di "${tree.name}"`,
+    );
+
+    return {
+      claimId: claim.id,
+      status: 'PENDING',
+      message: 'Klaim Anda telah dikirim. Pemilik pohon akan meninjau dan menyetujui klaim Anda.',
+    };
+  }
+
+  /** Super_user: list all pending claims on their trees. */
+  async getPendingClaims(userId: string, roles: string[]) {
+    if (!roles?.includes('super_user')) {
+      throw new ForbiddenException('Hanya super_user yang dapat mengakses daftar ini');
+    }
+
+    const trees = await this.prisma.familyTree.findMany({
+      where: { userId },
+      select: { id: true, name: true, slug: true, layoutMembers: true },
+    });
+    const treeIds = trees.map((t) => t.id);
+    const treeMap = new Map(trees.map((t) => [t.id, t]));
+
+    const claims = await this.prisma.nodeClaim.findMany({
+      where: { treeId: { in: treeIds } },
+      include: {
+        claimant: { select: { id: true, name: true, username: true, email: true, phone: true, avatar: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return claims.map((c) => {
+      const tree = treeMap.get(c.treeId);
+      const layout = (tree?.layoutMembers as Record<string, any>) ?? {};
+      const node = layout[c.nodeId] ?? {};
+      return {
+        id: c.id,
+        treeId: c.treeId,
+        treeName: tree?.name ?? '',
+        treeSlug: tree?.slug ?? null,
+        nodeId: c.nodeId,
+        nodeName: node.name ?? c.nodeId,
+        nodeRole: node.role ?? node.group ?? null,
+        nodeGender: node.gender ?? null,
+        status: c.status,
+        note: c.note,
+        createdAt: c.createdAt,
+        respondedAt: c.respondedAt,
+        claimant: c.claimant,
+      };
+    });
+  }
+
+  /** Super_user: approve or reject a pending claim. */
+  async respondToClaim(claimId: string, userId: string, roles: string[], approve: boolean) {
+    if (!roles?.includes('super_user')) {
+      throw new ForbiddenException('Hanya super_user yang dapat menyetujui klaim');
+    }
+
+    const claim = await this.prisma.nodeClaim.findUnique({
+      where: { id: claimId },
+      include: { tree: true },
+    });
+    if (!claim) throw new NotFoundException('Klaim tidak ditemukan');
+    if (claim.status !== 'PENDING') throw new BadRequestException('Klaim ini sudah ditanggapi');
+
+    // Verify the super_user owns this tree
+    if (claim.tree.userId !== userId) {
+      throw new ForbiddenException('Anda tidak memiliki akses untuk menanggapi klaim ini');
+    }
+
+    const newStatus = approve ? 'APPROVED' : 'REJECTED';
+
+    await this.prisma.nodeClaim.update({
+      where: { id: claimId },
+      data: { status: newStatus, responderId: userId, respondedAt: new Date() },
+    });
+
+    if (approve) {
+      // Link the node to the claimant
+      const members = { ...((claim.tree.layoutMembers as any) ?? {}) } as Record<string, any>;
+      const existing = members[claim.nodeId] ?? {};
+      members[claim.nodeId] = { ...existing, verified: true, claimedByUserId: claim.claimantId };
+
+      await this.prisma.familyTree.update({
+        where: { id: claim.treeId },
+        data: { layoutMembers: members as any },
+      });
+    }
+
+    // Notify the claimant of the result
+    const nodeName = (claim.tree.layoutMembers as any)?.[claim.nodeId]?.name ?? claim.nodeId;
+    await this.notifications.create({
+      userId: claim.claimantId,
+      type: 'CLAIM_RESULT' as any,
+      title: approve ? 'Klaim Disetujui' : 'Klaim Ditolak',
+      message: approve
+        ? `Klaim Anda terhadap node "${nodeName}" di "${claim.tree.name}" telah disetujui.`
+        : `Klaim Anda terhadap node "${nodeName}" di "${claim.tree.name}" ditolak.`,
+      data: { claimId, approved: approve, treeId: claim.treeId, nodeId: claim.nodeId, nodeName },
+    });
+    this.notifications.sendPushSafe(
+      claim.claimantId,
+      approve ? 'Klaim Disetujui' : 'Klaim Ditolak',
+      approve
+        ? `Klaim node "${nodeName}" disetujui.`
+        : `Klaim node "${nodeName}" ditolak.`,
+    );
+
+    return { claimId, status: newStatus, message: approve ? 'Klaim disetujui' : 'Klaim ditolak' };
+  }
+
+  /** User: list their own claims with statuses. */
+  async getMyClaims(userId: string) {
+    const claims = await this.prisma.nodeClaim.findMany({
+      where: { claimantId: userId },
+      include: {
+        tree: { select: { id: true, name: true, slug: true, layoutMembers: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return claims.map((c) => {
+      const layout = (c.tree.layoutMembers as Record<string, any>) ?? {};
+      const node = layout[c.nodeId] ?? {};
+      return {
+        id: c.id,
+        treeId: c.treeId,
+        treeName: c.tree.name,
+        treeSlug: c.tree.slug,
+        nodeId: c.nodeId,
+        nodeName: node.name ?? c.nodeId,
+        status: c.status,
+        createdAt: c.createdAt,
+        respondedAt: c.respondedAt,
+      };
+    });
   }
 
   /** Public personal-profile page resolved by tree slug + username. */

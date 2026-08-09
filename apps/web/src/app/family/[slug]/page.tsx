@@ -1168,10 +1168,10 @@ export default function PublicFamilyPage() {
     setClaiming(true);
     setClaimError(null);
     try {
-      await treeApi.claimNode(slug, selectedNode.id);
-      const refreshed = await publicTreeApi.getFamily<Partial<TreeConfig>, Members>(slug, linkToken ?? undefined, getTokens()?.accessToken);
-      setData(refreshed);
+      const res = await treeApi.claimNode(slug, selectedNode.id);
+      setClaimError(null);
       closeModal();
+      alert(res.message || 'Klaim Anda telah dikirim. Pemilik pohon akan meninjau klaim Anda.');
     } catch (e: any) {
       setClaimError(e.message || 'Gagal mengklaim bagian ini');
     } finally {
