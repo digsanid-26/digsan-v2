@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import UserProfileModal from './UserProfileModal';
 import DoaArwahModal from './DoaArwahModal';
+import ConnectFamilyModal from './ConnectFamilyModal';
 
 // ─── Styling per group ──────────────────────────────────────
 
@@ -306,6 +307,7 @@ export default function TreeExplorer() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showStudio, setShowStudio] = useState(false);
   const [showDoaArwah, setShowDoaArwah] = useState(false);
+  const [showConnect, setShowConnect] = useState(false);
   const [inviteCtx, setInviteCtx] = useState<{ nodeId: string; name: string } | null>(null);
   const [publicToken, setPublicToken] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
@@ -743,6 +745,11 @@ export default function TreeExplorer() {
             <Share2 size={15} />Undang
           </button>
         )}
+        <button onClick={() => setShowConnect(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg whitespace-nowrap
+            bg-indigo-600 text-white hover:bg-indigo-500">
+          <Search size={15} />Cari Keluarga
+        </button>
         {config.configured && (
           <button onClick={() => setSelectMode((s) => !s)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg border whitespace-nowrap ${
@@ -1021,6 +1028,10 @@ export default function TreeExplorer() {
           selfNodeId={selfNodeId}
           treeName={me?.name || undefined}
         />
+      )}
+
+      {showConnect && (
+        <ConnectFamilyModal onClose={() => setShowConnect(false)} />
       )}
     </div>
   );
