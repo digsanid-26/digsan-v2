@@ -2341,6 +2341,7 @@ export class TreeService {
         treeId: tree.id,
         email: target.email,
         phone: target.phone,
+        nodeId: relationship, // Store relationship type here for connection requests
         message: note || `Saya adalah ${relationship} Anda. Yuk verifikasi koneksi keluarga kita.`,
         token,
         expiresAt,
@@ -2435,7 +2436,334 @@ export class TreeService {
     }).catch(() => {});
     this.notifications.sendPushSafe(tree.userId, 'Anggota Baru', `${user.name} bergabung ke silsilah Anda`).catch(() => {});
 
+    // Auto-sync: if this is a connection request with a relationship, populate
+    // the accepter's tree based on the inviter's tree data.
+    const relationship = invitation.nodeId; // Stored in nodeId for connection requests
+    if (relationship && relationship !== 'self') {
+      try {
+        await this.syncConnectedTree(userId, tree, relationship);
+        this.logger.log(`Synced tree for user ${userId} as "${relationship}" of tree ${tree.id}`);
+      } catch (err) {
+        this.logger.error(`Failed to sync connected tree: ${err}`);
+      }
+    }
+
     return { message: 'Undangan diterima', member, treeId: tree.id, slug: identity.slug };
+  }
+
+  /**
+   * Auto-populate the accepter's tree based on the inviter's tree data and the
+   * declared relationship. For example, if the accepter is the "orangtua" (parent)
+   * of the inviter, the inviter becomes a child node in the accepter's tree,
+   * carrying over the inviter's spouse/children/sibling data.
+   */
+  private async syncConnectedTree(
+    accepterId: string,
+    inviterTree: { id: string; userId: string; name: string; layoutConfig: any; layoutMembers: any },
+    relationship: string,
+  ) {
+    const accepterTree = await this.getOrCreateOwnedTree(accepterId);
+    const inviterConfig = (inviterTree.layoutConfig as any) ?? {};
+    const inviterMembers = (inviterTree.layoutMembers as Record<string, any>) ?? {};
+
+    // Get inviter's self member data
+    const inviterSelf = inviterMembers['self'] ?? {};
+    const inviterName = inviterSelf.name || inviterConfig.mainFamilyName || 'Anggota Keluarga';
+    const inviterPhoto = inviterSelf.photo || null;
+    const inviterGender = inviterSelf.gender || '';
+
+    // Build the accepter's new config and members based on the relationship
+    const newConfig: Record<string, any> = {
+      configured: true,
+      mainFamilyName: inviterConfig.extFamilyName || `Keluarga ${inviterName}`,
+      extFamilyName: inviterConfig.extFamilyName || '',
+      spouseCount: 1,
+      childCount: 1, // At least the inviter as a child
+      parentCount: 2,
+      olderCount: 0,
+      youngerCount: 0,
+      simbahP: inviterConfig.simbahP || 2,
+      simbahM: inviterConfig.simbahM || 2,
+    };
+
+    const newMembers: Record<string, any> = {};
+
+    // The accepter is "self" in their own tree
+    const accepterUser = await this.prisma.user.findUnique({
+      where: { id: accepterId },
+      select: { name: true, avatar: true, email: true, phone: true, username: true },
+    });
+    newMembers['self'] = {
+      name: accepterUser?.name || 'Saya',
+      gender: '',
+      alive: true,
+      photo: accepterUser?.avatar || null,
+      verified: true,
+    };
+
+    // Map the inviter into the accepter's tree based on relationship
+    switch (relationship) {
+      case 'anak': {
+        // Accepter is the CHILD of the inviter
+        // Inviter becomes parent-1 in accepter's tree
+        newConfig.parentCount = 1;
+        newConfig.childCount = inviterConfig.childCount || 0; // accepter's siblings = inviter's children
+        newConfig.spouseCount = inviterConfig.spouseCount || 1; // other parent (inviter's spouse)
+        newConfig.olderCount = 0;
+        newConfig.youngerCount = 0;
+
+        newMembers['parent-1'] = {
+          name: inviterName,
+          gender: inviterGender,
+          alive: inviterSelf.alive !== false,
+          photo: inviterPhoto,
+          linkedUserId: inviterTree.userId,
+          verified: true,
+        };
+
+        // Copy inviter's spouse as the other parent
+        if (inviterMembers['spouse-1']) {
+          newMembers['parent-2'] = {
+            ...inviterMembers['spouse-1'],
+            linkedUserId: inviterMembers['spouse-1'].linkedUserId || null,
+          };
+          newConfig.parentCount = 2;
+        }
+
+        // Copy inviter's other children as siblings
+        let sibIdx = 1;
+        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
+          const childKey = `child-${i}`;
+          const childData = inviterMembers[childKey];
+          if (childData && childData.name) {
+            // This is a sibling of the accepter (another child of the inviter)
+            if (sibIdx === 1) {
+              newMembers['olderCount'] = newMembers['olderCount'] || 0;
+            }
+            newMembers[`sibling-${sibIdx}`] = { ...childData };
+            sibIdx++;
+          }
+        }
+        newConfig.olderCount = Math.max(0, sibIdx - 1);
+        break;
+      }
+
+      case 'orangtua': {
+        // Accepter is the PARENT of the inviter
+        // Inviter becomes child-1 in accepter's tree
+        newConfig.childCount = 1;
+        newConfig.parentCount = 2; // accepter's own parents (inviter's grandparents)
+        newConfig.spouseCount = 1; // accepter's spouse (other parent of inviter)
+
+        // Copy inviter's spouse data as the accepter's spouse
+        if (inviterMembers['spouse-1']) {
+          newMembers['spouse-1'] = {
+            ...inviterMembers['spouse-1'],
+            name: inviterMembers['spouse-1'].name || 'Pasangan',
+          };
+        }
+
+        // Inviter as child-1
+        newMembers['child-1'] = {
+          name: inviterName,
+          gender: inviterGender,
+          alive: inviterSelf.alive !== false,
+          photo: inviterPhoto,
+          linkedUserId: inviterTree.userId,
+          verified: true,
+        };
+
+        // Copy inviter's children as grandchildren (accepter's cucu)
+        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
+          const childKey = `child-${i}`;
+          if (inviterMembers[childKey] && inviterMembers[childKey].name) {
+            newMembers[`child-1-child-${i}`] = { ...inviterMembers[childKey] };
+          }
+        }
+
+        // Copy inviter's spouse as child-1's spouse
+        if (inviterMembers['spouse-1']) {
+          newMembers['child-1-spouse'] = { ...inviterMembers['spouse-1'] };
+        }
+
+        // Copy inviter's siblings as accepter's other children
+        let otherChildIdx = 2;
+        const older = inviterConfig.olderCount || 0;
+        const younger = inviterConfig.youngerCount || 0;
+        for (let i = 1; i <= older; i++) {
+          const sibKey = `older-${i}`;
+          if (inviterMembers[sibKey] && inviterMembers[sibKey].name) {
+            newMembers[`child-${otherChildIdx}`] = { ...inviterMembers[sibKey] };
+            otherChildIdx++;
+          }
+        }
+        for (let i = 1; i <= younger; i++) {
+          const sibKey = `younger-${i}`;
+          if (inviterMembers[sibKey] && inviterMembers[sibKey].name) {
+            newMembers[`child-${otherChildIdx}`] = { ...inviterMembers[sibKey] };
+            otherChildIdx++;
+          }
+        }
+        newConfig.childCount = otherChildIdx - 1;
+        break;
+      }
+
+      case 'pasangan': {
+        // Accepter is the SPOUSE of the inviter
+        // Inviter becomes spouse-1 in accepter's tree
+        newConfig.spouseCount = 1;
+        newConfig.childCount = inviterConfig.childCount || 0;
+        newConfig.parentCount = 2;
+        newConfig.olderCount = 0;
+        newConfig.youngerCount = 0;
+
+        newMembers['spouse-1'] = {
+          name: inviterName,
+          gender: inviterGender,
+          alive: inviterSelf.alive !== false,
+          photo: inviterPhoto,
+          linkedUserId: inviterTree.userId,
+          verified: true,
+        };
+
+        // Copy inviter's children as accepter's children
+        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
+          const childKey = `child-${i}`;
+          if (inviterMembers[childKey]) {
+            newMembers[childKey] = { ...inviterMembers[childKey] };
+          }
+        }
+
+        // Copy inviter's parents as accepter's parents-in-law (still parent nodes)
+        for (let i = 1; i <= (inviterConfig.parentCount || 0); i++) {
+          const parentKey = `parent-${i}`;
+          if (inviterMembers[parentKey]) {
+            newMembers[parentKey] = { ...inviterMembers[parentKey] };
+          }
+        }
+        break;
+      }
+
+      case 'saudara': {
+        // Accepter is a SIBLING of the inviter
+        // Inviter becomes a sibling in accepter's tree
+        newConfig.childCount = inviterConfig.childCount || 0;
+        newConfig.parentCount = inviterConfig.parentCount || 2;
+        newConfig.spouseCount = 1;
+        newConfig.olderCount = 1; // inviter as sibling
+        newConfig.youngerCount = 0;
+
+        // Copy inviter's parents
+        for (let i = 1; i <= (inviterConfig.parentCount || 0); i++) {
+          const parentKey = `parent-${i}`;
+          if (inviterMembers[parentKey]) {
+            newMembers[parentKey] = { ...inviterMembers[parentKey] };
+          }
+        }
+
+        // Inviter as older-1 (or could be younger depending on birth order)
+        newMembers['older-1'] = {
+          name: inviterName,
+          gender: inviterGender,
+          alive: inviterSelf.alive !== false,
+          photo: inviterPhoto,
+          linkedUserId: inviterTree.userId,
+          verified: true,
+        };
+
+        // Copy inviter's children as nephews/nieces (accepter's keponakan)
+        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
+          const childKey = `child-${i}`;
+          if (inviterMembers[childKey]) {
+            newMembers[`older-1-child-${i}`] = { ...inviterMembers[childKey] };
+          }
+        }
+
+        // Copy inviter's spouse
+        if (inviterMembers['spouse-1']) {
+          newMembers['older-1-spouse'] = { ...inviterMembers['spouse-1'] };
+        }
+        break;
+      }
+
+      case 'cucu': {
+        // Accepter is a GRANDCHILD of the inviter
+        // Inviter becomes grandparent in accepter's tree
+        newConfig.parentCount = 1;
+        newConfig.spouseCount = 1;
+        newConfig.childCount = 0;
+        newConfig.simbahP = 1;
+        newConfig.simbahM = 0;
+
+        newMembers['grandparent-p-1'] = {
+          name: inviterName,
+          gender: inviterGender,
+          alive: inviterSelf.alive !== false,
+          photo: inviterPhoto,
+          linkedUserId: inviterTree.userId,
+          verified: true,
+        };
+        break;
+      }
+
+      case 'kakek-nenek': {
+        // Accepter is a GRANDPARENT of the inviter
+        // Inviter becomes a grandchild
+        newConfig.childCount = 1;
+        newConfig.spouseCount = 1;
+        newConfig.parentCount = 2;
+
+        newMembers['child-1'] = {
+          name: inviterName,
+          gender: inviterGender,
+          alive: inviterSelf.alive !== false,
+          photo: inviterPhoto,
+          linkedUserId: inviterTree.userId,
+          verified: true,
+        };
+        break;
+      }
+
+      default: {
+        // For 'paman-bibi', 'keponakan', etc. — just link the inviter as a basic member
+        newConfig.childCount = 1;
+        newMembers['child-1'] = {
+          name: inviterName,
+          gender: inviterGender,
+          alive: inviterSelf.alive !== false,
+          photo: inviterPhoto,
+          linkedUserId: inviterTree.userId,
+          verified: true,
+        };
+        break;
+      }
+    }
+
+    // Set sharedFamilySlug so the accepter can see the inviter's public page
+    const inviterFullTree = await this.prisma.familyTree.findUnique({
+      where: { id: inviterTree.id },
+      select: { id: true, slug: true, name: true, userId: true, layoutConfig: true },
+    });
+    if (inviterFullTree) {
+      const inviterIdentity = await this.ensureIdentity(inviterFullTree);
+      newConfig.sharedFamilySlug = inviterIdentity.slug || null;
+    }
+
+    // Save the accepter's tree
+    await this.prisma.familyTree.update({
+      where: { id: accepterTree.id },
+      data: {
+        layoutConfig: newConfig as any,
+        layoutMembers: newMembers as any,
+      },
+    });
+
+    // Join the inviter's family node
+    try {
+      await this.joinFamilyNode(inviterTree.id, accepterId, 'self', 'member');
+    } catch (err) {
+      this.logger.error(`Failed to join family node: ${err}`);
+    }
   }
 
   async cancelInvitation(treeId: string, invitationId: string, userId: string, roles?: string[]) {
