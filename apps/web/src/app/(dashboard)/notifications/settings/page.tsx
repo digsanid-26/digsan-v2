@@ -79,7 +79,7 @@ export default function NotificationSettingsPage() {
   if (loading && !data) {
     return (
       <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400" />
       </div>
     );
   }
@@ -87,42 +87,42 @@ export default function NotificationSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Pengaturan Notifikasi</h1>
-        <p className="text-slate-500 mt-1">Pilih notifikasi yang ingin Anda terima per kanal</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Pengaturan Notifikasi</h1>
+        <p className="text-slate-500 dark:text-white/50 mt-1">Pilih notifikasi yang ingin Anda terima per kanal</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-white/[0.02] rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Jenis Notifikasi</th>
+              <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.03]">
+                <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700 dark:text-white/80">Jenis Notifikasi</th>
                 {CHANNELS.map((c) => (
                   <th key={c.value} className="px-4 py-3 text-center min-w-[100px]">
                     <div className="flex flex-col items-center gap-1">
-                      <c.icon size={16} className="text-slate-500" />
-                      <span className="text-xs font-medium text-slate-600">{c.label}</span>
+                      <c.icon size={16} className="text-slate-500 dark:text-white/50" />
+                      <span className="text-xs font-medium text-slate-600 dark:text-white/60">{c.label}</span>
                     </div>
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
               {NOTIF_TYPES.map((t) => (
-                <tr key={t.value} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-sm font-medium text-slate-900">{t.label}</td>
+                <tr key={t.value} className="hover:bg-slate-50 dark:hover:bg-white/[0.03]">
+                  <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">{t.label}</td>
                   {CHANNELS.map((c) => (
                     <td key={c.value} className="px-4 py-3 text-center">
                       <button
                         onClick={() => toggle(t.value, c.value)}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          prefs[t.value]?.[c.value] ? 'bg-blue-600' : 'bg-slate-300'
+                          prefs[t.value]?.[c.value] ? 'bg-blue-600' : 'bg-slate-300 dark:bg-white/15'
                         }`}
                       >
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                             prefs[t.value]?.[c.value] ? 'translate-x-6' : 'translate-x-1'
-                          }`}
+                          }`
                         />
                       </button>
                     </td>
@@ -143,7 +143,7 @@ export default function NotificationSettingsPage() {
           <Save size={16} />
           {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
         </button>
-        {saved && <span className="text-sm text-green-600 font-medium">Pengaturan tersimpan!</span>}
+        {saved && <span className="text-sm text-green-600 dark:text-green-400 font-medium">Pengaturan tersimpan!</span>}
       </div>
     </div>
   );

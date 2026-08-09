@@ -2739,15 +2739,11 @@ export class TreeService {
       }
     }
 
-    // Set sharedFamilySlug so the accepter can see the inviter's public page
-    const inviterFullTree = await this.prisma.familyTree.findUnique({
-      where: { id: inviterTree.id },
-      select: { id: true, slug: true, name: true, userId: true, layoutConfig: true },
-    });
-    if (inviterFullTree) {
-      const inviterIdentity = await this.ensureIdentity(inviterFullTree);
-      newConfig.sharedFamilySlug = inviterIdentity.slug || null;
-    }
+    // NOTE: We intentionally do NOT set sharedFamilySlug here.
+    // The accepter is building their own independent tree (pre-populated from
+    // the inviter's data). They should own and edit their own Family Node.
+    // sharedFamilySlug is only for linked members who don't have their own tree.
+    newConfig.sharedFamilySlug = null;
 
     // Save the accepter's tree
     await this.prisma.familyTree.update({
