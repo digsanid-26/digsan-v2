@@ -1,13 +1,16 @@
 'use client';
 
 import { useApi, useAuthApi } from '@/lib/hooks';
-import { Bell, CheckCheck, Trash2, Settings } from 'lucide-react';
+import { treeApi } from '@/lib/tree';
+import { Bell, CheckCheck, Trash2, Settings, UserPlus, Check, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
+import { useState } from 'react';
 
 export default function NotificationsPage() {
   const { data, loading, refetch } = useApi<any>('/notifications?limit=50');
   const { request } = useAuthApi();
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const handleMarkRead = async (id: string) => {
     try {
@@ -31,6 +34,29 @@ export default function NotificationsPage() {
   };
 
   const notifications = data?.notifications ?? [];
+
+  const handleAcceptConnection = async (token: string, notifId: string) => {
+    setActionLoading(notifId);
+    try {
+      await treeApi.acceptInvitation(token);
+      await request(`/notifications/${notifId}/read`, { method: 'PUT' });
+      refetch();
+    } catch (e: any) {
+      alert(e.message || 'Gagal menerima koneksi');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectConnection = async (notifId: string) => {
+    setActionLoading(notifId);
+    try {
+      await request(`/notifications/${notifId}/read`, { method: 'PUT' });
+      refetch();
+    } catch {
+      setActionLoading(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -85,8 +111,13 @@ export default function NotificationsPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium text-slate-900 dark:text-white">{n.title}</p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {n.type === 'TREE_INVITATION' && (
+                        <UserPlus size={14} className="text-blue-500 dark:text-blue-400 shrink-0" />
+                      )}
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{n.title}</p>
+                    </div>
                     <p className="text-sm text-slate-600 dark:text-white/60 mt-0.5">{n.message}</p>
                     <p className="text-xs text-slate-400 dark:text-white/30 mt-1">
                       {formatDistanceToNow(new Date(n.createdAt), {
@@ -94,6 +125,25 @@ export default function NotificationsPage() {
                         locale: localeId,
                       })}
                     </p>
+                    {/* Accept/Reject buttons for connection request notifications */}
+                    {n.type === 'TREE_INVITATION' && n.data?.token && !n.isRead && (
+                      <div className="flex items-center gap-2 mt-3">
+                        <button
+                          onClick={() => handleAcceptConnection(n.data.token, n.id)}
+                          disabled={actionLoading === n.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {actionLoading === n.id ? 'Memproses...' : (<><Check size={13} /> Terima</>)}
+                        </button>
+                        <button
+                          onClick={() => handleRejectConnection(n.id)}
+                          disabled={actionLoading === n.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-white rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <X size={13} /> Tolak
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {!n.isRead && (

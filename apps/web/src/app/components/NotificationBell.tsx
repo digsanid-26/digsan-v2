@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { Bell, CheckCheck, X } from 'lucide-react';
+import { Bell, CheckCheck, X, UserPlus, Check } from 'lucide-react';
 import { getTokens } from '@/lib/auth';
+import { treeApi } from '@/lib/tree';
 import { formatDistanceToNow } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
@@ -16,6 +17,7 @@ interface NotifItem {
   message: string;
   isRead: boolean;
   createdAt: string;
+  data?: { token?: string; invitationId?: string; treeId?: string; relationship?: string } | null;
 }
 
 export default function NotificationBell({ dark }: { dark: boolean }) {
@@ -84,6 +86,22 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
       setList((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
       setUnread((u) => Math.max(0, u - 1));
     } catch {}
+  };
+
+  const acceptConnection = async (token: string, notifId: string) => {
+    const tokens = getTokens();
+    if (!tokens?.accessToken) return;
+    try {
+      await treeApi.acceptInvitation(token);
+      await fetch(`${API_URL}/notifications/${notifId}/read`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      });
+      setList((prev) => prev.map((n) => n.id === notifId ? { ...n, isRead: true } : n));
+      setUnread((u) => Math.max(0, u - 1));
+    } catch (e: any) {
+      alert(e.message || 'Gagal menerima koneksi');
+    }
   };
 
   const markAllRead = async () => {
@@ -166,8 +184,22 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
                     <Bell size={14} className={!n.isRead ? (dark ? 'text-blue-400' : 'text-blue-600') : (dark ? 'text-white/30' : 'text-slate-400')} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{n.title}</p>
+                    <div className="flex items-center gap-1.5">
+                      {n.type === 'TREE_INVITATION' && (
+                        <UserPlus size={12} className={dark ? 'text-blue-400' : 'text-blue-600'} />
+                      )}
+                      <p className={`text-sm font-medium truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{n.title}</p>
+                    </div>
                     <p className={`text-xs mt-0.5 line-clamp-2 ${dark ? 'text-white/50' : 'text-slate-500'}`}>{n.message}</p>
+                    {n.type === 'TREE_INVITATION' && n.data?.token && !n.isRead && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); acceptConnection(n.data!.token!, n.id); }}
+                        className={`mt-2 flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors
+                          ${dark ? 'bg-blue-600/80 hover:bg-blue-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                      >
+                        <Check size={11} /> Terima Koneksi
+                      </button>
+                    )}
                     <p className={`text-[10px] mt-1 ${dark ? 'text-white/30' : 'text-slate-400'}`}>
                       {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: localeId })}
                     </p>
