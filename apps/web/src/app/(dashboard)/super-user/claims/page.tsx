@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { ClipboardCheck, Loader2, Check, X, Mail, Phone, Clock, User as UserIcon, Trees } from 'lucide-react';
 import { useAuthApi } from '@/lib/hooks';
 import { getUser } from '@/lib/auth';
@@ -32,7 +32,7 @@ export default function SuperUserClaimsPage() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
   const [acting, setActing] = useState<string | null>(null);
 
-  const loadClaims = useCallback(async () => {
+  const loadClaims = async () => {
     setLoading(true);
     try {
       const res = await request<NodeClaimItem[]>('/trees/super-user/claims');
@@ -42,7 +42,7 @@ export default function SuperUserClaimsPage() {
     } finally {
       setLoading(false);
     }
-  }, [request]);
+  };
 
   useEffect(() => {
     const user = getUser();
@@ -52,7 +52,7 @@ export default function SuperUserClaimsPage() {
       return;
     }
     loadClaims();
-  }, [loadClaims]);
+  }, []);
 
   const handleRespond = async (claimId: string, approve: boolean) => {
     setActing(claimId);

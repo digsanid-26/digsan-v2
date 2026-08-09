@@ -138,7 +138,6 @@ Mengatur perijinan dari member / anggota digsan.
 - [x] Fitur super_user /app.digsan.id/super-user/nodes sebenarnya yang dimaksud adalah untuk lingkaran (familymember) yang dibuat oleh super_user, namun kemarin menggunakan istilah node yang ternyata diterapkan pada public tree di family/nama-family.
 - [x] Memiliki akses ke list / daftar lingkaran/familymember yang dibuatnya secara lengkap seperti nama lengkap, alamat email, nomor telepon status keanggotaan (aktif/pasif) 
  
-
 ### User (user)
 - [x] Ubah layout Login dan register menjadi dua kolom bersebelahan dengan elegan hero (dengan heading, subheading, dan desc) mengisi kolom pertama dan form mengisi kolom kedua. Buat dua opsi login yaitu Email (email/gmail), Whatsapp, atau keduanya baik pada registrasi maupun login dengan mengisi nomor whatsapp menjadi wajib ketika opsi login Whatsapp dipilih. Email membutuhkan verifikasi email dan Whatsapp memerlukan verifikasi mencocokkan token;
 - [x] Setelah berhasil login dan menverifikasi keanggotaannya, otomatis role user didapatkan. Keanggotaan aktif setelah user menverifikasi dengan mengklik verifikasi link (email) atau whatsapp (token). Dari sana dia dapat membuat tree baru atau melakukan klaim terhadap node yang dibuat oleh user lain untuk kemudian bila klaim diterima dia dapat melakukan pengaturan jumlah node keluarga utama miliknya hingga keluarga simbahnya;
@@ -148,12 +147,11 @@ Mengatur perijinan dari member / anggota digsan.
 - [x] Pada modal Mulai Membangun Silsilah, step Mencari Keluarga yang benar adalah Mencari Anggota Keluarga dan fungsi search hanya mencari user/member saja, tidak termasuk family node;
 - [x] Role super_user harusnya tidak otomatis didapatkan ketika user terdaftar apalagi yang menggunakan Early Access. 
 
-
 ## World Tree
 - Pelajari tentang D3.js dan apa saja kemampuan dan yang bisa dilakukannya dan bisakah membangun View Mode World Tree dengan konsep sbb:
 - Pelajari Neo4j and PostgreSQL integrasi untuk mengakomodir jaringan rumit dan komplek hubungan keluarga nantinya. Dengan kemungkinan di masa depan aplikasi berkembang sangat masif dan membutuhkan pencarian silsilah yang super kompleks (misalnya: mencari hubungan sepupu derajat ke-12 secara instan), bisa menggunakan arsitektur Hybrid.PostgreSQL / MySQL: Digunakan sebagai database utama (Source of Truth). Menyimpan data pengguna, profil lengkap, foto, modul artikel, sistem langganan, dan data transaksi aplikasi. Neo4j (Graph DB): Digunakan hanya sebagai microservice khusus silsilah. Database ini hanya menyimpan ID, Nama, dan Hubungan (sangat ringan). Cara Kerjanya: Ketika pengguna membuka modul silsilah, backend aplikasi akan meminta peta struktur jaringan (node & edges) dari Neo4j, lalu mencocokkan ID tersebut ke PostgreSQL untuk mengambil data profil lengkap dan fotonya. ;
 - Saya ingin membangun mode view World Tree yang secara gambaran kasar menjadikan Adam dan Hawa sebagai node/lingkaran pusat dengan garis-garis konektor membentuk lingkaran ke luar sebagai ilustrasi. Lingkaran terluar akan diisi oleh user-user yang mendaftar di digsan.id yang bisa memperdalam koneksinya dengan mengisi node-node kosong seperti ayah ibu, kakek, nenek, kakek buyut, nenek buyut dan seterusnya. Pada saat ini dibuatkan dummy dulu dengan heading Future Concept
-## 
+
 ## Sistem Perijinan
 - [x] Role super-user | Agar tidak bingung dalam menentukan kuasa terhadap silsilah keluarga, buatkan role tambahan dengan nama super-user yang otomatis dimiliki oleh user pembuat silsilah keluarganya yang pertama kali;
 - [x] Untuk orang tua, saudara orang tua, dan anak-anak yang secara usia belum cukup umur/belum memiliki identitas ktp, baik yang masih hidup maupun yang sudah meninggal dunia dapat dikelola dan diedit profil dan silsilahnya oleh orang yang membuat silsilah tanpa perlu meminta ijin (super-user) yang bersangkutan. Yang perlu ijin adalah ketika hendak mengedit silsilah atau detil anggota telah berstatus user aktif/menerima invitation; 
