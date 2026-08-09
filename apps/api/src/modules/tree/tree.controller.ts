@@ -148,6 +148,15 @@ export class TreeController {
     return this.treeService.inviteByEmail(userId, dto);
   }
 
+  @Post('connect-request')
+  @ApiOperation({ summary: 'Onboarding: request family connection with a found user' })
+  async requestFamilyConnection(
+    @CurrentUser('id') userId: string,
+    @Body() body: { targetUserId: string; relationship: string; note?: string },
+  ) {
+    return this.treeService.requestFamilyConnection(userId, body.targetUserId, body.relationship, body.note);
+  }
+
   @Post('claim')
   @ApiOperation({ summary: 'Claim an unclaimed node on a public family tree ("Apakah ini Anda?")' })
   async claimNode(@CurrentUser('id') userId: string, @Body() dto: ClaimNodeDto) {

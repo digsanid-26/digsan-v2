@@ -55,6 +55,7 @@ export default function OnboardingModal({
   const [selectedItem, setSelectedItem] = useState<{ type: 'user' | 'family' | 'invitation'; data: SearchUser | SearchFamily | PendingInvitation } | null>(null);
   const [relationship, setRelationship] = useState('');
   const [accepting, setAccepting] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -118,6 +119,23 @@ export default function OnboardingModal({
 
   const handleSaveAndBuild = () => {
     onComplete({ ...config, configured: true });
+  };
+
+  const handleConfirmConnection = async () => {
+    if (!selectedItem || selectedItem.type !== 'user' || !relationship) return;
+    const targetUser = selectedItem.data as SearchUser;
+    setConnecting(true);
+    setError('');
+    try {
+      await treeApi.requestFamilyConnection(targetUser.id, relationship);
+      // Close modal — user can continue exploring/building while waiting for confirmation
+      onComplete({ ...config, configured: true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal mengirim permintaan koneksi';
+      setError(msg);
+    } finally {
+      setConnecting(false);
+    }
   };
 
   // ─── Render helpers ────────────────────────────────────────
@@ -339,11 +357,11 @@ export default function OnboardingModal({
                   Pastikan orang tersebut benar adalah {displayName}. Anda {relationship || '...'}, konfirmasi akan dikirim kepada yang bersangkutan.
                 </div>
                 <button
-                  onClick={() => setStep('search')}
-                  disabled={!relationship}
-                  className={`${btnPrimary} ${!relationship ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={handleConfirmConnection}
+                  disabled={!relationship || connecting}
+                  className={`${btnPrimary} ${(!relationship || connecting) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <Check size={16} /> Konfirmasi
+                  {connecting ? 'Mengirim...' : (<><Check size={16} /> Konfirmasi</>)}
                 </button>
                 <p className={`text-xs ${textMuted} text-center mt-3`}>
                   Koneksi akan terverifikasi setelah permintaan diterima.

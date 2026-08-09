@@ -322,6 +322,13 @@ export const treeApi = {
       method: 'POST',
     }),
 
+  // ─── Onboarding: request family connection ──────────────────
+  requestFamilyConnection: (targetUserId: string, relationship: string, note?: string) =>
+    authRequest<{ message: string; invitationId: string }>('/trees/connect-request', {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId, relationship, note }),
+    }),
+
   // ─── Onboarding: search users & families ────────────────────
   search: (q: string) =>
     authRequest<{

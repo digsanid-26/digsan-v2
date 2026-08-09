@@ -2308,6 +2308,74 @@ export class TreeService {
     return { ...invitation, publicLinkToken };
   }
 
+  /**
+   * Onboarding flow: user found a family member via search and wants to connect.
+   * Creates an invitation with the relationship info and notifies the target user.
+   * The target user can accept/reject the connection from their notifications.
+   */
+  async requestFamilyConnection(
+    userId: string,
+    targetUserId: string,
+    relationship: string,
+    note?: string,
+  ) {
+    const tree = await this.getOrCreateDefaultTree(userId);
+    const requester = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true, avatar: true } });
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true, name: true, email: true, phone: true } });
+
+    if (!target) throw new NotFoundException('Pengguna tidak ditemukan');
+    if (targetUserId === userId) throw new BadRequestException('Tidak bisa menghubungkan ke diri sendiri');
+
+    // Check for existing pending invitation to this user for this tree
+    const existing = await this.prisma.treeInvitation.findFirst({
+      where: { treeId: tree.id, email: target.email ?? undefined, status: 'PENDING' },
+    });
+    if (existing) throw new BadRequestException('Permintaan koneksi sudah dikirim sebelumnya');
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days for connection requests
+
+    const invitation = await this.prisma.treeInvitation.create({
+      data: {
+        treeId: tree.id,
+        email: target.email,
+        phone: target.phone,
+        message: note || `Saya adalah ${relationship} Anda. Yuk verifikasi koneksi keluarga kita.`,
+        token,
+        expiresAt,
+      },
+    });
+
+    // Notify the target user
+    const RELATIONSHIP_LABELS: Record<string, string> = {
+      'anak': 'anak',
+      'pasangan': 'pasangan (suami/istri)',
+      'orangtua': 'orang tua',
+      'saudara': 'saudara (kakak/adik)',
+      'kakek-nenek': 'cucu',
+      'cucu': 'kakek/nenek',
+      'paman-bibi': 'keponakan',
+      'keponakan': 'paman/bibi',
+    };
+    const relLabel = RELATIONSHIP_LABELS[relationship] || relationship;
+
+    this.notifications.create({
+      userId: target.id,
+      type: 'TREE_INVITATION' as any,
+      title: 'Permintaan Koneksi Keluarga',
+      message: `${requester?.name || 'Seseorang'} mengklaim sebagai ${relLabel} Anda. Periksa dan konfirmasi koneksi ini.`,
+      data: { invitationId: invitation.id, token, treeId: tree.id, relationship },
+    }).catch(() => {});
+    this.notifications.sendPushSafe(
+      target.id,
+      'Permintaan Koneksi Keluarga',
+      `${requester?.name || 'Seseorang'} mengklaim sebagai ${relLabel} Anda`,
+    ).catch(() => {});
+
+    return { message: 'Permintaan koneksi dikirim. Anda dapat melanjutkan sambil menunggu konfirmasi.', invitationId: invitation.id };
+  }
+
   async getInvitations(treeId: string, userId: string, roles?: string[]) {
     await this.ensureTreeOwner(treeId, userId, roles);
 
