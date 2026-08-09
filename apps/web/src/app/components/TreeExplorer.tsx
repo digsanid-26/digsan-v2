@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getUser } from '@/lib/auth';
-import { treeApi } from '@/lib/tree';
+import { treeApi, publicTreeApi } from '@/lib/tree';
 import type { GuardianConsent, ConnectedFamily, FamilyNodeMembership } from '@/lib/tree';
 import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
@@ -307,6 +307,7 @@ export default function TreeExplorer() {
   const [showStudio, setShowStudio] = useState(false);
   const [showDoaArwah, setShowDoaArwah] = useState(false);
   const [inviteCtx, setInviteCtx] = useState<{ nodeId: string; name: string } | null>(null);
+  const [publicToken, setPublicToken] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [marquee, setMarquee] = useState<{ sx: number; sy: number; ex: number; ey: number } | null>(null);
   const marqueeRef = useRef<{ sx: number; sy: number } | null>(null);
@@ -568,6 +569,23 @@ export default function TreeExplorer() {
     };
   };
 
+  /** Open InvitationStudio, pre-fetching a public link token so the share URL
+   *  works for unauthenticated visitors. */
+  const openStudio = async (region: Region | null, highlight: string[], ctx?: { nodeId: string; name: string }) => {
+    setStudioRegion(region);
+    setStudioHighlight(highlight);
+    setInviteCtx(ctx ?? null);
+    setShowStudio(true);
+    setPanel('none');
+    // Fetch public link token in the background (best-effort).
+    if (identity.slug && !publicToken) {
+      try {
+        const res = await publicTreeApi.generatePublicLink(identity.slug);
+        setPublicToken(res.token);
+      } catch { /* token generation failed — share link will still work for logged-in users */ }
+    }
+  };
+
   const finalizeMarquee = () => {
     const m = marquee;
     marqueeRef.current = null;
@@ -587,9 +605,7 @@ export default function TreeExplorer() {
     const highlight = nodes
       .filter((n) => n.role !== 'group' && n.x >= region.minX && n.x <= region.maxX && n.y >= region.minY && n.y <= region.maxY)
       .map((n) => n.id);
-    setStudioRegion(region);
-    setStudioHighlight(highlight);
-    setShowStudio(true);
+    openStudio(region, highlight);
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -720,7 +736,7 @@ export default function TreeExplorer() {
           </Link>
         )}
         {config.configured && (
-          <button onClick={() => { setStudioRegion(null); setStudioHighlight([]); setShowStudio(true); }}
+          <button onClick={() => openStudio(null, [])}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg whitespace-nowrap
               bg-white text-slate-700 hover:bg-slate-50 border border-slate-200
               dark:bg-white/10 dark:text-white dark:border-white/10 dark:hover:bg-white/15">
@@ -943,11 +959,7 @@ export default function TreeExplorer() {
             }}
             onOpenInvite={() => {
               const nm = disp(selected.id, selected.name).name;
-              setInviteCtx({ nodeId: selected.id, name: nm });
-              setStudioRegion(null);
-              setStudioHighlight([selected.id]);
-              setShowStudio(true);
-              setPanel('none');
+              openStudio(null, [selected.id], { nodeId: selected.id, name: nm });
             }}
             onClose={() => setPanel('none')}
             canDelete={isSuperUser && selected.id !== selfNodeId && selected.id !== 'self'}
@@ -958,7 +970,7 @@ export default function TreeExplorer() {
 
       <InvitationStudio
         open={showStudio}
-        onClose={() => { setShowStudio(false); setInviteCtx(null); }}
+        onClose={() => { setShowStudio(false); setInviteCtx(null); setPublicToken(null); }}
         dark={dark}
         nodes={nodes.map((n) => (n.role === 'group' ? n : { ...n, name: disp(n.id, n.name).name }))}
         lines={lines}
@@ -973,11 +985,14 @@ export default function TreeExplorer() {
           if (!identity.slug) return undefined;
           const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.digsan.id';
           const base = `${origin}/family/${identity.slug}`;
+          const tokenParam = publicToken ? `t=${publicToken}` : '';
           // Invited a specific member → deep-link to that person on the public tree.
-          if (inviteCtx?.nodeId && inviteCtx.nodeId !== selfNodeId) return `${base}?m=${encodeURIComponent(inviteCtx.nodeId)}`;
+          if (inviteCtx?.nodeId && inviteCtx.nodeId !== selfNodeId) {
+            return `${base}?m=${encodeURIComponent(inviteCtx.nodeId)}${tokenParam ? `&${tokenParam}` : ''}`;
+          }
           // Owner / self share → link to the owner's public profile (/id/username).
-          if (identity.username) return `${origin}/id/${identity.username}`;
-          return base;
+          if (identity.username) return `${origin}/id/${identity.username}${tokenParam ? `?${tokenParam}` : ''}`;
+          return `${base}${tokenParam ? `?${tokenParam}` : ''}`;
         })()}
         region={studioRegion}
         highlightIds={studioHighlight}
