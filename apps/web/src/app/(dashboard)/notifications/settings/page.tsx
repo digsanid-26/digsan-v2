@@ -122,7 +122,7 @@ export default function NotificationSettingsPage() {
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                             prefs[t.value]?.[c.value] ? 'translate-x-6' : 'translate-x-1'
-                          }`
+                          }`}
                         />
                       </button>
                     </td>
