@@ -2352,6 +2352,8 @@ export class TreeService {
     const RELATIONSHIP_LABELS: Record<string, string> = {
       'anak': 'anak',
       'pasangan': 'pasangan (suami/istri)',
+      'ayah': 'ayah',
+      'ibu': 'ibu',
       'orangtua': 'orang tua',
       'saudara': 'saudara (kakak/adik)',
       'kakek-nenek': 'cucu',
@@ -2548,18 +2550,27 @@ export class TreeService {
         break;
       }
 
-      case 'orangtua': {
-        // Accepter is the PARENT of the inviter
+      case 'ayah':
+      case 'ibu': {
+        // Accepter is the FATHER (ayah) or MOTHER (ibu) of the inviter
         // Inviter becomes child-1 in accepter's tree
+        const isAyah = relationship === 'ayah';
         newConfig.childCount = 1;
         newConfig.parentCount = 2; // accepter's own parents (inviter's grandparents)
         newConfig.spouseCount = 1; // accepter's spouse (other parent of inviter)
 
-        // Copy inviter's spouse data as the accepter's spouse
+        // Set accepter's gender based on ayah/ibu
+        newMembers['self'] = {
+          ...newMembers['self'],
+          gender: isAyah ? 'L' : 'P',
+        };
+
+        // Copy inviter's spouse data as the accepter's spouse (the other parent)
         if (inviterMembers['spouse-1']) {
           newMembers['spouse-1'] = {
             ...inviterMembers['spouse-1'],
-            name: inviterMembers['spouse-1'].name || 'Pasangan',
+            name: inviterMembers['spouse-1'].name || (isAyah ? 'Ibu' : 'Ayah'),
+            gender: isAyah ? 'P' : 'L',
           };
         }
 
@@ -2587,6 +2598,63 @@ export class TreeService {
         }
 
         // Copy inviter's siblings as accepter's other children
+        let otherChildIdx = 2;
+        const older = inviterConfig.olderCount || 0;
+        const younger = inviterConfig.youngerCount || 0;
+        for (let i = 1; i <= older; i++) {
+          const sibKey = `older-${i}`;
+          if (inviterMembers[sibKey] && inviterMembers[sibKey].name) {
+            newMembers[`child-${otherChildIdx}`] = { ...inviterMembers[sibKey] };
+            otherChildIdx++;
+          }
+        }
+        for (let i = 1; i <= younger; i++) {
+          const sibKey = `younger-${i}`;
+          if (inviterMembers[sibKey] && inviterMembers[sibKey].name) {
+            newMembers[`child-${otherChildIdx}`] = { ...inviterMembers[sibKey] };
+            otherChildIdx++;
+          }
+        }
+        newConfig.childCount = otherChildIdx - 1;
+        break;
+      }
+
+      case 'orangtua': {
+        // Legacy fallback — same as ayah (male parent)
+        newConfig.childCount = 1;
+        newConfig.parentCount = 2;
+        newConfig.spouseCount = 1;
+
+        newMembers['self'] = { ...newMembers['self'], gender: 'L' };
+
+        if (inviterMembers['spouse-1']) {
+          newMembers['spouse-1'] = {
+            ...inviterMembers['spouse-1'],
+            name: inviterMembers['spouse-1'].name || 'Pasangan',
+            gender: 'P',
+          };
+        }
+
+        newMembers['child-1'] = {
+          name: inviterName,
+          gender: inviterGender,
+          alive: inviterSelf.alive !== false,
+          photo: inviterPhoto,
+          linkedUserId: inviterTree.userId,
+          verified: true,
+        };
+
+        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
+          const childKey = `child-${i}`;
+          if (inviterMembers[childKey] && inviterMembers[childKey].name) {
+            newMembers[`child-1-child-${i}`] = { ...inviterMembers[childKey] };
+          }
+        }
+
+        if (inviterMembers['spouse-1']) {
+          newMembers['child-1-spouse'] = { ...inviterMembers['spouse-1'] };
+        }
+
         let otherChildIdx = 2;
         const older = inviterConfig.olderCount || 0;
         const younger = inviterConfig.youngerCount || 0;
