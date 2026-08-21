@@ -285,95 +285,155 @@ export class AdvertisingAdminService {
 
     const fullPrompt = parts.join('. ');
 
-    // Map aspect ratio to dimensions
-    const sizeMap: Record<string, string> = {
-      '1:1': '1024x1024',
-      '3:1': '1536x512',
-      '1:2': '512x1024',
-      '1:3': '512x1536',
-      '16:9': '1536x864',
-      '9:16': '864x1536',
-    };
-    const size = sizeMap[aspectRatio || '1:1'] || '1024x1024';
-
     // Use selected model or default — must be a model with image output modality
     const modelName = model || 'google/gemini-2.5-flash-image';
 
     this.logger.log(`Generating AI image with model ${modelName}, prompt: ${fullPrompt.substring(0, 100)}...`);
 
-    // Build message content — text prompt + optional attachment images
-    const messageContent: any[] = [
-      { type: 'text', text: `Generate an advertisement banner image. ${fullPrompt}. Return only the image.` },
-    ];
+    // Build input_references for image-to-image (attachment images)
+    const inputReferences: any[] = [];
     if (attachments && attachments.length > 0) {
       for (const url of attachments) {
-        messageContent.push({ type: 'image_url', image_url: { url } });
+        if (url) inputReferences.push({ type: 'image_url', image_url: { url } });
       }
     }
 
-    // Use OpenRouter chat completions with a multimodal model
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': this.configService.get<string>('WEB_URL') || 'http://localhost:3000',
-        'X-Title': 'Digsan Ads Builder',
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [
-          {
-            role: 'user',
-            content: messageContent,
-          },
-        ],
-        modalities: ['image', 'text'],
-        image_config: {
-          aspect_ratio: aspectRatio || '1:1',
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      this.logger.error(`OpenRouter API error: ${response.status} ${errText}`);
-      throw new BadRequestException(`AI image generation failed: ${response.status}`);
-    }
-
-    const data = await response.json() as any;
-    const content = data?.choices?.[0]?.message?.content;
-
-    // Try to extract image URL from the response
+    // ─── Strategy 1: Dedicated /api/v1/images endpoint ────────
+    // This is the recommended way for image generation models.
     let imageUrl: string | null = null;
 
-    if (typeof content === 'string') {
-      // Check if content is a URL
-      if (content.startsWith('http')) {
-        imageUrl = content;
-      } else {
-        // Try to find a URL in the content
-        const urlMatch = content.match(/https?:\/\/[^\s"')\]]+/);
-        if (urlMatch) imageUrl = urlMatch[0];
-        // Check for base64 data URI
-        if (content.startsWith('data:image/')) imageUrl = content;
+    try {
+      const imagesBody: any = {
+        model: modelName,
+        prompt: `Generate an advertisement banner image. ${fullPrompt}. Return only the image.`,
+        aspect_ratio: aspectRatio || '1:1',
+        n: 1,
+      };
+      if (inputReferences.length > 0) {
+        imagesBody.input_references = inputReferences;
       }
-    } else if (Array.isArray(content)) {
-      // Multi-part content — find image part
-      for (const part of content) {
-        if (part.type === 'image_url' && part.image_url?.url) {
-          imageUrl = part.image_url.url;
-          break;
+
+      const imagesResponse = await fetch('https://openrouter.ai/api/v1/images', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(imagesBody),
+      });
+
+      if (imagesResponse.ok) {
+        const imagesData = await imagesResponse.json() as any;
+        // Response format: { data: [{ b64_json: "...", media_type: "image/png" }] }
+        if (imagesData?.data?.[0]?.b64_json) {
+          const mediaType = imagesData.data[0].media_type || 'image/png';
+          const ext = mediaType.includes('jpeg') || mediaType.includes('jpg') ? 'jpg'
+            : mediaType.includes('webp') ? 'webp'
+            : mediaType.includes('svg') ? 'svg'
+            : 'png';
+          const buffer = Buffer.from(imagesData.data[0].b64_json, 'base64');
+          const filename = `ai-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+          const { writeFileSync, mkdirSync } = await import('fs');
+          mkdirSync(`${process.cwd()}/public/uploads/ads`, { recursive: true });
+          writeFileSync(`${process.cwd()}/public/uploads/ads/${filename}`, buffer);
+          imageUrl = `/api/uploads/ads/${filename}`;
+          this.logger.log(`AI image saved via /images endpoint: ${filename}`);
         }
+      } else {
+        const errText = await imagesResponse.text().catch(() => '');
+        this.logger.warn(`/api/v1/images returned ${imagesResponse.status}: ${errText.substring(0, 200)}`);
+      }
+    } catch (err) {
+      this.logger.warn(`Dedicated /images endpoint failed: ${err}, falling back to chat completions`);
+    }
+
+    // ─── Strategy 2: Chat completions with modalities (fallback) ──
+    // Some models (e.g. Gemini) return images via chat completions with
+    // message.images array containing base64 data URLs.
+    if (!imageUrl) {
+      try {
+        const messageContent: any[] = [
+          { type: 'text', text: `Generate an advertisement banner image. ${fullPrompt}. Return only the image.` },
+        ];
+        if (inputReferences.length > 0) {
+          for (const ref of inputReferences) {
+            messageContent.push(ref);
+          }
+        }
+
+        const chatResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': this.configService.get<string>('WEB_URL') || 'http://localhost:3000',
+            'X-Title': 'Digsan Ads Builder',
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              {
+                role: 'user',
+                content: messageContent,
+              },
+            ],
+            modalities: ['image', 'text'],
+          }),
+        });
+
+        if (chatResponse.ok) {
+          const chatData = await chatResponse.json() as any;
+          const message = chatData?.choices?.[0]?.message;
+
+          // Check message.images array (OpenRouter image generation format)
+          if (message?.images && Array.isArray(message.images)) {
+            for (const img of message.images) {
+              if (img?.image_url?.url) {
+                imageUrl = img.image_url.url; // base64 data URL
+                break;
+              }
+            }
+          }
+
+          // Fallback: check content array for image_url parts
+          if (!imageUrl && Array.isArray(message?.content)) {
+            for (const part of message.content) {
+              if (part?.type === 'image_url' && part?.image_url?.url) {
+                imageUrl = part.image_url.url;
+                break;
+              }
+            }
+          }
+
+          // Fallback: check string content for URL or data URI
+          if (!imageUrl && typeof message?.content === 'string') {
+            const content = message.content;
+            if (content.startsWith('data:image/')) {
+              imageUrl = content;
+            } else {
+              const urlMatch = content.match(/https?:\/\/[^\s"')\]]+/);
+              if (urlMatch) imageUrl = urlMatch[0];
+            }
+          }
+
+          if (imageUrl) {
+            this.logger.log(`AI image extracted via chat completions fallback`);
+          }
+        } else {
+          const errText = await chatResponse.text().catch(() => '');
+          this.logger.error(`Chat completions fallback failed: ${chatResponse.status} ${errText.substring(0, 300)}`);
+        }
+      } catch (err) {
+        this.logger.error(`Chat completions fallback error: ${err}`);
       }
     }
 
     if (!imageUrl) {
-      this.logger.error(`No image URL in OpenRouter response: ${JSON.stringify(data).substring(0, 500)}`);
+      this.logger.error('No image returned from either /images or chat completions endpoint');
       throw new BadRequestException('AI image generation returned no image. The model may not support image output.');
     }
 
-    // Download the image to local storage so it persists
+    // Save image to local storage if it's not already a local URL
     let localUrl: string | null = null;
     try {
       if (imageUrl.startsWith('data:image/')) {
@@ -383,13 +443,15 @@ export class AdvertisingAdminService {
           const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
           const buffer = Buffer.from(matches[2], 'base64');
           const filename = `ai-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-          const filepath = `${process.cwd()}/public/uploads/ads/${filename}`;
           const { writeFileSync, mkdirSync } = await import('fs');
           mkdirSync(`${process.cwd()}/public/uploads/ads`, { recursive: true });
-          writeFileSync(filepath, buffer);
+          writeFileSync(`${process.cwd()}/public/uploads/ads/${filename}`, buffer);
           localUrl = `/api/uploads/ads/${filename}`;
         }
-      } else {
+      } else if (imageUrl.startsWith('/api/uploads/')) {
+        // Already saved locally by the /images endpoint strategy
+        localUrl = imageUrl;
+      } else if (imageUrl.startsWith('http')) {
         // External URL — download and save locally
         const imgRes = await fetch(imageUrl);
         if (imgRes.ok) {
@@ -397,10 +459,9 @@ export class AdvertisingAdminService {
           const ext = contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : contentType.includes('webp') ? 'webp' : 'png';
           const buffer = Buffer.from(await imgRes.arrayBuffer());
           const filename = `ai-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-          const filepath = `${process.cwd()}/public/uploads/ads/${filename}`;
           const { writeFileSync, mkdirSync } = await import('fs');
           mkdirSync(`${process.cwd()}/public/uploads/ads`, { recursive: true });
-          writeFileSync(filepath, buffer);
+          writeFileSync(`${process.cwd()}/public/uploads/ads/${filename}`, buffer);
           localUrl = `/api/uploads/ads/${filename}`;
         }
       }
