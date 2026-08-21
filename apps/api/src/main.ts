@@ -45,7 +45,7 @@ async function bootstrap() {
   // Serve uploaded files statically (before global prefix so /api/uploads/ works)
   const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-  app.useStaticAssets(path.join(process.cwd(), 'public'), { prefix: '/api/uploads/' });
+  app.useStaticAssets(uploadsDir, { prefix: '/api/uploads/' });
 
   // Global prefix
   app.setGlobalPrefix('api');
