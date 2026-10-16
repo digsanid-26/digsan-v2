@@ -37,6 +37,9 @@ model User {
   phoneVerified DateTime?  @map("phone_verified")
   status        UserStatus @default(PENDING)
   lastLoginAt   DateTime?  @map("last_login_at")
+  /// Who created this account on someone's behalf (early access). Only that
+  /// user may impersonate it via "Login Early Access".
+  createdById   String?    @map("created_by_id")
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
@@ -245,8 +248,35 @@ model FamilyTree {
   guardianConsents GuardianConsent[]
   nodeMembers    FamilyNodeMember[]
   nodeClaims     NodeClaim[]
+  linkRequests   NodeLinkRequest[]
 
   @@map("family_trees")
+}
+
+/// A tree owner asks an existing account to confirm that they are the person
+/// drawn at `nodeId`. The link only takes effect once the target approves.
+model NodeLinkRequest {
+  id           String            @id @default(cuid())
+  treeId       String            @map("tree_id")
+  nodeId       String            @map("node_id")
+  requesterId  String            @map("requester_id")
+  targetUserId String            @map("target_user_id")
+  status       LinkRequestStatus @default(PENDING)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  respondedAt  DateTime?         @map("responded_at")
+
+  tree FamilyTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
+  @@index([targetUserId, status])
+  @@index([treeId, nodeId, status])
+  @@map("node_link_requests")
+}
+
+enum LinkRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 /// Explicit membership of a user in a Family Node.

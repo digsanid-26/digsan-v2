@@ -621,8 +621,9 @@ export class AuthService {
    * so they can fill in that person's general profile (babies, minors, the
    * deceased) without that member ever verifying an account.
    *
-   * Guarded on three fronts: the caller must hold super_user, must own the tree
-   * the node belongs to, and the target account must still be EARLY_ACCESS.
+   * Guarded on four fronts: the caller must hold super_user, must own the tree
+   * the node belongs to, must have created the target account, and the target
+   * account must still be EARLY_ACCESS.
    */
   async loginAsEarlyAccessNode(
     superUserId: string,
@@ -655,6 +656,11 @@ export class AuthService {
     if (!target) throw new NotFoundException('Akun early access tidak ditemukan');
     if (target.status !== 'EARLY_ACCESS') {
       throw new ForbiddenException('Akun ini sudah aktif — login harus dilakukan pemiliknya sendiri');
+    }
+    // The layout link alone is not proof: only the user who created this
+    // early-access account may sign in as it.
+    if (target.createdById !== superUserId) {
+      throw new ForbiddenException('Akun early access ini tidak dibuat oleh Anda');
     }
 
     const tokens = await this.generateTokens(target.id, target.email);

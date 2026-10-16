@@ -17,7 +17,14 @@ interface NotifItem {
   message: string;
   isRead: boolean;
   createdAt: string;
-  data?: { token?: string; invitationId?: string; treeId?: string; relationship?: string } | null;
+  data?: {
+    token?: string;
+    invitationId?: string;
+    treeId?: string;
+    relationship?: string;
+    linkRequestId?: string;
+    action?: string;
+  } | null;
 }
 
 export default function NotificationBell({ dark }: { dark: boolean }) {
@@ -101,6 +108,15 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
       setUnread((u) => Math.max(0, u - 1));
     } catch (e: any) {
       alert(e.message || 'Gagal menerima koneksi');
+    }
+  };
+
+  const respondLink = async (requestId: string, approve: boolean, notifId: string) => {
+    try {
+      await treeApi.respondLinkRequest(requestId, approve);
+      await markRead(notifId);
+    } catch (e: any) {
+      alert(e.message || 'Gagal merespons permintaan');
     }
   };
 
@@ -199,6 +215,24 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
                       >
                         <Check size={11} /> Terima Koneksi
                       </button>
+                    )}
+                    {n.data?.action === 'link_request' && n.data.linkRequestId && !n.isRead && (
+                      <div className="mt-2 flex gap-1.5">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); respondLink(n.data!.linkRequestId!, true, n.id); }}
+                          className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors
+                            ${dark ? 'bg-emerald-600/80 hover:bg-emerald-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+                        >
+                          <Check size={11} /> Ya, ini saya
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); respondLink(n.data!.linkRequestId!, false, n.id); }}
+                          className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors
+                            ${dark ? 'border-white/15 text-white/70 hover:bg-white/5' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          <X size={11} /> Bukan saya
+                        </button>
+                      </div>
                     )}
                     <p className={`text-[10px] mt-1 ${dark ? 'text-white/30' : 'text-slate-400'}`}>
                       {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: localeId })}

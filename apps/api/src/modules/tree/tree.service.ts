@@ -21,6 +21,22 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 import { UpdateCardStyleDto } from './dto/card-style.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { GamificationService } from '../gamification/gamification.service';
+import {
+  ANCESTRY_KEY_RE,
+  buildConnectedLayout,
+  isHouseholdNode,
+  isLayoutEmpty,
+  projectFamilyConfig,
+  projectionScope,
+  protectedFieldsChanged,
+  revertProtectedFields,
+  sanitizeLayoutMembers,
+  stripIdentityFields,
+  type LayoutMembers,
+} from './tree-layout.util';
+
+const ADMIN_ROLES = ['admin', 'super_admin'];
+const isAdmin = (roles?: string[]) => !!roles?.some((r) => ADMIN_ROLES.includes(r));
 
 @Injectable()
 export class TreeService {
@@ -127,10 +143,9 @@ export class TreeService {
   async update(id: string, userId: string, dto: UpdateTreeDto, roles?: string[]) {
     const tree = await this.ensureTreeOwner(id, userId, roles);
 
-    // Connected users (sharedFamilySlug set) cannot edit the family node.
-    const config = (tree.layoutConfig as any) ?? {};
-    if (config.sharedFamilySlug && !roles?.includes('super_user')) {
-      throw new ForbiddenException('Hanya super_user yang dapat mengedit Family Node');
+    // Household members of another family node cannot edit that family node.
+    if (!isAdmin(roles) && (await this.isHouseholdMemberElsewhere(tree))) {
+      throw new ForbiddenException('Hanya kepala keluarga yang dapat mengedit Family Node');
     }
 
     return this.prisma.familyTree.update({
@@ -224,39 +239,26 @@ export class TreeService {
   async getFamilyNode(id: string, userId: string, roles?: string[]) {
     const tree = await this.ensureTreeOwner(id, userId, roles);
 
-    // Connected users (sharedFamilySlug set) see the inviter's family node
-    // as read-only — unless they have super_user role.
+    // Household members (non-head FamilyNodeMember of another anchor) see that
+    // anchor's family node read-only — only the head edits it. Being linked as
+    // a parent/sibling in someone's tree does NOT make it your family node.
     const config = (tree.layoutConfig as any) ?? {};
-    const sharedSlug = config.sharedFamilySlug as string | undefined;
-    const isSuperUser = !!roles?.includes('super_user');
     let canEdit = true;
     let sourceTree = tree;
 
-    if (sharedSlug) {
-      canEdit = isSuperUser;
-      const inviterTree = await this.prisma.familyTree.findFirst({
-        where: { slug: sharedSlug },
-      });
-      if (inviterTree) sourceTree = inviterTree;
-    } else if (tree.userId === userId) {
-      // Fallback for old data: check if this user is a linked member
-      // in someone else's tree (linked before sharedFamilySlug feature).
-      const inviterTree = await this.findInviterTree(userId);
+    const anchor = await this.getAnchorFor(tree.userId);
+    if (anchor && anchor.treeId !== tree.id && !(await this.isFamilyNodeHead(tree.userId))) {
+      const anchorTree = await this.prisma.familyTree.findUnique({ where: { id: anchor.treeId } });
+      if (anchorTree) {
+        sourceTree = anchorTree;
+        canEdit = isAdmin(roles);
+      }
+    } else if (config.sharedFamilySlug && config.sharedFamilySlug !== tree.slug) {
+      // Legacy marker (pre-FamilyNodeMember data).
+      const inviterTree = await this.prisma.familyTree.findFirst({ where: { slug: config.sharedFamilySlug } });
       if (inviterTree && inviterTree.id !== tree.id) {
-        canEdit = isSuperUser;
         sourceTree = inviterTree;
-        // Fix: backfill sharedFamilySlug so future requests skip the search
-        const inviterSlug = (inviterTree.layoutConfig as any)?.sharedFamilySlug
-          || (inviterTree.layoutConfig as any)?.slug
-          || inviterTree.slug;
-        if (inviterSlug) {
-          this.prisma.familyTree.update({
-            where: { id: tree.id },
-            data: {
-              layoutConfig: { ...config, sharedFamilySlug: inviterSlug } as any,
-            },
-          }).catch((err) => this.logger.error(`Failed to backfill sharedFamilySlug: ${err}`));
-        }
+        canEdit = isAdmin(roles);
       }
     }
 
@@ -303,43 +305,42 @@ export class TreeService {
 
   // ─── LAYOUT (config-driven explorer sync) ───────────────────
 
-  /** Find a tree where the given user is a linked member (linkedUserId in layoutMembers).
-   *  Used as fallback for old data created before sharedFamilySlug feature. */
-  private async findInviterTree(userId: string) {
-    // Get all trees that are NOT owned by this user
-    const trees = await this.prisma.familyTree.findMany({
-      where: { userId: { not: userId } },
-    });
-
-    for (const t of trees) {
-      const members = (t.layoutMembers as Record<string, any>) ?? {};
-      for (const [, m] of Object.entries(members)) {
-        if ((m as any)?.linkedUserId === userId) {
-          return t;
-        }
-      }
-    }
-    return null;
+  /**
+   * Whether the tree's owner belongs to ANOTHER household as a non-head member
+   * (e.g. a wife whose family page is her husband's). Such a user may not edit
+   * family-node profile data on their personal tree; only the head may.
+   */
+  private async isHouseholdMemberElsewhere(tree: { id: string; userId: string; slug: string | null; layoutConfig: any }) {
+    const anchor = await this.getAnchorFor(tree.userId);
+    if (anchor && anchor.treeId !== tree.id) return !(await this.isFamilyNodeHead(tree.userId));
+    const shared = tree.layoutConfig?.sharedFamilySlug as string | undefined;
+    if (!shared || shared === tree.slug) return false;
+    const other = await this.prisma.familyTree.findFirst({ where: { slug: shared }, select: { id: true } });
+    return !!other && other.id !== tree.id;
   }
 
-  /** Returns the user's default tree (creating one if none exists). */
-  private async getOrCreateDefaultTree(userId: string) {
-    // 1. Trees owned by the user
+  /** The user's default tree (owned first, else one they were invited into), without creating anything. */
+  private async findDefaultTree(userId: string) {
     const owned = await this.prisma.familyTree.findFirst({
       where: { userId },
       orderBy: { createdAt: 'asc' },
     });
     if (owned) return owned;
 
-    // 2. Trees the user is a member of (invited but not owner)
     const memberOf = await this.prisma.familyMember.findFirst({
       where: { userId },
       include: { tree: true },
       orderBy: { createdAt: 'asc' },
     });
-    if (memberOf?.tree) return memberOf.tree;
+    return memberOf?.tree ?? null;
+  }
 
-    // 3. Create a new tree
+  /** Returns the user's default tree (creating one if none exists). Only for write paths. */
+  private async getOrCreateDefaultTree(userId: string) {
+    const existing = await this.findDefaultTree(userId);
+    if (existing) return existing;
+
+    // Create a new tree
     const newTree = await this.prisma.familyTree.create({
       data: { name: 'Pohon Keluarga Saya', userId },
     });
@@ -367,8 +368,13 @@ export class TreeService {
     return newTree;
   }
 
-  /** Assign the super_user role to a user if they don't already have it. */
+  /**
+   * Assign the super_user role to a first-time tree creator. Early-access
+   * accounts (managed on someone's behalf) never receive it automatically.
+   */
   private async assignSuperUserRole(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+    if (!user || user.status === 'EARLY_ACCESS') return;
     const role = await this.prisma.role.findUnique({ where: { name: 'super_user' } });
     if (!role) return;
     await this.prisma.userRole.upsert({
@@ -452,7 +458,7 @@ export class TreeService {
    * A user who already heads a Family Node with other members is left untouched:
    * pulling them in would wipe the slug their own household publishes on.
    */
-  async joinFamilyNode(treeId: string, userId: string, nodeId: string, role = 'member') {
+  async joinFamilyNode(treeId: string, userId: string, nodeId: string, role = 'member'): Promise<boolean> {
     // Joining your own anchor tree is a no-op reshuffle; allow it.
     const ownsTarget = await this.prisma.familyTree.findFirst({
       where: { id: treeId, userId },
@@ -463,7 +469,17 @@ export class TreeService {
       this.logger.warn(
         `Refusing to join user ${userId} into family node ${treeId}: they already head a family node with members`,
       );
-      return;
+      return false;
+    }
+
+    // Never silently move someone out of another household: that household's
+    // head linked them first, so a second linker must not "steal" them.
+    const current = await this.prisma.familyNodeMember.findUnique({ where: { userId } });
+    if (current && current.treeId !== treeId && !current.isHead && !ownsTarget) {
+      this.logger.warn(
+        `Refusing to move user ${userId} from family node ${current.treeId} to ${treeId}: already a member elsewhere`,
+      );
+      return false;
     }
 
     await this.prisma.familyNodeMember.upsert({
@@ -478,6 +494,7 @@ export class TreeService {
       .catch((err) => this.logger.error(`Failed to retire personal slug for ${userId}: ${err}`));
 
     this.logger.log(`User ${userId} joined family node ${treeId} as "${nodeId}"`);
+    return true;
   }
 
   /** Remove a user from their Family Node (they get their own page again). */
@@ -535,35 +552,30 @@ export class TreeService {
       throw new NotFoundException('Anda belum tergabung dalam Family Node manapun');
     }
 
-    const tree = await this.prisma.familyTree.findUnique({ where: { id: anchor.treeId } });
-    if (!tree) throw new NotFoundException('Family Node tidak ditemukan');
+    let isHead = false;
+    const updated = await this.updateLayoutAtomically(anchor.treeId, (tree, layout) => {
+      isHead = tree.userId === userId;
+      const allowed = (isHead || isAdmin(roles)) ? null : this.collectOwnSlice(layout, anchor.nodeId);
 
-    const layout = (tree.layoutMembers as Record<string, any>) ?? {};
-    const isHead = tree.userId === userId;
-    const isSuperUser = roles?.includes('super_user') || roles?.includes('super_admin') || roles?.includes('admin');
-    const allowed = (isHead || isSuperUser) ? null : this.collectOwnSlice(layout, anchor.nodeId);
+      const rejected = allowed
+        ? Object.keys(patch).filter((nodeId) => !allowed.has(nodeId))
+        : [];
+      if (rejected.length) {
+        throw new ForbiddenException(
+          `Anda hanya dapat mengubah bagian keluarga Anda sendiri. Ditolak: ${rejected.join(', ')}`,
+        );
+      }
 
-    const rejected = allowed
-      ? Object.keys(patch).filter((nodeId) => !allowed.has(nodeId))
-      : [];
-    if (rejected.length) {
-      throw new ForbiddenException(
-        `Anda hanya dapat mengubah bagian keluarga Anda sendiri. Ditolak: ${rejected.join(', ')}`,
-      );
-    }
-
-    const next = { ...layout };
-    for (const [nodeId, value] of Object.entries(patch)) {
-      next[nodeId] = { ...next[nodeId], ...(value as Record<string, any>) };
-    }
-
-    const updated = await this.prisma.familyTree.update({
-      where: { id: tree.id },
-      data: { layoutMembers: next as any },
+      const next = { ...layout };
+      for (const [nodeId, value] of Object.entries(patch)) {
+        // Account links are never writable through a slice — only via approval flows.
+        next[nodeId] = { ...next[nodeId], ...stripIdentityFields(value as Record<string, any>, next[nodeId]) };
+      }
+      return next;
     });
 
     this.logger.log(
-      `User ${userId} wrote ${Object.keys(patch).length} node(s) into family node ${tree.id}`,
+      `User ${userId} wrote ${Object.keys(patch).length} node(s) into family node ${updated.id}`,
     );
 
     return {
@@ -596,33 +608,42 @@ export class TreeService {
     let heads = 0;
     let slugsRetired = 0;
 
-    // Pass 1 — people linked into another person's tree.
+    // Pass 1 — people linked into another person's HOUSEHOLD (spouse/children).
+    // Parents, siblings etc. linked elsewhere keep their own household page.
+    const householdNodeOf = (layout: LayoutMembers, uid: string) =>
+      Object.entries(layout).find(([id, m]) => (m?.linkedUserId === uid || m?.claimedByUserId === uid) && isHouseholdNode(id, layout))?.[0];
     for (const t of trees) {
-      const layout = (t.layoutMembers as Record<string, any>) ?? {};
+      const layout = (t.layoutMembers as LayoutMembers) ?? {};
       for (const [nodeId, m] of Object.entries(layout)) {
         const uid = m?.linkedUserId || m?.claimedByUserId;
-        if (!uid || uid === t.userId || claimed.has(uid)) continue;
+        if (!uid || uid === t.userId || claimed.has(uid) || !isHouseholdNode(nodeId, layout)) continue;
         try {
-          await this.joinFamilyNode(t.id, uid, nodeId, nodeId.startsWith('spouse') ? 'spouse' : 'member');
-          claimed.add(uid);
-          linked += 1;
+          if (await this.joinFamilyNode(t.id, uid, nodeId, nodeId.startsWith('spouse') ? 'spouse' : 'member')) {
+            claimed.add(uid);
+            linked += 1;
+          }
         } catch (err) {
           this.logger.error(`Backfill: failed to link ${uid} → tree ${t.id}: ${err}`);
         }
       }
     }
 
-    // Pass 2 — legacy sharedFamilySlug markers not covered above.
+    // Pass 2 — legacy sharedFamilySlug markers, honoured only when the anchor
+    // really has this user in its household (old code also set them for siblings).
+    const byId = new Map(trees.map((t) => [t.id, t]));
     for (const t of trees) {
       if (claimed.has(t.userId)) continue;
       const shared = (t.layoutConfig as any)?.sharedFamilySlug as string | undefined;
       const anchor = shared ? bySlug.get(shared) : undefined;
       if (!anchor || anchor.id === t.id) continue;
+      const nodeId = householdNodeOf((byId.get(anchor.id)?.layoutMembers as LayoutMembers) ?? {}, t.userId);
+      if (!nodeId) continue;
       try {
-        await this.joinFamilyNode(anchor.id, t.userId, 'self', 'member');
-        claimed.add(t.userId);
-        if (t.slug) slugsRetired += 1;
-        linked += 1;
+        if (await this.joinFamilyNode(anchor.id, t.userId, nodeId, 'member')) {
+          claimed.add(t.userId);
+          if (t.slug) slugsRetired += 1;
+          linked += 1;
+        }
       } catch (err) {
         this.logger.error(`Backfill: failed legacy link ${t.userId} → tree ${anchor.id}: ${err}`);
       }
@@ -650,10 +671,17 @@ export class TreeService {
 
   /**
    * Ensure the tree has a slug (derived from the main family name) and the
-   * owner has a username. Runs lazily whenever the layout is read/saved.
+   * owner has a username. Runs on write paths (layout save, sync, invitation).
+   * With `write: false` it only resolves the identity — GET endpoints must
+   * never mutate data.
    * Never throws — returns best-effort identity so layout operations stay stable.
    */
-  private async ensureIdentity(tree: { id: string; slug: string | null; name: string; userId: string; layoutConfig: any }) {
+  private async ensureIdentity(
+    tree: { id: string; slug: string | null; name: string; userId: string; layoutConfig: any },
+    opts: { write?: boolean } = {},
+  ) {
+    const write = opts.write !== false;
+    if (!write) return this.resolveIdentity(tree);
     let slug = tree.slug;
     const familyName = (tree.layoutConfig?.mainFamilyName as string) || tree.name || 'keluarga';
     const desiredBase = familyName.endsWith('-fam') ? familyName : `${familyName}-fam`;
@@ -734,6 +762,24 @@ export class TreeService {
     return { slug, owner };
   }
 
+  /** Read-only counterpart of ensureIdentity: same resolution rules, no writes. */
+  private async resolveIdentity(tree: { id: string; slug: string | null; userId: string; layoutConfig: any }) {
+    const sharedFamilySlug = tree.layoutConfig?.sharedFamilySlug as string | undefined;
+    const anchor = await this.getAnchorFor(tree.userId);
+    const anchoredElsewhere = !!anchor && anchor.treeId !== tree.id && !!anchor.tree?.slug;
+    const headsOwnNode = anchoredElsewhere ? await this.isFamilyNodeHead(tree.userId) : false;
+
+    let slug = tree.slug;
+    if (anchoredElsewhere && !headsOwnNode) slug = anchor!.tree!.slug;
+    else if (!slug && sharedFamilySlug && !headsOwnNode) slug = sharedFamilySlug;
+
+    const ownerRow = await this.prisma.user
+      .findUnique({ where: { id: tree.userId }, select: { name: true, username: true, avatar: true } })
+      .catch(() => null);
+    const owner = ownerRow ? { name: ownerRow.name, username: ownerRow.username, avatar: ownerRow.avatar } : null;
+    return { slug, owner };
+  }
+
   /** Recover slugs for trees that had them wiped by the syncLinkedUser bug.
    *  Recreate slugs for trees with null slug. For trees with sharedFamilySlug,
    *  check if the shared slug still exists — if not, the sharedFamilySlug is
@@ -798,10 +844,103 @@ export class TreeService {
     return { recovered: details.length, details };
   }
 
+  /**
+   * Admin repair for data damaged by the old linking rules. Dry-run unless
+   * `apply` is true; returns what was (or would be) changed.
+   *
+   * 1. `sharedFamilySlug` pointing at the tree's own household or at a slug
+   *    that no longer exists → cleared.
+   * 2. Non-head FamilyNodeMember rows whose circle in the anchor is NOT a
+   *    household circle (parents, siblings… merged in by the old sync) or no
+   *    longer links to that user → removed, and their legacy marker cleared.
+   *    Their own slug can then be restored with POST /trees/recover-slugs.
+   */
+  async repairFamilyLinks(apply = false) {
+    const report = {
+      apply,
+      clearedMarkers: [] as { treeId: string; sharedFamilySlug: string; reason: string }[],
+      removedMemberships: [] as { userId: string; anchorTreeId: string; nodeId: string; reason: string }[],
+    };
+
+    const trees = await this.prisma.familyTree.findMany({
+      select: { id: true, userId: true, slug: true, layoutConfig: true, layoutMembers: true },
+    });
+    const bySlug = new Map(trees.filter((t) => t.slug).map((t) => [t.slug!, t]));
+    const byId = new Map(trees.map((t) => [t.id, t]));
+    const markersToClear = new Map<string, string>();
+
+    for (const t of trees) {
+      const shared = (t.layoutConfig as any)?.sharedFamilySlug as string | undefined;
+      if (!shared) continue;
+      const target = bySlug.get(shared);
+      const reason = !target ? 'slug tidak ada' : target.userId === t.userId ? 'menunjuk ke keluarga sendiri' : null;
+      if (reason) {
+        report.clearedMarkers.push({ treeId: t.id, sharedFamilySlug: shared, reason });
+        markersToClear.set(t.id, reason);
+      }
+    }
+
+    const memberships = await this.prisma.familyNodeMember.findMany({ where: { isHead: false } });
+    for (const fm of memberships) {
+      const anchor = byId.get(fm.treeId);
+      if (!anchor || anchor.userId === fm.userId) continue;
+      const layout = (anchor.layoutMembers as LayoutMembers) ?? {};
+      const node = layout[fm.nodeId];
+      const linksUser = node?.linkedUserId === fm.userId || node?.claimedByUserId === fm.userId;
+      const reason = !linksUser
+        ? 'lingkaran tidak lagi tertaut ke user ini'
+        : !isHouseholdNode(fm.nodeId, layout)
+          ? 'bukan anggota rumah tangga (orang tua/saudara/dll.)'
+          : null;
+      if (!reason) continue;
+      report.removedMemberships.push({ userId: fm.userId, anchorTreeId: fm.treeId, nodeId: fm.nodeId, reason });
+      for (const own of trees.filter((x) => x.userId === fm.userId)) {
+        if ((own.layoutConfig as any)?.sharedFamilySlug && (own.layoutConfig as any).sharedFamilySlug === anchor.slug) {
+          markersToClear.set(own.id, 'keanggotaan rumah tangga dihapus');
+        }
+      }
+    }
+
+    if (apply) {
+      for (const fm of report.removedMemberships) {
+        await this.prisma.familyNodeMember.deleteMany({ where: { userId: fm.userId, treeId: fm.anchorTreeId, isHead: false } });
+      }
+      for (const treeId of markersToClear.keys()) {
+        const t = byId.get(treeId)!;
+        await this.prisma.familyTree.update({
+          where: { id: treeId },
+          data: { layoutConfig: { ...((t.layoutConfig as any) ?? {}), sharedFamilySlug: null } as any },
+        });
+      }
+      this.logger.log(
+        `repairFamilyLinks applied: ${markersToClear.size} markers cleared, ${report.removedMemberships.length} memberships removed`,
+      );
+    }
+    return report;
+  }
+
   /** Get the saved explorer layout (config + members) for the current user. */
   async getLayout(userId: string) {
-    const tree = await this.getOrCreateDefaultTree(userId);
-    const identity = await this.ensureIdentity(tree);
+    // Read-only: merely opening /tree must not create a tree, mint slugs or
+    // grant roles. The tree is created on the first save.
+    const tree = await this.findDefaultTree(userId);
+    if (!tree) {
+      const anchor = await this.getAnchorFor(userId);
+      return {
+        treeId: null,
+        slug: anchor?.tree?.slug ?? null,
+        owner: null,
+        config: null,
+        members: null,
+        updatedAt: null,
+        isTreeOwner: true,
+        connectedFamily: null,
+        familyNode: anchor
+          ? { treeId: anchor.treeId, nodeId: anchor.nodeId, role: anchor.role, slug: anchor.tree?.slug ?? null, isHead: false }
+          : null,
+      };
+    }
+    const identity = await this.ensureIdentity(tree, { write: false });
 
     // Check if this user is a connected member (not the tree owner)
     const isTreeOwner = tree.userId === userId;
@@ -833,7 +972,8 @@ export class TreeService {
           where: { slug: config.sharedFamilySlug },
           select: { name: true, userId: true, layoutConfig: true },
         }).catch(() => null);
-        if (inviterTree) {
+        // A marker pointing back at the user's own household is stale data, not a connection.
+        if (inviterTree && inviterTree.userId !== userId) {
           const inviterConfig = (inviterTree.layoutConfig as any) ?? {};
           const inviterOwner = await this.prisma.user.findUnique({
             where: { id: inviterTree.userId },
@@ -892,36 +1032,7 @@ export class TreeService {
     await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
     this.logger.log(`Slug manually set to "${slug}" for tree ${tree.id}`);
 
-    // Propagate new slug to all connected members' trees
-    const membersData = (tree.layoutMembers as Record<string, any>) ?? {};
-    const linkedUserIds = new Set<string>();
-    for (const [, m] of Object.entries(membersData)) {
-      if ((m as any)?.linkedUserId) linkedUserIds.add((m as any).linkedUserId);
-    }
-    for (const linkedUserId of linkedUserIds) {
-      try {
-        // Never retire the slug of someone who heads their own Family Node —
-        // that page belongs to their household, not to this one.
-        if (await this.isFamilyNodeHead(linkedUserId)) {
-          this.logger.log(`Skipping slug propagation to ${linkedUserId}: they head their own family node`);
-          continue;
-        }
-        const linkedTree = await this.prisma.familyTree.findFirst({ where: { userId: linkedUserId } });
-        if (linkedTree && linkedTree.userId === linkedUserId) {
-          const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
-          await this.prisma.familyTree.update({
-            where: { id: linkedTree.id },
-            data: {
-              layoutConfig: { ...linkedConfig, sharedFamilySlug: slug } as any,
-              slug: null,
-            },
-          });
-          this.logger.log(`Propagated slug "${slug}" to linked user ${linkedUserId}'s tree (slug nulled, shared slug set)`);
-        }
-      } catch (err) {
-        this.logger.error(`Failed to propagate slug to linked user ${linkedUserId}: ${err}`);
-      }
-    }
+    await this.propagateSlugToHousehold(tree.id, tree.userId, slug);
 
     const owner = await this.prisma.user.findUnique({
       where: { id: tree.userId },
@@ -939,13 +1050,40 @@ export class TreeService {
     return { slug, owner: owner ? { name: owner.name, username, avatar: owner.avatar } : null };
   }
 
+  /**
+   * Point the legacy `sharedFamilySlug` marker of real household members (rows
+   * in FamilyNodeMember for this anchor) at the new slug. Parents, siblings and
+   * anyone who heads their own household are never touched, and their family
+   * name is never overwritten.
+   */
+  private async propagateSlugToHousehold(anchorTreeId: string, headUserId: string, slug: string) {
+    const memberships = await this.prisma.familyNodeMember.findMany({
+      where: { treeId: anchorTreeId, userId: { not: headUserId } },
+      select: { userId: true },
+    });
+    for (const { userId } of memberships) {
+      try {
+        if (await this.isFamilyNodeHead(userId)) continue;
+        const own = await this.prisma.familyTree.findFirst({ where: { userId }, orderBy: { createdAt: 'asc' } });
+        if (!own || own.id === anchorTreeId) continue;
+        const cfg = (own.layoutConfig as any) ?? {};
+        await this.prisma.familyTree.update({
+          where: { id: own.id },
+          data: { layoutConfig: { ...cfg, sharedFamilySlug: slug } as any, slug: null },
+        });
+      } catch (err) {
+        this.logger.error(`Failed to propagate slug to household member ${userId}: ${err}`);
+      }
+    }
+  }
+
   /** Set slug on a specific tree (for Family Node page). */
   async setSlugForTree(treeId: string, userId: string, desiredSlug?: string, roles?: string[]) {
     const tree = await this.ensureTreeOwner(treeId, userId, roles);
 
     const config = (tree.layoutConfig as any) ?? {};
-    if (config.sharedFamilySlug && !roles?.includes('super_user')) {
-      throw new ForbiddenException('Hanya super_user yang dapat mengatur slug Family Node ini');
+    if (!isAdmin(roles) && (await this.isHouseholdMemberElsewhere(tree))) {
+      throw new ForbiddenException('Hanya kepala keluarga yang dapat mengatur slug Family Node ini');
     }
 
     const familyName = config.mainFamilyName || tree.name || 'keluarga';
@@ -954,29 +1092,7 @@ export class TreeService {
     await this.prisma.familyTree.update({ where: { id: tree.id }, data: { slug } });
     this.logger.log(`Slug set to "${slug}" for tree ${tree.id} (via Family Node page)`);
 
-    // Propagate to connected members
-    const membersData = (tree.layoutMembers as Record<string, any>) ?? {};
-    const linkedUserIds = new Set<string>();
-    for (const [, m] of Object.entries(membersData)) {
-      if ((m as any)?.linkedUserId) linkedUserIds.add((m as any).linkedUserId);
-    }
-    for (const linkedUserId of linkedUserIds) {
-      try {
-        const linkedTree = await this.prisma.familyTree.findFirst({ where: { userId: linkedUserId } });
-        if (linkedTree) {
-          const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
-          await this.prisma.familyTree.update({
-            where: { id: linkedTree.id },
-            data: {
-              layoutConfig: { ...linkedConfig, sharedFamilySlug: slug } as any,
-              slug: null,
-            },
-          });
-        }
-      } catch (err) {
-        this.logger.error(`Failed to propagate slug to linked user ${linkedUserId}: ${err}`);
-      }
-    }
+    await this.propagateSlugToHousehold(tree.id, tree.userId, slug);
 
     const owner = await this.prisma.user.findUnique({
       where: { id: tree.userId },
@@ -985,91 +1101,98 @@ export class TreeService {
     return { slug, owner: owner ? { name: owner.name, username: owner.username, avatar: owner.avatar } : null };
   }
 
-  /** Persist the explorer layout (config + members) for the current user. */
-  async saveLayout(userId: string, config: unknown, members: unknown) {
+  /**
+   * Persist the explorer layout (config + members) for the current user.
+   *
+   * Authority rules enforced here (see tree-layout.util):
+   * - account links (`linkedUserId`) cannot be written directly; a new link
+   *   becomes a NodeLinkRequest the target must approve;
+   * - server-controlled fields (verified, earlyAccess, claims) keep their values;
+   * - profile fields of a node linked to an ACTIVE account need a granted consent;
+   * - `baseUpdatedAt` (optional) rejects stale writes with 409 instead of
+   *   silently overwriting someone else's changes.
+   * Nothing is written into other users' trees.
+   */
+  async saveLayout(userId: string, config: unknown, members: unknown, baseUpdatedAt?: string) {
     const tree = await this.getOrCreateDefaultTree(userId);
 
     // Only the tree owner can save layout changes.
     if (tree.userId !== userId) {
       throw new ForbiddenException('Hanya pemilik pohon yang dapat menyimpan perubahan bagan');
     }
+    if (baseUpdatedAt && new Date(baseUpdatedAt).getTime() !== tree.updatedAt.getTime()) {
+      throw new ConflictException({
+        statusCode: 409,
+        message: 'Silsilah telah diubah di tempat lain sejak terakhir dimuat. Muat ulang untuk menggabungkan perubahan.',
+        updatedAt: tree.updatedAt,
+      });
+    }
 
-    // Detect newly linked users in members data to send consent notifications
+    const oldMembers = (tree.layoutMembers as LayoutMembers) ?? {};
+    let nextMembers: LayoutMembers | undefined;
+    const linkRequests: { nodeId: string; userId: string }[] = [];
+    let cancelledRequests: { nodeId: string; userId: string }[] = [];
+    let unlinked: { nodeId: string; userId: string }[] = [];
+    const protectedNodes: string[] = [];
+
     if (members && typeof members === 'object') {
-      const oldMembers = (tree.layoutMembers as Record<string, any>) ?? {};
-      const newMembers = members as Record<string, any>;
-      const owner = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+      const res = sanitizeLayoutMembers(oldMembers, members as LayoutMembers, userId);
+      if (res.errors.length) throw new BadRequestException(res.errors.join('; '));
+      nextMembers = res.members;
+      cancelledRequests = res.cancelledRequests;
+      unlinked = res.unlinked;
 
-      for (const [nodeId, member] of Object.entries(newMembers)) {
-        const m = member as any;
-        const oldM = oldMembers[nodeId] as any;
-        // If this member has a linkedUserId that wasn't there before, send notification
-        if (m?.linkedUserId && m.linkedUserId !== oldM?.linkedUserId) {
-          const linkedUser = await this.prisma.user.findUnique({
-            where: { id: m.linkedUserId },
-            select: { id: true, name: true },
-          }).catch(() => null);
+      // Drop link wishes for accounts that do not exist.
+      const wanted = [...new Set(res.linkRequests.map((r) => r.userId))];
+      const existing = wanted.length
+        ? new Set((await this.prisma.user.findMany({ where: { id: { in: wanted } }, select: { id: true } })).map((u) => u.id))
+        : new Set<string>();
+      for (const r of res.linkRequests) {
+        if (existing.has(r.userId)) linkRequests.push(r);
+        else delete nextMembers[r.nodeId]?.pendingLinkUserId;
+      }
 
-          if (linkedUser) {
-            // Send consent/approval notification to the linked user
-            this.notifications.create({
-              userId: linkedUser.id,
-              type: 'MEMBER_ADDED' as any,
-              title: 'Konfirmasi Hubungan Keluarga',
-              message: `${owner?.name || 'Seseorang'} mengidentifikasi Anda sebagai anggota keluarga dalam silsilah "${(config as any)?.mainFamilyName || tree.name}". Silakan konfirmasi hubungan keluarga ini.`,
-              data: { treeId: tree.id, nodeId, linkedUserId: m.linkedUserId, action: 'confirm_relationship' },
-            }).catch((err) => {
-              this.logger.error(`Failed to send relationship notification: ${err.message}`);
-            });
-            this.notifications.sendPushSafe(
-              linkedUser.id,
-              'Konfirmasi Keluarga',
-              `${owner?.name || 'Seseorang'} mengidentifikasi Anda sebagai anggota keluarganya`,
-            ).catch(() => {});
-            this.logger.log(`Sent relationship confirmation notification to user ${linkedUser.id} for node ${nodeId}`);
+      // Profile of a person with an active account belongs to them (consent required).
+      const linkedNodes = Object.entries(nextMembers).filter(
+        ([id, m]) => m?.linkedUserId && m.linkedUserId !== userId && oldMembers[id]?.linkedUserId === m.linkedUserId
+          && protectedFieldsChanged(oldMembers[id], m),
+      );
+      if (linkedNodes.length) {
+        const ids = [...new Set(linkedNodes.map(([, m]) => m.linkedUserId as string))];
+        const active = new Set(
+          (await this.prisma.user.findMany({ where: { id: { in: ids }, status: 'ACTIVE' }, select: { id: true } })).map((u) => u.id),
+        );
+        const granted = new Set(
+          (await this.prisma.guardianConsent.findMany({
+            where: { treeId: tree.id, requesterId: userId, status: 'GRANTED', targetUserId: { in: ids } },
+            select: { nodeId: true, targetUserId: true },
+          })).map((c) => `${c.nodeId}:${c.targetUserId}`),
+        );
+        for (const [id, m] of linkedNodes) {
+          if (active.has(m.linkedUserId) && !granted.has(`${id}:${m.linkedUserId}`)) {
+            nextMembers[id] = revertProtectedFields(oldMembers[id], m);
+            protectedNodes.push(id);
           }
         }
       }
     }
 
-    const updated = await this.prisma.familyTree.update({
-      where: { id: tree.id },
-      data: {
-        ...(config !== undefined && { layoutConfig: config as any }),
-        ...(members !== undefined && { layoutMembers: members as any }),
-      },
-    });
+    const data = {
+      ...(config !== undefined && { layoutConfig: config as any }),
+      ...(nextMembers !== undefined && { layoutMembers: nextMembers as any }),
+    };
+    const written = await this.prisma.familyTree.updateMany({ where: { id: tree.id, updatedAt: tree.updatedAt }, data });
+    if (written.count !== 1) {
+      throw new ConflictException('Silsilah sedang diubah di tempat lain. Muat ulang lalu coba lagi.');
+    }
+    const updated = await this.prisma.familyTree.findUniqueOrThrow({ where: { id: tree.id } });
     const identity = await this.ensureIdentity(updated);
 
-    // ─── Propagate family name & slug to all connected members' trees ───
-    if (config && identity.slug) {
-      const newFamilyName = (config as any)?.mainFamilyName as string | undefined;
-      if (newFamilyName) {
-        const membersData = (members as Record<string, any>) ?? (tree.layoutMembers as Record<string, any>) ?? {};
-        const linkedUserIds = new Set<string>();
-        for (const [, m] of Object.entries(membersData)) {
-          if ((m as any)?.linkedUserId) linkedUserIds.add((m as any).linkedUserId);
-        }
-        for (const linkedUserId of linkedUserIds) {
-          try {
-            const linkedTree = await this.prisma.familyTree.findFirst({ where: { userId: linkedUserId } });
-            if (linkedTree && linkedTree.userId === linkedUserId) {
-              const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
-              await this.prisma.familyTree.update({
-                where: { id: linkedTree.id },
-                data: {
-                  layoutConfig: { ...linkedConfig, mainFamilyName: newFamilyName, sharedFamilySlug: identity.slug } as any,
-                  ...(linkedTree.userId === linkedUserId && { slug: null }),
-                },
-              });
-              this.logger.log(`Propagated familyName="${newFamilyName}" slug="${identity.slug}" to linked user ${linkedUserId}'s tree`);
-            }
-          } catch (err) {
-            this.logger.error(`Failed to propagate to linked user ${linkedUserId}: ${err}`);
-          }
-        }
-      }
-    }
+    await this.applyLinkChanges(tree.id, userId, (config as any)?.mainFamilyName || tree.name, {
+      linkRequests,
+      cancelledRequests,
+      unlinked,
+    });
 
     return {
       treeId: updated.id,
@@ -1078,88 +1201,249 @@ export class TreeService {
       config: updated.layoutConfig ?? null,
       members: updated.layoutMembers ?? null,
       updatedAt: updated.updatedAt,
+      linkRequests: linkRequests.map((r) => ({ nodeId: r.nodeId, targetUserId: r.userId })),
+      protectedNodes,
     };
+  }
+
+  /** Persist side effects of link changes made in a layout save. */
+  private async applyLinkChanges(
+    treeId: string,
+    ownerId: string,
+    familyName: string,
+    changes: {
+      linkRequests: { nodeId: string; userId: string }[];
+      cancelledRequests: { nodeId: string; userId: string }[];
+      unlinked: { nodeId: string; userId: string }[];
+    },
+  ) {
+    for (const r of changes.cancelledRequests) {
+      await this.prisma.nodeLinkRequest.updateMany({
+        where: { treeId, nodeId: r.nodeId, targetUserId: r.userId, status: 'PENDING' },
+        data: { status: 'CANCELLED', respondedAt: new Date() },
+      });
+    }
+
+    // Removing a person from the tree also removes them from this household.
+    for (const u of changes.unlinked) {
+      await this.prisma.familyNodeMember.deleteMany({ where: { treeId, userId: u.userId, isHead: false } });
+    }
+
+    if (!changes.linkRequests.length) return;
+    const owner = await this.prisma.user.findUnique({ where: { id: ownerId }, select: { name: true } });
+    for (const r of changes.linkRequests) {
+      await this.prisma.nodeLinkRequest.updateMany({
+        where: { treeId, nodeId: r.nodeId, status: 'PENDING', targetUserId: { not: r.userId } },
+        data: { status: 'CANCELLED', respondedAt: new Date() },
+      });
+      const already = await this.prisma.nodeLinkRequest.findFirst({
+        where: { treeId, nodeId: r.nodeId, targetUserId: r.userId, status: 'PENDING' },
+      });
+      const request = already ?? await this.prisma.nodeLinkRequest.create({
+        data: { treeId, nodeId: r.nodeId, requesterId: ownerId, targetUserId: r.userId },
+      });
+      if (already) continue;
+
+      this.notifications.create({
+        userId: r.userId,
+        type: 'MEMBER_ADDED' as any,
+        title: 'Konfirmasi Hubungan Keluarga',
+        message: `${owner?.name || 'Seseorang'} mengidentifikasi Anda sebagai anggota keluarga dalam silsilah "${familyName}". Hubungan baru tersambung setelah Anda menyetujuinya.`,
+        data: { treeId, nodeId: r.nodeId, linkRequestId: request.id, action: 'link_request' },
+      }).catch((err) => this.logger.error(`Failed to send link request notification: ${err.message}`));
+      this.notifications.sendPushSafe(
+        r.userId,
+        'Konfirmasi Keluarga',
+        `${owner?.name || 'Seseorang'} mengidentifikasi Anda sebagai anggota keluarganya`,
+      ).catch(() => {});
+    }
+  }
+
+  // ─── LINK REQUESTS (target confirms "this circle is me") ───
+
+  async getIncomingLinkRequests(userId: string) {
+    const requests = await this.prisma.nodeLinkRequest.findMany({
+      where: { targetUserId: userId, status: 'PENDING' },
+      include: { tree: { select: { id: true, name: true, slug: true, userId: true, layoutMembers: true, layoutConfig: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const requesterIds = [...new Set(requests.map((r) => r.requesterId))];
+    const requesters = new Map(
+      (await this.prisma.user.findMany({ where: { id: { in: requesterIds } }, select: { id: true, name: true, avatar: true } }))
+        .map((u) => [u.id, u]),
+    );
+    return requests.map((r) => {
+      const node = ((r.tree.layoutMembers as LayoutMembers) ?? {})[r.nodeId] ?? {};
+      return {
+        id: r.id,
+        treeId: r.treeId,
+        treeName: (r.tree.layoutConfig as any)?.mainFamilyName || r.tree.name,
+        nodeId: r.nodeId,
+        nodeName: node.name ?? r.nodeId,
+        nodeRole: node.role ?? null,
+        requester: requesters.get(r.requesterId) ?? null,
+        createdAt: r.createdAt,
+      };
+    });
+  }
+
+  /** The target account approves or rejects being linked to a circle. */
+  async respondLinkRequest(userId: string, requestId: string, approve: boolean) {
+    const request = await this.prisma.nodeLinkRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Permintaan tidak ditemukan');
+    if (request.targetUserId !== userId) throw new ForbiddenException('Hanya orang yang ditautkan yang dapat merespons');
+    if (request.status !== 'PENDING') throw new BadRequestException('Permintaan ini sudah direspons');
+
+    let stale = false;
+    const updated = await this.updateLayoutAtomically(request.treeId, (_tree, layout) => {
+      const node = layout[request.nodeId];
+      if (!node || node.pendingLinkUserId !== userId) {
+        stale = true;
+        return layout;
+      }
+      const next = { ...node };
+      delete next.pendingLinkUserId;
+      if (approve) {
+        const elsewhere = Object.entries(layout).find(
+          ([id, m]) => id !== request.nodeId && (m?.linkedUserId === userId || m?.claimedByUserId === userId),
+        );
+        if (elsewhere) {
+          throw new ConflictException(`Anda sudah terhubung di lingkaran lain pada silsilah ini ("${elsewhere[0]}")`);
+        }
+        next.linkedUserId = userId;
+        next.verified = true;
+      }
+      return { ...layout, [request.nodeId]: next };
+    });
+
+    if (stale) {
+      await this.prisma.nodeLinkRequest.update({ where: { id: requestId }, data: { status: 'CANCELLED', respondedAt: new Date() } });
+      throw new BadRequestException('Permintaan ini sudah tidak berlaku (lingkaran telah diubah pemilik silsilah)');
+    }
+
+    await this.prisma.nodeLinkRequest.update({
+      where: { id: requestId },
+      data: { status: approve ? 'APPROVED' : 'REJECTED', respondedAt: new Date() },
+    });
+
+    const responder = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    this.notifications.create({
+      userId: request.requesterId,
+      type: 'MEMBER_ADDED' as any,
+      title: approve ? 'Hubungan Keluarga Dikonfirmasi' : 'Hubungan Keluarga Ditolak',
+      message: `${responder?.name || 'Pengguna'} ${approve ? 'mengonfirmasi' : 'menolak'} sebagai anggota keluarga pada lingkaran "${request.nodeId}".`,
+      data: { treeId: request.treeId, nodeId: request.nodeId, linkRequestId: requestId, approved: approve },
+    }).catch(() => {});
+
+    if (!approve) return { id: requestId, status: 'REJECTED' };
+
+    const attached = await this.attachLinkedUser(updated, request.nodeId, { firstLink: true });
+    return { id: requestId, status: 'APPROVED', ...attached };
   }
 
   // ─── SYNC LINKED USER INFO ──────────────────────────────────
 
-  /** Sync avatar and info from a linked user's account into the member node.
-   *  Also syncs the linked user's family tree to follow the inviter's slug and family name. */
+  /** Re-sync avatar and info from an already linked (approved) account into the member node. */
   async syncLinkedUser(userId: string, nodeId: string) {
-    const tree = await this.getOrCreateDefaultTree(userId);
-    if (tree.userId !== userId) {
+    const tree = await this.findDefaultTree(userId);
+    if (!tree || tree.userId !== userId) {
       throw new ForbiddenException('Hanya pemilik pohon yang dapat menyinkronkan');
     }
 
-    const members = (tree.layoutMembers as Record<string, any>) ?? {};
-    const member = members[nodeId];
+    const member = ((tree.layoutMembers as LayoutMembers) ?? {})[nodeId];
     if (!member) throw new NotFoundException('Anggota tidak ditemukan');
-    if (!member.linkedUserId) throw new BadRequestException('Anggota ini belum terhubung dengan user manapun');
+    if (!member.linkedUserId) {
+      throw new BadRequestException(
+        member.pendingLinkUserId
+          ? 'Menunggu persetujuan dari pemilik akun sebelum dapat disinkronkan'
+          : 'Anggota ini belum terhubung dengan user manapun',
+      );
+    }
 
-    const linkedUser = await this.prisma.user.findUnique({
-      where: { id: member.linkedUserId },
-      select: { id: true, name: true, avatar: true, email: true, phone: true, username: true },
-    });
+    return this.attachLinkedUser(tree, nodeId, { firstLink: false });
+  }
+
+  /**
+   * Copy the linked account's profile into its circle and, ONLY for household
+   * circles (spouse/children), attach the account to this Family Node.
+   *
+   * Parents, siblings, uncles … are linked for identity only: they keep their
+   * own household page and slug. This is what prevents two siblings who add
+   * each other from being merged into one household (and retiring a page).
+   */
+  private async attachLinkedUser(
+    tree: { id: string; userId: string },
+    nodeId: string,
+    opts: { firstLink: boolean },
+  ) {
+    const linkedUserId = ((await this.prisma.familyTree.findUniqueOrThrow({ where: { id: tree.id } })).layoutMembers as LayoutMembers)?.[nodeId]?.linkedUserId;
+    const linkedUser = linkedUserId
+      ? await this.prisma.user.findUnique({
+        where: { id: linkedUserId },
+        select: { id: true, name: true, avatar: true, email: true, phone: true },
+      })
+      : null;
     if (!linkedUser) throw new NotFoundException('User terhubung tidak ditemukan');
 
-    // Update member node with linked user's info
-    members[nodeId] = {
-      ...member,
-      name: linkedUser.name || member.name,
-      photo: linkedUser.avatar || member.photo || null,
-      email: linkedUser.email || member.email || '',
-      phone: linkedUser.phone || member.phone || '',
-      verified: true,
-    };
-
-    const updated = await this.prisma.familyTree.update({
-      where: { id: tree.id },
-      data: { layoutMembers: members as any },
+    const updated = await this.updateLayoutAtomically(tree.id, (_t, layout) => {
+      const member = layout[nodeId] ?? {};
+      return {
+        ...layout,
+        [nodeId]: {
+          ...member,
+          name: linkedUser.name || member.name,
+          photo: linkedUser.avatar || member.photo || null,
+          email: linkedUser.email || member.email || '',
+          phone: linkedUser.phone || member.phone || '',
+          verified: true,
+        },
+      };
     });
-
     const identity = await this.ensureIdentity(updated);
+    const layout = (updated.layoutMembers as LayoutMembers) ?? {};
 
-    // ─── Attach the linked user to this Family Node ───
-    // Membership is recorded as a relation; the linked user's own layout is
-    // NOT overwritten. Their ancestry stays in their personal tree and is
-    // resolved at read time by hydrateLinkedFamilyConfigs — never duplicated.
-    const inviterSlug = identity.slug;
-
+    let joinedFamilyNode = false;
     let linkedTreeSlug: string | null = null;
-    try {
-      // Ensure the linked user has their own tree for their own ancestry.
-      const linkedTree = await this.getOrCreateOwnedTree(linkedUser.id);
+    if (isHouseholdNode(nodeId, layout)) {
+      try {
+        joinedFamilyNode = await this.joinFamilyNode(
+          tree.id,
+          linkedUser.id,
+          nodeId,
+          nodeId.startsWith('spouse') ? 'spouse' : nodeId.startsWith('child') ? 'child' : 'member',
+        );
 
-      await this.joinFamilyNode(
-        tree.id,
-        linkedUser.id,
-        nodeId,
-        nodeId.startsWith('spouse') ? 'spouse' : nodeId.startsWith('child') ? 'child' : 'member',
-      );
+        // Keep the legacy marker in sync for code paths not yet migrated —
+        // but never on the anchor itself and never pointing a tree at itself.
+        const linkedTree = await this.prisma.familyTree.findFirst({
+          where: { userId: linkedUser.id },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (joinedFamilyNode && identity.slug && linkedTree && linkedTree.id !== tree.id && linkedTree.slug !== identity.slug) {
+          const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
+          await this.prisma.familyTree.update({
+            where: { id: linkedTree.id },
+            data: { layoutConfig: { ...linkedConfig, sharedFamilySlug: identity.slug } as any },
+          });
+          linkedTreeSlug = identity.slug;
+        }
+      } catch (err) {
+        this.logger.error(`Failed to attach linked user ${linkedUser.id} to family node ${tree.id}: ${err}`);
+      }
+    }
 
-      // Keep the legacy marker in sync for code paths not yet migrated.
-      const linkedConfig = (linkedTree.layoutConfig as any) ?? {};
-      await this.prisma.familyTree.update({
-        where: { id: linkedTree.id },
-        data: { layoutConfig: { ...linkedConfig, sharedFamilySlug: inviterSlug || null } as any },
-      });
-
-      linkedTreeSlug = inviterSlug;
-      this.logger.log(`Linked user ${linkedUser.id} joined family node ${tree.id} (slug="${inviterSlug}")`);
-
-      // Award network_add points to the inviter (tree owner)
+    if (opts.firstLink) {
       this.gamification.awardNetworkAddPoints(tree.userId, linkedUser.id).catch((err) => {
         this.logger.error(`Failed to award network_add points: ${err}`);
       });
-    } catch (err) {
-      this.logger.error(`Failed to sync linked user's tree: ${err}`);
     }
 
     return {
       treeId: updated.id,
       slug: identity.slug,
       nodeId,
-      member: members[nodeId],
+      member: layout[nodeId],
+      joinedFamilyNode,
       synced: {
         name: linkedUser.name,
         avatar: linkedUser.avatar,
@@ -1171,34 +1455,6 @@ export class TreeService {
   }
 
   // ─── PUBLIC FAMILY / PROFILE PAGES ──────────────────────────
-
-  /**
-   * Project a person's own TreeConfig into the per-node `familyConfig` shape
-   * consumed by the public family tree renderer.
-   *
-   * Only positive counts are projected so an absent/zero value never masks a
-   * more specific value already stored on the node.
-   */
-  private projectFamilyConfig(cfg: Record<string, any>): Record<string, number> | null {
-    const out: Record<string, number> = {};
-    const keys = ['olderCount', 'youngerCount', 'parentCount', 'spouseCount', 'childCount'];
-    for (const k of keys) {
-      const v = cfg?.[k];
-      if (typeof v === 'number' && v > 0) out[k] = v;
-    }
-    return Object.keys(out).length ? out : null;
-  }
-
-  /**
-   * Ancestry node ids that belong to a person's OWN tree and are therefore safe
-   * to project onto the shared page under a namespaced id.
-   *
-   * Deliberately excludes `self`, `spouse-*` and `child-*`: those describe the
-   * shared household itself (a wife's `spouse-0` IS the husband), so copying
-   * them across would duplicate or overwrite the couple's own circles.
-   */
-  private static readonly ANCESTRY_KEY_RE =
-    /^(parent|older|younger|gpP|gpM|unclePo|unclePy|uncleMo|uncleMy|ancP|ancM)-\d+$/;
 
   /** Fields worth carrying across trees for display on the public page. */
   private static readonly PROJECTED_MEMBER_FIELDS = [
@@ -1221,17 +1477,25 @@ export class TreeService {
    *
    * Records already present on the shared layout win field-by-field, so a name
    * typed directly on the family page is never clobbered by hydration.
+   *
+   * Only `self`, `spouse-*` and `child-*` keys are skipped by ANCESTRY_KEY_RE
+   * (they describe the shared household itself). Records linked to accounts
+   * already drawn on the anchor (`excludeUserIds`) are skipped too, so nobody
+   * appears twice — e.g. a husband listed in his wife's tree.
    */
   private projectAncestryRecords(
     out: Record<string, any>,
     nodeId: string,
     ownLayout: Record<string, any>,
+    excludeUserIds: Set<string>,
   ): number {
     let projected = 0;
 
     for (const [ownKey, ownMember] of Object.entries(ownLayout)) {
-      if (!TreeService.ANCESTRY_KEY_RE.test(ownKey)) continue;
+      if (!ANCESTRY_KEY_RE.test(ownKey)) continue;
       if (!ownMember || typeof ownMember !== 'object') continue;
+      const ownUid = (ownMember as any).linkedUserId || (ownMember as any).claimedByUserId;
+      if (ownUid && excludeUserIds.has(ownUid)) continue;
 
       const targetKey = `${nodeId}-${ownKey}`;
       const incoming: Record<string, any> = {};
@@ -1264,19 +1528,25 @@ export class TreeService {
    * so a wife with 6 siblings would make her husband appear to have 6 too.
    *
    * For every layout node linked to a real account we read that account's own
-   * tree config and project it onto the node as `familyConfig`.
+   * tree config and project it onto the node as `familyConfig`, limited by
+   * `projectionScope`: only people who married in bring their own ancestry;
+   * blood relatives (siblings, children, parents) share the anchor's ancestry,
+   * so projecting theirs would draw the same parents twice.
    */
   private async hydrateLinkedFamilyConfigs(
     layoutMembers: unknown,
     anchorTreeId: string,
+    anchorOwnerId: string,
   ): Promise<Record<string, any>> {
     const layout = (layoutMembers as Record<string, any>) ?? {};
 
+    const excludeUserIds = new Set<string>([anchorOwnerId]);
     const nodesByUser = new Map<string, string[]>();
     for (const [nodeId, m] of Object.entries(layout)) {
-      if (nodeId === 'self') continue; // the anchor owner already drives the root config
       const uid = m?.linkedUserId || m?.claimedByUserId;
-      if (!uid) continue;
+      if (uid) excludeUserIds.add(uid);
+      if (nodeId === 'self') continue; // the anchor owner already drives the root config
+      if (!uid || uid === anchorOwnerId) continue;
       const list = nodesByUser.get(uid) ?? [];
       list.push(nodeId);
       nodesByUser.set(uid, list);
@@ -1304,10 +1574,12 @@ export class TreeService {
 
     const out: Record<string, any> = { ...layout };
     for (const [uid, nodeIds] of nodesByUser) {
-      const derived = this.projectFamilyConfig(configByUser.get(uid) ?? {});
       const ownLayout = (membersByUser.get(uid) as Record<string, any>) ?? {};
 
       for (const nodeId of nodeIds) {
+        const scope = projectionScope(nodeId, layout[nodeId]);
+        if (scope === 'none') continue;
+        const derived = projectFamilyConfig(configByUser.get(uid) ?? {}, scope);
         if (derived) {
           out[nodeId] = {
             ...out[nodeId],
@@ -1318,7 +1590,8 @@ export class TreeService {
         // Counts alone only draw empty bubbles with generic labels ("Kakak 1").
         // Project the person's real ancestry records so their parents, siblings
         // and grandparents show their actual names on the shared public page.
-        const count = this.projectAncestryRecords(out, nodeId, ownLayout);
+        if (scope !== 'full') continue;
+        const count = this.projectAncestryRecords(out, nodeId, ownLayout, excludeUserIds);
         if (count > 0) {
           this.logger.debug(`Hydrated ${count} ancestry records for node "${nodeId}" from user ${uid}`);
         }
@@ -1343,56 +1616,11 @@ export class TreeService {
       if (tree) this.logger.log(`Resolved slug "${slug}" → "${tree.slug}" via -fam fallback`);
     }
 
-    // Fallback 2: slug was wiped to null by the syncLinkedUser bug.
-    // Try to find a tree with null slug whose family name matches, then regenerate.
-    if (!tree) {
-      const candidates = await this.prisma.familyTree.findMany({
-        where: { slug: null },
-        include: { user: { select: { name: true, username: true, avatar: true, bio: true } } },
-      });
-      for (const t of candidates) {
-        // Members of another Family Node must never get a page of their own.
-        const anchor = await this.getAnchorFor(t.userId);
-        if (anchor && anchor.treeId !== t.id) continue;
-
-        const config = (t.layoutConfig as any) ?? {};
-        if (config.sharedFamilySlug) {
-          // Check if the shared slug points to an existing tree.
-          const inviter = await this.prisma.familyTree.findUnique({
-            where: { slug: config.sharedFamilySlug },
-            select: { id: true },
-          }).catch(() => null);
-          if (inviter) continue; // Legitimate connected user
-          // Stale sharedFamilySlug — clear it and try to recover
-          this.logger.log(`Clearing stale sharedFamilySlug "${config.sharedFamilySlug}" from tree ${t.id} during public access`);
-          await this.prisma.familyTree.update({
-            where: { id: t.id },
-            data: { layoutConfig: { ...config, sharedFamilySlug: null } as any },
-          });
-        }
-        const familyName = (config.mainFamilyName as string) || t.name || '';
-        const desiredBase = familyName.endsWith('-fam') ? familyName : `${familyName}-fam`;
-        // Match if the family name slugified equals the requested slug
-        // e.g. "Farisma" → "farisma" or "farisma-fam"
-        const slugified = familyName.toLowerCase().trim().replace(/\s+/g, '-');
-        if (slugified === slug || slugified === slug.replace(/-fam$/, '')) {
-          // Regenerate slug for this tree
-          try {
-            const newSlug = await this.uniqueTreeSlug(desiredBase, t.id);
-            await this.prisma.familyTree.update({ where: { id: t.id }, data: { slug: newSlug } });
-            this.logger.log(`Recovered slug "${newSlug}" for tree ${t.id} on public access (was null)`);
-            tree = { ...t, slug: newSlug };
-          } catch (err) {
-            this.logger.error(`Failed to recover slug for tree ${t.id}: ${err}`);
-          }
-          break;
-        }
-      }
-    }
-
+    // Public reads never mutate data. Slugs wiped by old bugs are restored by
+    // the admin endpoint POST /trees/recover-slugs, not on page view.
     if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
     const mainFamilyName = (tree.layoutConfig as any)?.mainFamilyName as string | undefined;
-    const members = await this.hydrateLinkedFamilyConfigs(tree.layoutMembers, tree.id);
+    const members = await this.hydrateLinkedFamilyConfigs(tree.layoutMembers, tree.id, tree.userId);
     return {
       slug: tree.slug,
       name: mainFamilyName?.trim() || tree.user?.name || tree.name,
@@ -1485,12 +1713,8 @@ export class TreeService {
     };
   }
 
-  /** Super_user: list all pending claims on their trees. */
-  async getPendingClaims(userId: string, roles: string[]) {
-    if (!roles?.includes('super_user')) {
-      throw new ForbiddenException('Hanya super_user yang dapat mengakses daftar ini');
-    }
-
+  /** Tree owner: list all claims on the trees they own (ownership, not a role, grants access). */
+  async getPendingClaims(userId: string, _roles: string[]) {
     const trees = await this.prisma.familyTree.findMany({
       where: { userId },
       select: { id: true, name: true, slug: true, layoutMembers: true },
@@ -1528,12 +1752,8 @@ export class TreeService {
     });
   }
 
-  /** Super_user: approve or reject a pending claim. */
+  /** Tree owner (or admin): approve or reject a pending claim on their tree. */
   async respondToClaim(claimId: string, userId: string, roles: string[], approve: boolean) {
-    if (!roles?.includes('super_user')) {
-      throw new ForbiddenException('Hanya super_user yang dapat menyetujui klaim');
-    }
-
     const claim = await this.prisma.nodeClaim.findUnique({
       where: { id: claimId },
       include: { tree: true },
@@ -1541,29 +1761,34 @@ export class TreeService {
     if (!claim) throw new NotFoundException('Klaim tidak ditemukan');
     if (claim.status !== 'PENDING') throw new BadRequestException('Klaim ini sudah ditanggapi');
 
-    // Verify the super_user owns this tree
-    if (claim.tree.userId !== userId) {
+    if (claim.tree.userId !== userId && !isAdmin(roles)) {
       throw new ForbiddenException('Anda tidak memiliki akses untuk menanggapi klaim ini');
     }
 
     const newStatus = approve ? 'APPROVED' : 'REJECTED';
 
+    if (approve) {
+      // Link the node to the claimant — one account per circle, one circle per account.
+      await this.updateLayoutAtomically(claim.treeId, (_t, layout) => {
+        const existing = layout[claim.nodeId] ?? {};
+        const owner = existing.linkedUserId || existing.claimedByUserId;
+        if (owner && owner !== claim.claimantId) {
+          throw new ConflictException('Lingkaran ini sudah terhubung dengan akun lain');
+        }
+        const elsewhere = Object.entries(layout).find(
+          ([id, m]) => id !== claim.nodeId && (m?.linkedUserId === claim.claimantId || m?.claimedByUserId === claim.claimantId),
+        );
+        if (elsewhere) {
+          throw new ConflictException(`Pengklaim sudah terhubung di lingkaran lain ("${elsewhere[0]}")`);
+        }
+        return { ...layout, [claim.nodeId]: { ...existing, verified: true, claimedByUserId: claim.claimantId } };
+      });
+    }
+
     await this.prisma.nodeClaim.update({
       where: { id: claimId },
       data: { status: newStatus, responderId: userId, respondedAt: new Date() },
     });
-
-    if (approve) {
-      // Link the node to the claimant
-      const members = { ...((claim.tree.layoutMembers as any) ?? {}) } as Record<string, any>;
-      const existing = members[claim.nodeId] ?? {};
-      members[claim.nodeId] = { ...existing, verified: true, claimedByUserId: claim.claimantId };
-
-      await this.prisma.familyTree.update({
-        where: { id: claim.treeId },
-        data: { layoutMembers: members as any },
-      });
-    }
 
     // Notify the claimant of the result
     const nodeName = (claim.tree.layoutMembers as any)?.[claim.nodeId]?.name ?? claim.nodeId;
@@ -1909,7 +2134,8 @@ export class TreeService {
 
   /** Consents created by the current user for their own tree (with statuses). */
   async getTreeConsents(userId: string) {
-    const tree = await this.getOrCreateDefaultTree(userId);
+    const tree = await this.findDefaultTree(userId);
+    if (!tree) return [];
     return this.prisma.guardianConsent.findMany({
       where: { treeId: tree.id, requesterId: userId },
       orderBy: { createdAt: 'desc' },
@@ -2348,7 +2574,8 @@ export class TreeService {
       },
     });
 
-    // Notify the target user
+    // Notify the target user. `relationship` is the requester's own role
+    // ("Anda adalah apa bagi X?"), so the label is used as-is.
     const RELATIONSHIP_LABELS: Record<string, string> = {
       'anak': 'anak',
       'pasangan': 'pasangan (suami/istri)',
@@ -2356,10 +2583,10 @@ export class TreeService {
       'ibu': 'ibu',
       'orangtua': 'orang tua',
       'saudara': 'saudara (kakak/adik)',
-      'kakek-nenek': 'cucu',
-      'cucu': 'kakek/nenek',
-      'paman-bibi': 'keponakan',
-      'keponakan': 'paman/bibi',
+      'kakek-nenek': 'kakek/nenek',
+      'cucu': 'cucu',
+      'paman-bibi': 'paman/bibi',
+      'keponakan': 'keponakan',
     };
     const relLabel = RELATIONSHIP_LABELS[relationship] || relationship;
 
@@ -2438,9 +2665,35 @@ export class TreeService {
     }).catch(() => {});
     this.notifications.sendPushSafe(tree.userId, 'Anggota Baru', `${user.name} bergabung ke silsilah Anda`).catch(() => {});
 
-    // Auto-sync: if this is a connection request with a relationship, populate
-    // the accepter's tree based on the inviter's tree data.
-    const relationship = invitation.nodeId; // Stored in nodeId for connection requests
+    // An invitation for a specific circle: accepting it IS the target's consent,
+    // so link the accepter to that circle (if it is still free).
+    const invitedNode = invitation.nodeId
+      ? ((tree.layoutMembers as LayoutMembers) ?? {})[invitation.nodeId]
+      : undefined;
+    if (invitation.nodeId && invitedNode && invitation.nodeId !== 'self') {
+      try {
+        let linked = false;
+        const updated = await this.updateLayoutAtomically(tree.id, (_t, layout) => {
+          const node = layout[invitation.nodeId!];
+          const taken = node?.linkedUserId || node?.claimedByUserId;
+          const elsewhere = Object.entries(layout).some(
+            ([id, m]) => id !== invitation.nodeId && (m?.linkedUserId === userId || m?.claimedByUserId === userId),
+          );
+          if (!node || (taken && taken !== userId) || elsewhere || userId === tree.userId) return layout;
+          linked = true;
+          const next: Record<string, any> = { ...node, linkedUserId: userId, verified: true };
+          delete next.pendingLinkUserId;
+          return { ...layout, [invitation.nodeId!]: next };
+        });
+        if (linked) await this.attachLinkedUser(updated, invitation.nodeId, { firstLink: true });
+      } catch (err) {
+        this.logger.error(`Failed to link accepter ${userId} to node ${invitation.nodeId}: ${err}`);
+      }
+      return { message: 'Undangan diterima', member, treeId: tree.id, slug: identity.slug };
+    }
+
+    // Connection request: `nodeId` holds the requester's relationship instead.
+    const relationship = invitation.nodeId;
     if (relationship && relationship !== 'self') {
       try {
         await this.syncConnectedTree(userId, tree, relationship);
@@ -2454,379 +2707,69 @@ export class TreeService {
   }
 
   /**
-   * Auto-populate the accepter's tree based on the inviter's tree data and the
-   * declared relationship. For example, if the accepter is the "orangtua" (parent)
-   * of the inviter, the inviter becomes a child node in the accepter's tree,
-   * carrying over the inviter's spouse/children/sibling data.
+   * Seed the accepter's tree from an accepted connection request.
+   *
+   * `relationship` is the INVITER's role towards the accepter (the request form
+   * asks "Anda adalah apa bagi X?"). The accepter's tree is only seeded when it
+   * is still empty — an existing tree is never overwritten; the accepter is
+   * notified to add the inviter themselves instead. Third-party account links
+   * are never copied, and the accepter only joins the inviter's household when
+   * they are the inviter's spouse or (unmarried) child.
    */
   private async syncConnectedTree(
     accepterId: string,
     inviterTree: { id: string; userId: string; name: string; layoutConfig: any; layoutMembers: any },
     relationship: string,
   ) {
-    const accepterTree = await this.getOrCreateOwnedTree(accepterId);
-    const inviterConfig = (inviterTree.layoutConfig as any) ?? {};
-    const inviterMembers = (inviterTree.layoutMembers as Record<string, any>) ?? {};
-
-    // Get inviter's self member data
-    const inviterSelf = inviterMembers['self'] ?? {};
-    const inviterName = inviterSelf.name || inviterConfig.mainFamilyName || 'Anggota Keluarga';
-    const inviterPhoto = inviterSelf.photo || null;
-    const inviterGender = inviterSelf.gender || '';
-
-    // Build the accepter's new config and members based on the relationship
-    const newConfig: Record<string, any> = {
-      configured: true,
-      mainFamilyName: inviterConfig.extFamilyName || `Keluarga ${inviterName}`,
-      extFamilyName: inviterConfig.extFamilyName || '',
-      spouseCount: 1,
-      childCount: 1, // At least the inviter as a child
-      parentCount: 2,
-      olderCount: 0,
-      youngerCount: 0,
-      simbahP: inviterConfig.simbahP || 2,
-      simbahM: inviterConfig.simbahM || 2,
-    };
-
-    const newMembers: Record<string, any> = {};
-
-    // The accepter is "self" in their own tree
-    const accepterUser = await this.prisma.user.findUnique({
+    const accepter = await this.prisma.user.findUnique({
       where: { id: accepterId },
-      select: { name: true, avatar: true, email: true, phone: true, username: true },
+      select: { id: true, name: true, avatar: true },
     });
-    newMembers['self'] = {
-      name: accepterUser?.name || 'Saya',
-      gender: '',
-      alive: true,
-      photo: accepterUser?.avatar || null,
-      verified: true,
-    };
+    if (!accepter) return;
 
-    // Map the inviter into the accepter's tree based on relationship
-    switch (relationship) {
-      case 'anak': {
-        // Accepter is the CHILD of the inviter
-        // Inviter becomes parent-1 in accepter's tree
-        newConfig.parentCount = 1;
-        newConfig.childCount = inviterConfig.childCount || 0; // accepter's siblings = inviter's children
-        newConfig.spouseCount = inviterConfig.spouseCount || 1; // other parent (inviter's spouse)
-        newConfig.olderCount = 0;
-        newConfig.youngerCount = 0;
+    const existing = await this.prisma.familyTree.findFirst({ where: { userId: accepterId }, orderBy: { createdAt: 'asc' } });
+    const inviterName = ((inviterTree.layoutMembers as LayoutMembers) ?? {}).self?.name || 'Pengundang';
 
-        newMembers['parent-1'] = {
-          name: inviterName,
-          gender: inviterGender,
-          alive: inviterSelf.alive !== false,
-          photo: inviterPhoto,
-          linkedUserId: inviterTree.userId,
-          verified: true,
-        };
-
-        // Copy inviter's spouse as the other parent
-        if (inviterMembers['spouse-1']) {
-          newMembers['parent-2'] = {
-            ...inviterMembers['spouse-1'],
-            linkedUserId: inviterMembers['spouse-1'].linkedUserId || null,
-          };
-          newConfig.parentCount = 2;
-        }
-
-        // Copy inviter's other children as siblings
-        let sibIdx = 1;
-        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
-          const childKey = `child-${i}`;
-          const childData = inviterMembers[childKey];
-          if (childData && childData.name) {
-            // This is a sibling of the accepter (another child of the inviter)
-            if (sibIdx === 1) {
-              newMembers['olderCount'] = newMembers['olderCount'] || 0;
-            }
-            newMembers[`sibling-${sibIdx}`] = { ...childData };
-            sibIdx++;
-          }
-        }
-        newConfig.olderCount = Math.max(0, sibIdx - 1);
-        break;
-      }
-
-      case 'ayah':
-      case 'ibu': {
-        // Accepter is the FATHER (ayah) or MOTHER (ibu) of the inviter
-        // Inviter becomes child-1 in accepter's tree
-        const isAyah = relationship === 'ayah';
-        newConfig.childCount = 1;
-        newConfig.parentCount = 2; // accepter's own parents (inviter's grandparents)
-        newConfig.spouseCount = 1; // accepter's spouse (other parent of inviter)
-
-        // Set accepter's gender based on ayah/ibu
-        newMembers['self'] = {
-          ...newMembers['self'],
-          gender: isAyah ? 'L' : 'P',
-        };
-
-        // Copy inviter's spouse data as the accepter's spouse (the other parent)
-        if (inviterMembers['spouse-1']) {
-          newMembers['spouse-1'] = {
-            ...inviterMembers['spouse-1'],
-            name: inviterMembers['spouse-1'].name || (isAyah ? 'Ibu' : 'Ayah'),
-            gender: isAyah ? 'P' : 'L',
-          };
-        }
-
-        // Inviter as child-1
-        newMembers['child-1'] = {
-          name: inviterName,
-          gender: inviterGender,
-          alive: inviterSelf.alive !== false,
-          photo: inviterPhoto,
-          linkedUserId: inviterTree.userId,
-          verified: true,
-        };
-
-        // Copy inviter's children as grandchildren (accepter's cucu)
-        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
-          const childKey = `child-${i}`;
-          if (inviterMembers[childKey] && inviterMembers[childKey].name) {
-            newMembers[`child-1-child-${i}`] = { ...inviterMembers[childKey] };
-          }
-        }
-
-        // Copy inviter's spouse as child-1's spouse
-        if (inviterMembers['spouse-1']) {
-          newMembers['child-1-spouse'] = { ...inviterMembers['spouse-1'] };
-        }
-
-        // Copy inviter's siblings as accepter's other children
-        let otherChildIdx = 2;
-        const older = inviterConfig.olderCount || 0;
-        const younger = inviterConfig.youngerCount || 0;
-        for (let i = 1; i <= older; i++) {
-          const sibKey = `older-${i}`;
-          if (inviterMembers[sibKey] && inviterMembers[sibKey].name) {
-            newMembers[`child-${otherChildIdx}`] = { ...inviterMembers[sibKey] };
-            otherChildIdx++;
-          }
-        }
-        for (let i = 1; i <= younger; i++) {
-          const sibKey = `younger-${i}`;
-          if (inviterMembers[sibKey] && inviterMembers[sibKey].name) {
-            newMembers[`child-${otherChildIdx}`] = { ...inviterMembers[sibKey] };
-            otherChildIdx++;
-          }
-        }
-        newConfig.childCount = otherChildIdx - 1;
-        break;
-      }
-
-      case 'orangtua': {
-        // Legacy fallback — same as ayah (male parent)
-        newConfig.childCount = 1;
-        newConfig.parentCount = 2;
-        newConfig.spouseCount = 1;
-
-        newMembers['self'] = { ...newMembers['self'], gender: 'L' };
-
-        if (inviterMembers['spouse-1']) {
-          newMembers['spouse-1'] = {
-            ...inviterMembers['spouse-1'],
-            name: inviterMembers['spouse-1'].name || 'Pasangan',
-            gender: 'P',
-          };
-        }
-
-        newMembers['child-1'] = {
-          name: inviterName,
-          gender: inviterGender,
-          alive: inviterSelf.alive !== false,
-          photo: inviterPhoto,
-          linkedUserId: inviterTree.userId,
-          verified: true,
-        };
-
-        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
-          const childKey = `child-${i}`;
-          if (inviterMembers[childKey] && inviterMembers[childKey].name) {
-            newMembers[`child-1-child-${i}`] = { ...inviterMembers[childKey] };
-          }
-        }
-
-        if (inviterMembers['spouse-1']) {
-          newMembers['child-1-spouse'] = { ...inviterMembers['spouse-1'] };
-        }
-
-        let otherChildIdx = 2;
-        const older = inviterConfig.olderCount || 0;
-        const younger = inviterConfig.youngerCount || 0;
-        for (let i = 1; i <= older; i++) {
-          const sibKey = `older-${i}`;
-          if (inviterMembers[sibKey] && inviterMembers[sibKey].name) {
-            newMembers[`child-${otherChildIdx}`] = { ...inviterMembers[sibKey] };
-            otherChildIdx++;
-          }
-        }
-        for (let i = 1; i <= younger; i++) {
-          const sibKey = `younger-${i}`;
-          if (inviterMembers[sibKey] && inviterMembers[sibKey].name) {
-            newMembers[`child-${otherChildIdx}`] = { ...inviterMembers[sibKey] };
-            otherChildIdx++;
-          }
-        }
-        newConfig.childCount = otherChildIdx - 1;
-        break;
-      }
-
-      case 'pasangan': {
-        // Accepter is the SPOUSE of the inviter
-        // Inviter becomes spouse-1 in accepter's tree
-        newConfig.spouseCount = 1;
-        newConfig.childCount = inviterConfig.childCount || 0;
-        newConfig.parentCount = 2;
-        newConfig.olderCount = 0;
-        newConfig.youngerCount = 0;
-
-        newMembers['spouse-1'] = {
-          name: inviterName,
-          gender: inviterGender,
-          alive: inviterSelf.alive !== false,
-          photo: inviterPhoto,
-          linkedUserId: inviterTree.userId,
-          verified: true,
-        };
-
-        // Copy inviter's children as accepter's children
-        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
-          const childKey = `child-${i}`;
-          if (inviterMembers[childKey]) {
-            newMembers[childKey] = { ...inviterMembers[childKey] };
-          }
-        }
-
-        // Copy inviter's parents as accepter's parents-in-law (still parent nodes)
-        for (let i = 1; i <= (inviterConfig.parentCount || 0); i++) {
-          const parentKey = `parent-${i}`;
-          if (inviterMembers[parentKey]) {
-            newMembers[parentKey] = { ...inviterMembers[parentKey] };
-          }
-        }
-        break;
-      }
-
-      case 'saudara': {
-        // Accepter is a SIBLING of the inviter
-        // Inviter becomes a sibling in accepter's tree
-        newConfig.childCount = inviterConfig.childCount || 0;
-        newConfig.parentCount = inviterConfig.parentCount || 2;
-        newConfig.spouseCount = 1;
-        newConfig.olderCount = 1; // inviter as sibling
-        newConfig.youngerCount = 0;
-
-        // Copy inviter's parents
-        for (let i = 1; i <= (inviterConfig.parentCount || 0); i++) {
-          const parentKey = `parent-${i}`;
-          if (inviterMembers[parentKey]) {
-            newMembers[parentKey] = { ...inviterMembers[parentKey] };
-          }
-        }
-
-        // Inviter as older-1 (or could be younger depending on birth order)
-        newMembers['older-1'] = {
-          name: inviterName,
-          gender: inviterGender,
-          alive: inviterSelf.alive !== false,
-          photo: inviterPhoto,
-          linkedUserId: inviterTree.userId,
-          verified: true,
-        };
-
-        // Copy inviter's children as nephews/nieces (accepter's keponakan)
-        for (let i = 1; i <= (inviterConfig.childCount || 0); i++) {
-          const childKey = `child-${i}`;
-          if (inviterMembers[childKey]) {
-            newMembers[`older-1-child-${i}`] = { ...inviterMembers[childKey] };
-          }
-        }
-
-        // Copy inviter's spouse
-        if (inviterMembers['spouse-1']) {
-          newMembers['older-1-spouse'] = { ...inviterMembers['spouse-1'] };
-        }
-        break;
-      }
-
-      case 'cucu': {
-        // Accepter is a GRANDCHILD of the inviter
-        // Inviter becomes grandparent in accepter's tree
-        newConfig.parentCount = 1;
-        newConfig.spouseCount = 1;
-        newConfig.childCount = 0;
-        newConfig.simbahP = 1;
-        newConfig.simbahM = 0;
-
-        newMembers['grandparent-p-1'] = {
-          name: inviterName,
-          gender: inviterGender,
-          alive: inviterSelf.alive !== false,
-          photo: inviterPhoto,
-          linkedUserId: inviterTree.userId,
-          verified: true,
-        };
-        break;
-      }
-
-      case 'kakek-nenek': {
-        // Accepter is a GRANDPARENT of the inviter
-        // Inviter becomes a grandchild
-        newConfig.childCount = 1;
-        newConfig.spouseCount = 1;
-        newConfig.parentCount = 2;
-
-        newMembers['child-1'] = {
-          name: inviterName,
-          gender: inviterGender,
-          alive: inviterSelf.alive !== false,
-          photo: inviterPhoto,
-          linkedUserId: inviterTree.userId,
-          verified: true,
-        };
-        break;
-      }
-
-      default: {
-        // For 'paman-bibi', 'keponakan', etc. — just link the inviter as a basic member
-        newConfig.childCount = 1;
-        newMembers['child-1'] = {
-          name: inviterName,
-          gender: inviterGender,
-          alive: inviterSelf.alive !== false,
-          photo: inviterPhoto,
-          linkedUserId: inviterTree.userId,
-          verified: true,
-        };
-        break;
-      }
+    if (existing && !isLayoutEmpty(existing.layoutConfig, existing.layoutMembers)) {
+      this.notifications.create({
+        userId: accepterId,
+        type: 'SYSTEM' as any,
+        title: 'Tambahkan ke silsilah Anda',
+        message: `Koneksi dengan ${inviterName} diterima. Silsilah Anda sudah berisi data, jadi tidak diubah otomatis — tambahkan ${inviterName} ke lingkaran yang sesuai di /tree.`,
+        data: { kind: 'CONNECTION_ACCEPTED', inviterTreeId: inviterTree.id, relationship },
+      }).catch(() => {});
+      this.logger.log(`Connection accepted by ${accepterId}: existing tree ${existing.id} left untouched`);
+      return;
     }
 
-    // NOTE: We intentionally do NOT set sharedFamilySlug here.
-    // The accepter is building their own independent tree (pre-populated from
-    // the inviter's data). They should own and edit their own Family Node.
-    // sharedFamilySlug is only for linked members who don't have their own tree.
-    newConfig.sharedFamilySlug = null;
+    const built = buildConnectedLayout({
+      relationship,
+      inviterUserId: inviterTree.userId,
+      inviterConfig: (inviterTree.layoutConfig as Record<string, any>) ?? {},
+      inviterMembers: (inviterTree.layoutMembers as LayoutMembers) ?? {},
+      accepter,
+    });
+    if (!built) {
+      this.logger.log(`Connection "${relationship}" accepted by ${accepterId}: placement left to the user`);
+      return;
+    }
 
-    // Save the accepter's tree
+    const accepterTree = existing ?? (await this.getOrCreateOwnedTree(accepterId));
     await this.prisma.familyTree.update({
       where: { id: accepterTree.id },
       data: {
-        layoutConfig: newConfig as any,
-        layoutMembers: newMembers as any,
+        layoutConfig: { ...((accepterTree.layoutConfig as any) ?? {}), ...built.config, sharedFamilySlug: null } as any,
+        layoutMembers: built.members as any,
       },
     });
 
-    // Join the inviter's family node
-    try {
-      await this.joinFamilyNode(inviterTree.id, accepterId, 'self', 'member');
-    } catch (err) {
-      this.logger.error(`Failed to join family node: ${err}`);
+    if (built.joinsInviterHousehold) {
+      await this.joinFamilyNode(
+        inviterTree.id,
+        accepterId,
+        built.inviterSideNodeId ?? 'self',
+        relationship === 'pasangan' ? 'spouse' : 'child',
+      ).catch((err) => this.logger.error(`Failed to join family node: ${err}`));
     }
   }
 
@@ -3074,8 +3017,8 @@ export class TreeService {
       throw new ForbiddenException('Hanya super_user yang dapat membuat early access');
     }
 
-    const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId } });
-    if (!tree) throw new NotFoundException('Pohon keluarga tidak ditemukan');
+    // The role alone is not enough: only the owner of THIS tree may create accounts for its members.
+    const tree = await this.ensureTreeOwner(treeId, userId, roles);
 
     const member = await this.prisma.familyMember.findFirst({
       where: { id: memberId, treeId },
@@ -3112,6 +3055,7 @@ export class TreeService {
         passwordHash,
         phone: phone || null,
         status: 'EARLY_ACCESS',
+        createdById: tree.userId,
       },
     });
 
@@ -3157,7 +3101,10 @@ export class TreeService {
       throw new ForbiddenException('Hanya super_user yang dapat membuat early access');
     }
 
-    const tree = await this.getOrCreateDefaultTree(userId);
+    const tree = await this.findDefaultTree(userId);
+    if (!tree || tree.userId !== userId) {
+      throw new ForbiddenException('Hanya pemilik silsilah yang dapat membuat early access');
+    }
 
     const members = (tree.layoutMembers as Record<string, any>) ?? {};
     const member = members[nodeId];
@@ -3165,6 +3112,9 @@ export class TreeService {
 
     if (member.linkedUserId || member.claimedByUserId) {
       throw new BadRequestException('Node ini sudah memiliki akun terhubung');
+    }
+    if (member.pendingLinkUserId) {
+      throw new BadRequestException('Node ini sedang menunggu konfirmasi dari akun yang ditautkan');
     }
 
     if (nodeId === 'self') {
@@ -3198,6 +3148,7 @@ export class TreeService {
         passwordHash,
         phone: phone || null,
         status: 'EARLY_ACCESS',
+        createdById: userId,
       },
     });
 
@@ -3211,19 +3162,17 @@ export class TreeService {
 
     // Link layout member to the new user. `earlyAccess` + `username` are what
     // the public pages and the super_user login button key off.
-    members[nodeId] = {
-      ...member,
-      linkedUserId: newUser.id,
-      earlyAccess: true,
-      username,
-      email,
-      phone: phone || member.phone || null,
-    };
-
-    await this.prisma.familyTree.update({
-      where: { id: tree.id },
-      data: { layoutMembers: members as any },
-    });
+    await this.updateLayoutAtomically(tree.id, (_t, layout) => ({
+      ...layout,
+      [nodeId]: {
+        ...layout[nodeId],
+        linkedUserId: newUser.id,
+        earlyAccess: true,
+        username,
+        email,
+        phone: phone || layout[nodeId]?.phone || null,
+      },
+    }));
 
     return {
       message: 'Early access berhasil dibuat',
@@ -3360,10 +3309,37 @@ export class TreeService {
 
   // ─── HELPERS ────────────────────────────────────────────────
 
+  /**
+   * Read-modify-write of `layoutMembers` with compare-and-swap on `updatedAt`,
+   * so concurrent writers (head, slice members, approvals) never silently
+   * overwrite each other. Retries a few times before giving up with 409.
+   */
+  private async updateLayoutAtomically(
+    treeId: string,
+    mutate: (tree: Awaited<ReturnType<PrismaService['familyTree']['findUniqueOrThrow']>>, layout: LayoutMembers) => LayoutMembers,
+    attempts = 3,
+  ) {
+    for (let i = 0; i < attempts; i++) {
+      const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId } });
+      if (!tree) throw new NotFoundException('Pohon keluarga tidak ditemukan');
+      const next = mutate(tree, { ...((tree.layoutMembers as LayoutMembers) ?? {}) });
+      const res = await this.prisma.familyTree.updateMany({
+        where: { id: treeId, updatedAt: tree.updatedAt },
+        data: { layoutMembers: next as any },
+      });
+      if (res.count === 1) return this.prisma.familyTree.findUniqueOrThrow({ where: { id: treeId } });
+    }
+    throw new ConflictException('Silsilah sedang diubah oleh orang lain. Silakan coba lagi.');
+  }
+
+  /**
+   * Only the tree owner (or a platform admin) may manage a tree. `super_user`
+   * is a capability tier for one's OWN trees, never a cross-tree bypass.
+   */
   private async ensureTreeOwner(treeId: string, userId: string, roles?: string[]) {
     const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId } });
     if (!tree) throw new NotFoundException('Pohon keluarga tidak ditemukan');
-    if (tree.userId !== userId && !roles?.includes('super_user')) {
+    if (tree.userId !== userId && !isAdmin(roles)) {
       throw new ForbiddenException('Akses ditolak');
     }
     return tree;

@@ -1,4 +1,4 @@
-import { IsOptional, IsObject } from 'class-validator';
+import { IsOptional, IsObject, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SaveLayoutDto {
@@ -15,4 +15,11 @@ export class SaveLayoutDto {
   @IsOptional()
   @IsObject()
   members?: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description: '`updatedAt` of the layout this edit is based on. When given, a stale write is rejected with 409.',
+  })
+  @IsOptional()
+  @IsDateString()
+  baseUpdatedAt?: string;
 }

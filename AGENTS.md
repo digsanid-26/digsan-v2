@@ -1,0 +1,19 @@
+# AGENTS.md
+
+## Monorepo
+- pnpm workspace: `apps/api` (NestJS + Prisma/PostgreSQL), `apps/web` (Next.js), `apps/landing` (Next.js), `apps/mobile` (Flutter).
+- Plans/roadmap: `docs/FUTURE-FEATURES.md`, family-tree authority fixes: `docs/tasklist-perbaikan.md`.
+
+## Verification
+- API typecheck: `npx tsc --noEmit -p tsconfig.json` (in `apps/api`). To include e2e specs, extend tsconfig with `"include": ["src/**/*", "test/**/*"]`.
+- Web typecheck: `npx tsc --noEmit -p tsconfig.json` (in `apps/web`); lint: `npx eslint <files>`.
+- API unit tests (no DB needed): `npx jest src/modules/tree` (ts-jest is slow on Windows, ~7 min cold).
+- API e2e tests (`apps/api/test/*.e2e-spec.ts`) boot the full AppModule and need PostgreSQL **and** Redis; they create/delete their own users. Ask the user before running them against the local DB.
+- Generate a migration without a DB: `git show HEAD:apps/api/prisma/schema.prisma > prisma/.old.prisma && npx prisma migrate diff --from-schema-datamodel prisma/.old.prisma --to-schema-datamodel prisma/schema.prisma --script` (use a path inside the repo; `/tmp` is not visible to node on Windows). Do not apply migrations to the local DB without asking.
+
+## Family tree rules (see docs/tasklist-perbaikan.md)
+- Layout data lives in `FamilyTree.layoutMembers` (JSON, 0-based keys: `self`, `spouse-0`, `child-0`, `parent-0`, `older-0`, `younger-0`, `gpP-0`, `gpM-0`, `uncle[PM][oy]-0`).
+- Pure authority helpers: `apps/api/src/modules/tree/tree-layout.util.ts` (unit-tested). Clients can never set `linkedUserId`/`verified`/`claimedByUserId`/`earlyAccess`/`username` directly; new links become `NodeLinkRequest`s approved by the target.
+- Only household circles (spouse/children) join the owner's Family Node; parents/siblings never do.
+- GET endpoints must not write. `super_user` is never a cross-tree bypass — use tree ownership or `admin`/`super_admin`.
+- Layout writes use compare-and-swap on `updatedAt` (`updateLayoutAtomically`); `PUT /trees/layout` accepts `baseUpdatedAt` and returns 409 on stale writes.

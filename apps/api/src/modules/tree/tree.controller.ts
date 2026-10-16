@@ -19,6 +19,11 @@ import { SetSlugDto } from './dto/set-slug.dto';
 import { RequestConsentDto, RespondConsentDto } from './dto/consent.dto';
 import { ClaimNodeDto } from './dto/claim-node.dto';
 import { CreateEarlyAccessDto } from './dto/early-access.dto';
+import { RespondLinkRequestDto } from './dto/link-request.dto';
+
+const requireAdmin = (roles?: string[]) => {
+  if (!roles?.some((r) => ['admin', 'super_admin'].includes(r))) throw new ForbiddenException('Akses ditolak');
+};
 
 // ─── AUTHENTICATED TREE ENDPOINTS ─────────────────────────────
 
@@ -56,7 +61,23 @@ export class TreeController {
   @Put('layout')
   @ApiOperation({ summary: 'Save the config-driven explorer layout for the current user' })
   async saveLayout(@CurrentUser('id') userId: string, @Body() dto: SaveLayoutDto) {
-    return this.treeService.saveLayout(userId, dto.config, dto.members);
+    return this.treeService.saveLayout(userId, dto.config, dto.members, dto.baseUpdatedAt);
+  }
+
+  @Get('link-requests/incoming')
+  @ApiOperation({ summary: 'Pending requests asking the current user to confirm they are a circle in someone\'s tree' })
+  async getIncomingLinkRequests(@CurrentUser('id') userId: string) {
+    return this.treeService.getIncomingLinkRequests(userId);
+  }
+
+  @Patch('link-requests/:requestId')
+  @ApiOperation({ summary: 'Approve or reject being linked to a circle (target account only)' })
+  async respondLinkRequest(
+    @Param('requestId') requestId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: RespondLinkRequestDto,
+  ) {
+    return this.treeService.respondLinkRequest(userId, requestId, dto.approve);
   }
 
   @Post('sync-linked-user/:nodeId')
@@ -67,16 +88,24 @@ export class TreeController {
 
   @Post('recover-slugs')
   @ApiOperation({ summary: 'Recover slugs for trees that had them wiped (admin only)' })
-  async recoverSlugs(@CurrentUser('id') userId: string, @CurrentUser('roles') roles?: string[]) {
-    if (!roles?.some((r) => ['super_user', 'admin', 'super_admin'].includes(r))) throw new ForbiddenException('Akses ditolak');
+  async recoverSlugs(@CurrentUser('roles') roles?: string[]) {
+    requireAdmin(roles);
     return this.treeService.recoverSlugs();
   }
 
   @Post('backfill-family-nodes')
   @ApiOperation({ summary: 'Derive FamilyNodeMember rows from existing links so each household shares one slug (admin only)' })
   async backfillFamilyNodes(@CurrentUser('roles') roles?: string[]) {
-    if (!roles?.some((r) => ['super_user', 'admin', 'super_admin'].includes(r))) throw new ForbiddenException('Akses ditolak');
+    requireAdmin(roles);
     return this.treeService.backfillFamilyNodeMembers();
+  }
+
+  @Post('repair-family-links')
+  @ApiOperation({ summary: 'Repair links/memberships damaged by the old linking rules (admin only; dry-run unless ?apply=true)' })
+  @ApiQuery({ name: 'apply', required: false, type: Boolean })
+  async repairFamilyLinks(@CurrentUser('roles') roles?: string[], @Query('apply') apply?: string) {
+    requireAdmin(roles);
+    return this.treeService.repairFamilyLinks(apply === 'true');
   }
 
   // ─── FAMILY NODE (shared household page) ────────────────────
@@ -194,13 +223,13 @@ export class TreeController {
   }
 
   @Get('super-user/claims')
-  @ApiOperation({ summary: 'Get all node claims on super_user trees' })
+  @ApiOperation({ summary: 'Get all node claims on trees owned by the current user' })
   async getPendingClaims(@CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[]) {
     return this.treeService.getPendingClaims(userId, roles);
   }
 
   @Patch('super-user/claims/:claimId')
-  @ApiOperation({ summary: 'Approve or reject a node claim (super_user only)' })
+  @ApiOperation({ summary: 'Approve or reject a node claim (tree owner only)' })
   async respondToClaim(
     @Param('claimId') claimId: string,
     @CurrentUser('id') userId: string,

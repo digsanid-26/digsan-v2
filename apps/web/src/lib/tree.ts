@@ -19,15 +19,34 @@ export interface FamilyNodeMembership {
 }
 
 export interface TreeLayout<C = unknown, M = unknown> {
-  treeId: string;
+  /** Null until the user saves their first layout (opening /tree creates nothing). */
+  treeId: string | null;
   slug: string | null;
   owner: { name: string; username: string | null; avatar: string | null } | null;
   config: C | null;
   members: M | null;
-  updatedAt: string;
+  updatedAt: string | null;
   isTreeOwner?: boolean;
   connectedFamily?: ConnectedFamily | null;
   familyNode?: FamilyNodeMembership | null;
+}
+
+export interface SaveLayoutResult<C = unknown, M = unknown> extends TreeLayout<C, M> {
+  /** New account links that now wait for the target's approval. */
+  linkRequests?: { nodeId: string; targetUserId: string }[];
+  /** Circles whose profile edits were reverted (active account, no consent). */
+  protectedNodes?: string[];
+}
+
+export interface IncomingLinkRequest {
+  id: string;
+  treeId: string;
+  treeName: string;
+  nodeId: string;
+  nodeName: string;
+  nodeRole: string | null;
+  requester: { id: string; name: string; avatar: string | null } | null;
+  createdAt: string;
 }
 
 let refreshingPromise: Promise<boolean> | null = null;
@@ -206,10 +225,20 @@ export const treeApi = {
   getLayout: <C = unknown, M = unknown>() =>
     authRequest<TreeLayout<C, M>>('/trees/layout'),
 
-  saveLayout: <C = unknown, M = unknown>(payload: { config?: C; members?: M }) =>
-    authRequest<TreeLayout<C, M>>('/trees/layout', {
+  saveLayout: <C = unknown, M = unknown>(payload: { config?: C; members?: M; baseUpdatedAt?: string | null }) =>
+    authRequest<SaveLayoutResult<C, M>>('/trees/layout', {
       method: 'PUT',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, baseUpdatedAt: payload.baseUpdatedAt || undefined }),
+    }),
+
+  // ─── Link requests ("Apakah ini Anda?" sent by a tree owner) ─
+  getIncomingLinkRequests: () =>
+    authRequest<IncomingLinkRequest[]>('/trees/link-requests/incoming'),
+
+  respondLinkRequest: (requestId: string, approve: boolean) =>
+    authRequest<{ id: string; status: 'APPROVED' | 'REJECTED' }>(`/trees/link-requests/${encodeURIComponent(requestId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ approve }),
     }),
 
   syncLinkedUser: (nodeId: string) =>

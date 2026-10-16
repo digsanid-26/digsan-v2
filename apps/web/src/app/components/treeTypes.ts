@@ -39,6 +39,10 @@ export interface Member {
   email?: string;
   phone?: string;
   linkedUserId?: string | null;
+  /** Account asked to confirm this circle; becomes `linkedUserId` once approved (server-controlled). */
+  pendingLinkUserId?: string | null;
+  /** Account whose claim on this circle was approved (server-controlled). */
+  claimedByUserId?: string | null;
   /** True when a super_user issued temporary early-access credentials here. */
   earlyAccess?: boolean;
   /** Username of the linked account — powers /id/{username}. */

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getUser } from '@/lib/auth';
 import { treeApi, publicTreeApi } from '@/lib/tree';
-import type { GuardianConsent, ConnectedFamily, FamilyNodeMembership } from '@/lib/tree';
+import type { GuardianConsent, ConnectedFamily, FamilyNodeMembership, SaveLayoutResult } from '@/lib/tree';
+import { adoptServerFields, mergeConfig, mergeMembers } from '@/lib/treeMerge';
 import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
 import { DEFAULT_CONFIG } from './treeTypes';
@@ -321,6 +322,12 @@ export default function TreeExplorer() {
   const rafRef = useRef<number | null>(null);
   const panRef = useRef({ x: 0, y: 0 });
   const uidRef = useRef('guest');
+  // Optimistic locking: the server version our local edits are based on, the
+  // last server-acknowledged snapshot (merge base), and a queue so saves from
+  // this tab never race each other.
+  const versionRef = useRef<string | null>(null);
+  const baseRef = useRef<{ config: TreeConfig | null; members: Members }>({ config: null, members: {} });
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   // Load persisted data — localStorage first (fast/offline cache), then
   // reconcile with the server (source of truth) so data syncs across devices.
@@ -355,6 +362,11 @@ export default function TreeExplorer() {
         if (cancelled) return;
 
         setIdentity({ treeId: remote.treeId, slug: remote.slug, username: remote.owner?.username ?? null });
+        versionRef.current = remote.updatedAt ?? null;
+        baseRef.current = {
+          config: remote.config ? { ...DEFAULT_CONFIG, ...remote.config } : null,
+          members: remote.members ?? {},
+        };
         setIsTreeOwner(remote.isTreeOwner !== false);
         setConnectedFamily(remote.connectedFamily ?? null);
         setFamilyNode(remote.familyNode ?? null);
@@ -386,10 +398,17 @@ export default function TreeExplorer() {
           try {
             const c = localStorage.getItem(`digsan_tree_cfg_${uid}`);
             const m = localStorage.getItem(`digsan_tree_mem_${uid}`);
-            await treeApi.saveLayout({
+            const res = await treeApi.saveLayout({
               config: c ? JSON.parse(c) : undefined,
               members: m ? JSON.parse(m) : undefined,
+              baseUpdatedAt: versionRef.current,
             });
+            versionRef.current = res.updatedAt ?? null;
+            baseRef.current = {
+              config: res.config ? { ...DEFAULT_CONFIG, ...(res.config as Partial<TreeConfig>) } : null,
+              members: (res.members as Members) ?? {},
+            };
+            setIdentity({ treeId: res.treeId, slug: res.slug, username: res.owner?.username ?? null });
           } catch { /* ignore */ }
         }
       } catch {
@@ -489,11 +508,69 @@ export default function TreeExplorer() {
     // Always save members to the personal tree — the user owns their own tree
     // regardless of Family Node membership. This was previously skipped for
     // slice members, causing personal edits (e.g. siblings) to never persist.
-    treeApi.saveLayout({ config: cfg, members: mem })
-      // The server generates/returns the family slug + owner username here, so
-      // refresh identity to activate the public link without needing a reload.
-      .then((res) => setIdentity({ treeId: res.treeId, slug: res.slug, username: res.owner?.username ?? null }))
-      .catch(() => { /* keep local cache; will retry on next save */ });
+    // Saves are queued so each one is based on the version the previous returned.
+    saveQueueRef.current = saveQueueRef.current.then(() => savePersonalLayout(cfg, mem));
+  };
+
+  const applySaved = (res: SaveLayoutResult<Partial<TreeConfig>, Members>) => {
+    versionRef.current = res.updatedAt ?? null;
+    baseRef.current = {
+      config: res.config ? { ...DEFAULT_CONFIG, ...res.config } : baseRef.current.config,
+      members: res.members ?? baseRef.current.members,
+    };
+    // The server generates/returns the family slug + owner username here, so
+    // refresh identity to activate the public link without needing a reload.
+    setIdentity({ treeId: res.treeId, slug: res.slug, username: res.owner?.username ?? null });
+    // Account links are decided by the server (pending approval, claims, early access).
+    if (res.members) {
+      setMembers((prev) => {
+        const next = adoptServerFields(prev, res.members);
+        if (next !== prev) {
+          try { localStorage.setItem(`digsan_tree_mem_${uidRef.current}`, JSON.stringify(next)); } catch { /* ignore */ }
+        }
+        return next;
+      });
+    }
+    if (res.protectedNodes?.length) {
+      setSaveError(`Perubahan profil pada ${res.protectedNodes.length} lingkaran tidak disimpan: pemilik akunnya aktif, minta izin (konsen) terlebih dahulu.`);
+    } else if (res.linkRequests?.length) {
+      setSaveError(`Permintaan konfirmasi dikirim ke ${res.linkRequests.length} akun. Lingkaran tersambung setelah mereka menyetujui.`);
+    }
+  };
+
+  const savePersonalLayout = async (cfg?: TreeConfig, mem?: Members) => {
+    try {
+      applySaved(await treeApi.saveLayout<Partial<TreeConfig>, Members>({ config: cfg, members: mem, baseUpdatedAt: versionRef.current }));
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      if (err?.status === 409) {
+        // Someone (another device, a slice member, an approval) changed the tree.
+        // Merge our edits on top of the latest server state and retry once.
+        try {
+          const remote = await treeApi.getLayout<Partial<TreeConfig>, Members>();
+          const remoteCfg = remote.config ? { ...DEFAULT_CONFIG, ...remote.config } : null;
+          const mergedMem = mem ? mergeMembers(baseRef.current.members, mem, remote.members ?? {}) : undefined;
+          const mergedCfg = cfg ? mergeConfig(baseRef.current.config, cfg, remoteCfg) : undefined;
+          versionRef.current = remote.updatedAt ?? null;
+          baseRef.current = { config: remoteCfg, members: remote.members ?? {} };
+          if (mergedMem) setMembers(mergedMem);
+          if (mergedCfg) setConfig(mergedCfg);
+          try {
+            if (mergedMem) localStorage.setItem(`digsan_tree_mem_${uidRef.current}`, JSON.stringify(mergedMem));
+            if (mergedCfg) localStorage.setItem(`digsan_tree_cfg_${uidRef.current}`, JSON.stringify(mergedCfg));
+          } catch { /* ignore */ }
+          applySaved(await treeApi.saveLayout<Partial<TreeConfig>, Members>({
+            config: mergedCfg, members: mergedMem, baseUpdatedAt: versionRef.current,
+          }));
+          setSaveError('Silsilah juga diubah di tempat lain — perubahan Anda telah digabungkan.');
+        } catch {
+          setSaveError('Silsilah diubah di tempat lain dan gagal digabungkan. Muat ulang halaman.');
+        }
+      } else if (err?.status === 400 || err?.status === 403) {
+        setSaveError(err.message);
+      }
+      // Other errors (offline): keep local cache; will retry on next save.
+    }
   };
 
   const saveConfig = (c: TreeConfig) => {
@@ -971,7 +1048,7 @@ export default function TreeExplorer() {
             onClose={() => setPanel('none')}
             canDelete={isSuperUser && selected.id !== selfNodeId && selected.id !== 'self'}
             onDelete={() => deleteNode(selected.id)}
-            onSave={(m) => { saveMembers({ ...members, [selected.id]: m }, [selected.id]); setPanel('none'); }} />
+            onSave={(m) => { saveMembers({ ...members, [selected.id]: { ...members[selected.id], ...m } }, [selected.id]); setPanel('none'); }} />
         )}
       </div>
 
@@ -1143,6 +1220,7 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
     email: member?.email || '',
     phone: member?.phone || '',
     linkedUserId: member?.linkedUserId || null,
+    pendingLinkUserId: member?.pendingLinkUserId || null,
     publicName: member?.publicName || '',
     statusLabel: member?.statusLabel || '',
   });
@@ -1156,7 +1234,9 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
   const [userSearching, setUserSearching] = useState(false);
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [linkedUserConfirm, setLinkedUserConfirm] = useState<{ id: string; name: string; avatar: string | null; email: string } | null>(null);
-  const [matchStatus, setMatchStatus] = useState<'idle' | 'matching' | 'sent' | 'linked'>(member?.linkedUserId ? 'linked' : 'idle');
+  const [matchStatus, setMatchStatus] = useState<'idle' | 'matching' | 'sent' | 'linked'>(
+    member?.linkedUserId ? 'linked' : member?.pendingLinkUserId ? 'sent' : 'idle',
+  );
   const userSearchDebounce = useRef<ReturnType<typeof setTimeout>>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -1246,13 +1326,14 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
 
   const confirmLinkUser = () => {
     if (!linkedUserConfirm) return;
+    // The link only takes effect after the account owner approves it.
     setForm((f) => ({
       ...f,
       name: linkedUserConfirm.name,
       email: linkedUserConfirm.email,
-      linkedUserId: linkedUserConfirm.id,
+      pendingLinkUserId: linkedUserConfirm.id,
     }));
-    setMatchStatus('linked');
+    setMatchStatus('sent');
     setLinkedUserConfirm(null);
   };
 
@@ -1297,7 +1378,7 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
       });
       if (candidates.length > 0) {
         const target = candidates[0];
-        setForm((f) => ({ ...f, linkedUserId: target.id }));
+        setForm((f) => ({ ...f, pendingLinkUserId: target.id }));
         setMatchStatus('sent');
       } else {
         setMatchStatus('idle');
@@ -1492,7 +1573,20 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
             {/* Match status indicators */}
             {matchStatus === 'sent' && (
               <div className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2">
-                <span className="text-xs text-amber-700 dark:text-amber-300">Cocok ditemukan! Notifikasi persetujuan akan dikirim saat disimpan.</span>
+                <span className="flex-1 text-xs text-amber-700 dark:text-amber-300">
+                  {member?.pendingLinkUserId && member.pendingLinkUserId === form.pendingLinkUserId
+                    ? 'Menunggu persetujuan pemilik akun. Lingkaran tersambung setelah ia mengonfirmasi.'
+                    : 'Cocok ditemukan! Permintaan konfirmasi dikirim ke pemilik akun saat disimpan.'}
+                </span>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => { setForm((f) => ({ ...f, pendingLinkUserId: null })); setMatchStatus('idle'); }}
+                    className="shrink-0 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:underline"
+                  >
+                    Batalkan
+                  </button>
+                )}
               </div>
             )}
             {matchStatus === 'idle' && form.name.trim() && (form.email?.trim() || form.phone?.trim()) && !form.linkedUserId && (
