@@ -27,6 +27,49 @@ import ConnectFamilyModal from './ConnectFamilyModal';
 
 const ANCESTORS = ['Buyut', 'Canggah', 'Wareng', 'Udheg-udheg', 'Gantung Siwur', 'Gropak Senthe'];
 
+// ─── Node id helpers ────────────────────────────────────────
+
+/** True when `key` is `id` itself or a key nested under it (`id-…`). */
+const isUnder = (key: string, id: string) => key === id || key.startsWith(`${id}-`);
+
+/**
+ * Remove slot `<owner>-fc-<rel>-<index>` from a node's own setup and shift the
+ * later slots down, carrying their stored data, nested sub-trees and any
+ * parentId/spouseId references with them.
+ */
+export function removeFcSlot(members: Members, owner: string, rel: string, index: number, count: number): Members {
+  const slot = (i: number) => `${owner}-fc-${rel}-${i}`;
+  // The deleted circle, everything nested under its id, and circles added
+  // below it through the tree UI (parentId chain).
+  const removed = new Set(Object.keys(members).filter((k) => isUnder(k, slot(index))));
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [k, m] of Object.entries(members)) {
+      if (!removed.has(k) && m?.parentId && (removed.has(m.parentId) || isUnder(m.parentId, slot(index)))) { removed.add(k); grew = true; }
+    }
+  }
+  const renames = new Map<string, string>();
+  const next: Members = {};
+  for (const [key, m] of Object.entries(members)) {
+    if (removed.has(key)) continue;
+    let newKey = key;
+    for (let i = index + 1; i < Math.max(count, index + 1) + 50; i++) {
+      if (isUnder(key, slot(i))) { newKey = slot(i - 1) + key.slice(slot(i).length); break; }
+    }
+    if (newKey !== key) renames.set(key, newKey);
+    next[newKey] = m;
+  }
+  const deleted = (id?: string | null) => !!id && (removed.has(id) || isUnder(id, slot(index)));
+  const rename = (id?: string | null) => (id ? renames.get(id) ?? id : id);
+  for (const [key, m] of Object.entries(next)) {
+    if (!m) continue;
+    const parentId = deleted(m.parentId) ? null : rename(m.parentId);
+    const spouseId = deleted(m.spouseId) ? null : rename(m.spouseId);
+    if (parentId !== m.parentId || spouseId !== m.spouseId) next[key] = { ...m, parentId, spouseId };
+  }
+  return next;
+}
+
 // ─── Geometry helpers ───────────────────────────────────────
 
 const spread = (count: number, gap: number, cx: number): number[] => {
@@ -745,6 +788,27 @@ export default function TreeExplorer() {
 
   const deleteNode = (nodeId: string) => {
     if (nodeId === selfNodeId || nodeId === 'self') return;
+
+    // Circles generated from a node's own setup ("Atur jaringan") are not
+    // stored records: `<owner>-fc-<rel>-<i>` exists because owner.familyConfig
+    // counts it. Deleting must lower that count (and shift later circles),
+    // otherwise the circle is regenerated immediately.
+    const fc = /^(.+)-fc-(spouse|child|parent|older|younger)-(\d+)$/.exec(nodeId);
+    if (fc) {
+      const [, owner, rel, idxStr] = fc;
+      const index = parseInt(idxStr, 10);
+      const COUNT_KEYS = { spouse: 'spouseCount', child: 'childCount', parent: 'parentCount', older: 'olderCount', younger: 'youngerCount' } as const;
+      const countKey = COUNT_KEYS[rel as keyof typeof COUNT_KEYS];
+      const ownerCfg = { ...(members[owner]?.familyConfig ?? {}) };
+      const count = Number(ownerCfg[countKey] ?? (rel === 'older' ? ownerCfg.siblingCount : 0) ?? 0);
+      const next = removeFcSlot(members, owner, rel, index, count);
+      ownerCfg[countKey] = Math.max(0, count - 1);
+      if (rel === 'older') delete ownerCfg.siblingCount;
+      next[owner] = { ...(next[owner] ?? { name: '', gender: '', alive: true, photo: null }), familyConfig: ownerCfg };
+      saveMembers(next);
+      setPanel('none');
+      return;
+    }
 
     if (!isBaseNode(nodeId)) {
       const next: Members = { ...members };
