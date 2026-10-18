@@ -87,6 +87,29 @@ describe('layoutToGraphDraft (F1-03)', () => {
     expect(d.unmapped).toContain('child-7');
   });
 
+  it('ignores stale records of undrawn slots even when needed structurally (no cycle from old sync data)', () => {
+    // Real case: the old connection sync stored the inviter (the owner's CHILD)
+    // as `parent-1` of the owner, while parentCount = 1 so it is not drawn.
+    const d = layoutToGraphDraft({
+      ownerUserId: 'mother', ownerName: 'Ibu', config: { configured: true, parentCount: 1, olderCount: 1, youngerCount: 0, spouseCount: 0, childCount: 0 },
+      members: { 'parent-0': { name: 'Ayah Ibu' }, 'older-0': { name: 'Kakak Ibu' }, 'parent-1': { name: 'Anak', linkedUserId: 'child-account' } },
+    });
+    expect([...d.persons.values()].some((p) => p.userId === 'child-account')).toBe(false);
+    expect(d.persons.has('parent-1')).toBe(false); // only parent-0 is drawn; siblings share it
+    expect(has(d, 'parent-0', 'self')).toBe(true);
+    expect(has(d, 'parent-0', 'older-0')).toBe(true);
+    expect(d.unmapped).toContain('parent-1');
+  });
+
+  it('still links siblings through placeholder parents when no parent is drawn', () => {
+    const d = layoutToGraphDraft({
+      ownerUserId: 'u', ownerName: 'X', config: { configured: true, parentCount: 0, olderCount: 1, spouseCount: 0, childCount: 0 },
+      members: { 'older-0': { name: 'Kakak' } },
+    });
+    expect(has(d, 'parent-0', 'older-0') && has(d, 'parent-0', 'self')).toBe(true);
+    expect(d.persons.get('parent-0')!.isPlaceholder).toBe(true);
+  });
+
   it('builds per-node sub-trees from familyConfig (-fc- keys)', () => {
     const d = layoutToGraphDraft({
       ownerUserId: 'u', ownerName: 'X', config: { configured: true, spouseCount: 0, childCount: 1, parentCount: 0 },

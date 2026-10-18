@@ -107,12 +107,19 @@ class DraftBuilder {
   private readonly parentages = new Map<string, DraftParentage>();
   readonly unmapped = new Set<string>();
 
+  /**
+   * Stored records the explorer does not draw (e.g. `parent-1` while
+   * parentCount = 1). If such a slot is needed structurally it becomes an
+   * empty placeholder — its stale data (and account link) is ignored.
+   */
+  readonly hidden = new Set<string>();
+
   constructor(private readonly members: Rec, private readonly ownerUserId: string, private readonly ownerName: string) {}
 
   /** Ensure a person exists for `key`; unnamed slots become placeholders. */
   person(key: string, rel = key): string {
     if (this.persons.has(key)) return key;
-    const m = isObj(this.members[key]) ? this.members[key] : null;
+    const m = !this.hidden.has(key) && isObj(this.members[key]) ? this.members[key] : null;
     const isSelf = key === 'self';
     const name = (m?.name as string | undefined)?.trim() || (isSelf ? this.ownerName : '');
     this.persons.set(key, {
@@ -194,12 +201,16 @@ function applyRelative(
       return;
     case 'older':
     case 'younger': {
-      parentsUnion();
+      // Siblings share the ego's drawn parents; only when none is drawn do we
+      // add placeholder parents so the sibling relation is not lost.
+      const drawn = [k('parent-0'), k('parent-1')].filter((p) => b.persons.has(p) && !b.hidden.has(p));
+      const parents = drawn.length ? drawn : [father(), mother()];
+      if (parents.length === 2) b.union(parents[0], parents[1]);
       const birth = order(kind === 'older' ? idx : sib.older + 1 + idx);
-      b.parent(father(), target, birth);
-      b.parent(mother(), target, birth);
-      b.parent(father(), ego, order(sib.older));
-      b.parent(mother(), ego, order(sib.older));
+      for (const p of parents) {
+        b.parent(p, target, birth);
+        b.parent(p, ego, order(sib.older));
+      }
       return;
     }
     case 'gpP':
@@ -272,6 +283,11 @@ export function layoutToGraphDraft(input: LayoutInput): GraphDraft {
     ['gpP', parentCount > 0 ? count('simbahP') : 0],
     ['gpM', parentCount >= 2 ? count('simbahM') : 0],
   ];
+  const limits = new Map(slotCounts);
+  for (const [key, m] of Object.entries(members)) {
+    const slot = /^(spouse|child|parent|older|younger|gpP|gpM)-(\d+)$/.exec(key);
+    if (slot && !(isObj(m) && m.group) && Number(slot[2]) >= (limits.get(slot[1]) ?? 0)) b.hidden.add(key);
+  }
   for (const [prefix, n] of slotCounts) {
     for (let i = 0; i < n; i++) {
       const key = `${prefix}-${i}`;
