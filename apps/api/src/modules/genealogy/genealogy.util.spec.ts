@@ -53,14 +53,53 @@ describe('layoutToGraphDraft (F1-03)', () => {
     expect(d.parentages.filter((p) => p.childKey === 'child-0').map((p) => p.parentKey)).toEqual(['self']);
   });
 
-  it('resolves grandparents and uncles through the right parent', () => {
+  it('resolves grandparents, uncles and the ancestor chain through the right parent', () => {
     const d = layoutToGraphDraft({
-      ownerUserId: 'u', ownerName: 'X', config: { configured: true, parentCount: 2 },
-      members: { 'gpM-0': { name: 'Kakek Ibu' }, 'uncleMo-0': { name: 'Pakde dari Ibu' } },
+      ownerUserId: 'u', ownerName: 'X', config: { configured: true, parentCount: 2, simbahP: 0, simbahM: 2 },
+      members: {
+        'parent-1': { name: 'Ibu', familyConfig: { olderCount: 1 } },
+        'gpM-0': { name: 'Kakek Ibu' },
+        'uncleMo-0': { name: 'Pakde dari Ibu' },
+        'ancM-0': { name: 'Buyut' },
+        'ancM-1': { name: 'Canggah' },
+      },
     });
     expect(has(d, 'gpM-0', 'parent-1')).toBe(true);
     expect(has(d, 'gpM-0', 'uncleMo-0')).toBe(true);
-    expect(has(d, 'gpP-0', 'parent-0')).toBe(false);
+    expect(has(d, 'ancM-0', 'gpM-0')).toBe(true);
+    expect(has(d, 'ancM-1', 'ancM-0')).toBe(true);
+    expect(d.persons.has('gpP-0')).toBe(false); // simbahP = 0 → not drawn
+  });
+
+  it('treats tree-UI circles by their stored relations, never by key shape (timestamp ids)', () => {
+    const d = layoutToGraphDraft({
+      ownerUserId: 'u', ownerName: 'X', config: { configured: true, spouseCount: 1, childCount: 1, parentCount: 0 },
+      members: {
+        'child-0': { name: 'Anak' },
+        'child-1785683950690370': { name: 'Cucu', group: 'child', parentId: 'child-0' },
+        'child-7': { name: 'Sisa data lama' }, // childCount = 1 → not drawn
+      },
+    });
+    expect(has(d, 'child-0', 'child-1785683950690370')).toBe(true);
+    expect(has(d, 'self', 'child-1785683950690370')).toBe(false);
+    for (const p of d.parentages) expect(p.birthOrder == null || p.birthOrder < 1000).toBe(true);
+    expect(d.persons.has('child-7')).toBe(false);
+    expect(d.unmapped).toContain('child-7');
+  });
+
+  it('builds per-node sub-trees from familyConfig (-fc- keys)', () => {
+    const d = layoutToGraphDraft({
+      ownerUserId: 'u', ownerName: 'X', config: { configured: true, spouseCount: 0, childCount: 1, parentCount: 0 },
+      members: {
+        'child-0': { name: 'Anak', familyConfig: { spouseCount: 1, childCount: 2 } },
+        'child-0-fc-child-1': { name: 'Cucu Kedua' },
+      },
+    });
+    expect(hasUnion(d, 'child-0', 'child-0-fc-spouse-0')).toBe(true);
+    expect(has(d, 'child-0', 'child-0-fc-child-1')).toBe(true);
+    expect(has(d, 'child-0-fc-spouse-0', 'child-0-fc-child-1')).toBe(true); // only partner → co-parent
+    expect(d.persons.get('child-0-fc-child-1')!.displayName).toBe('Cucu Kedua');
+    expect(d.persons.get('child-0-fc-child-0')!.isPlaceholder).toBe(true);
   });
 
   it('maps namespaced keys relative to their own ego (married-in ancestry)', () => {

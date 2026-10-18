@@ -62,7 +62,6 @@ const isObj = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.i
 /** Relationship tokens a key can end with, relative to its ego. */
 const REL_TOKEN = '(?:parent|older|younger|gpP|gpM|uncle[PM][oy]|ancP|ancM|spouse|child)-\\d+';
 const NAMESPACED_RE = new RegExp(`^(.+)-(${REL_TOKEN})$`);
-const BASE_RE = new RegExp(`^(?:self|${REL_TOKEN})$`);
 
 const SLOT_LABEL: Record<string, string> = {
   'parent-0': 'Ayah',
@@ -174,7 +173,7 @@ function applyRelative(
   k: (rel: string) => string,
   rel: string,
   target: string,
-  order: { older: number },
+  sib: { older: number },
 ) {
   const [kind, idxStr] = rel.split(/-(?=\d+$)/);
   const idx = Number(idxStr);
@@ -187,7 +186,7 @@ function applyRelative(
       b.union(ego, target);
       return;
     case 'child':
-      b.parent(ego, target, idx);
+      b.parent(ego, target, order(idx));
       return;
     case 'parent':
       b.parent(target, ego);
@@ -196,11 +195,11 @@ function applyRelative(
     case 'older':
     case 'younger': {
       parentsUnion();
-      const birth = kind === 'older' ? idx : order.older + 1 + idx;
+      const birth = order(kind === 'older' ? idx : sib.older + 1 + idx);
       b.parent(father(), target, birth);
       b.parent(mother(), target, birth);
-      b.parent(father(), ego, order.older);
-      b.parent(mother(), ego, order.older);
+      b.parent(father(), ego, order(sib.older));
+      b.parent(mother(), ego, order(sib.older));
       return;
     }
     case 'gpP':
@@ -228,11 +227,22 @@ function applyRelative(
         b.parent(parentOfEgo, ego);
         return;
       }
-      // ancP/ancM (buyut, canggah …): generation unknown — keep the person, no edge.
+      if (kind === 'ancP' || kind === 'ancM') {
+        // Ancestor chain above the grandfather: anc{P|M}-0 = parent of gp{P|M}-0,
+        // anc-i = parent of anc-(i-1) (mirrors configToGraph on the web).
+        const side = kind === 'ancP' ? 'gpP' : 'gpM';
+        const childKey = idx === 0 ? b.person(k(`${side}-0`), `${side}-0`) : b.person(k(`${kind}-${idx - 1}`), `${kind}-${idx - 1}`);
+        b.parent(target, childKey);
+        if (idx === 0) b.parent(childKey, side === 'gpP' ? father() : mother());
+        return;
+      }
       b.unmapped.add(target);
     }
   }
 }
+
+/** Birth order is only meaningful for small slot indices (never timestamps). */
+const order = (i: number) => (Number.isInteger(i) && i >= 0 && i < 1000 ? i : null);
 
 /** Convert one tree's layout JSON into a graph draft. */
 export function layoutToGraphDraft(input: LayoutInput): GraphDraft {
@@ -244,66 +254,101 @@ export function layoutToGraphDraft(input: LayoutInput): GraphDraft {
   const count = (k: string) => Math.max(0, Math.floor(Number(cfg[k] ?? 0)) || 0);
   const selfOrder = { older: count('olderCount') };
   const selfK = (rel: string) => (rel === 'self' ? 'self' : rel);
+  const placed = new Set<string>(['self']);
+  const place = (key: string, rel = key) => {
+    placed.add(key);
+    applyRelative(b, 'self', selfK, rel, b.person(key, rel), selfOrder);
+  };
 
-  // 1. Slots the owner counted in the setup form (even unnamed ones are real people).
-  if (cfg.configured) {
-    const slots: [string, number][] = [
-      ['spouse', count('spouseCount')],
-      ['child', count('childCount')],
-      ['parent', Math.min(2, count('parentCount'))],
-      ['older', count('olderCount')],
-      ['younger', count('youngerCount')],
-    ];
-    for (const [prefix, n] of slots) {
-      for (let i = 0; i < n; i++) {
-        const key = b.person(`${prefix}-${i}`);
-        applyRelative(b, 'self', selfK, key, key, selfOrder);
+  // 1. Base slots — exactly what the web explorer draws (configToGraph):
+  //    a slot `child-3` only exists if childCount > 3, even if data is stored.
+  const parentCount = Math.min(2, count('parentCount'));
+  const slotCounts: [string, number][] = [
+    ['spouse', count('spouseCount')],
+    ['child', count('childCount')],
+    ['parent', parentCount],
+    ['older', count('olderCount')],
+    ['younger', count('youngerCount')],
+    ['gpP', parentCount > 0 ? count('simbahP') : 0],
+    ['gpM', parentCount >= 2 ? count('simbahM') : 0],
+  ];
+  for (const [prefix, n] of slotCounts) {
+    for (let i = 0; i < n; i++) {
+      const key = `${prefix}-${i}`;
+      // Unnamed counted slots are real people; extra grandparent slots (>2) have no defined edge.
+      if (cfg.configured || members[key]) {
+        if ((prefix === 'gpP' || prefix === 'gpM') && i > 1) { if (members[key]) { b.person(key); placed.add(key); } continue; }
+        place(key);
       }
     }
   }
+  // Ancestor chain + uncles only where the web would draw them.
+  for (const [anc, simbah] of [['ancP', count('simbahP')], ['ancM', count('simbahM')]] as const) {
+    if (simbah <= 0) continue;
+    for (let i = 0; i < 6; i++) if (isObj(members[`${anc}-${i}`])) place(`${anc}-${i}`);
+  }
+  for (const [parentKey, side] of [['parent-0', 'P'], ['parent-1', 'M']] as const) {
+    const fc = isObj(members[parentKey]?.familyConfig) ? members[parentKey].familyConfig : {};
+    const older = Number(fc.olderCount ?? fc.siblingCount ?? 0) || 0;
+    const younger = Number(fc.youngerCount ?? 0) || 0;
+    if (!b.persons.has(parentKey)) continue;
+    for (let i = 0; i < older; i++) place(`uncle${side}o-${i}`);
+    for (let i = 0; i < younger; i++) place(`uncle${side}y-${i}`);
+  }
 
-  // 2. Every stored member, base keys first so namespaced egos already exist.
-  const keys = Object.keys(members).sort((x, y) => x.split('-').length - y.split('-').length);
-  for (const key of keys) {
-    if (key === 'self') continue;
+  // 2. Per-node sub-trees from a node's familyConfig: `<node>-fc-<rel>-<i>`.
+  for (const nodeKey of [...b.persons.keys()]) {
+    const fc = isObj(members[nodeKey]?.familyConfig) ? members[nodeKey].familyConfig : null;
+    if (!fc) continue;
+    const fcKey = (rel: string) => `${nodeKey}-fc-${rel}`;
+    const ensure = (rel: string) => { placed.add(fcKey(rel)); return b.person(fcKey(rel), rel); };
+    for (let i = 0; i < (Number(fc.spouseCount) || 0); i++) b.union(nodeKey, ensure(`spouse-${i}`));
+    for (let i = 0; i < (Number(fc.childCount) || 0); i++) b.parent(nodeKey, ensure(`child-${i}`), order(i));
+    let parents = b.parentsOf(nodeKey);
+    const pc = Math.min(2, Number(fc.parentCount) || 0);
+    if (pc > 0 && parents.length === 0) {
+      parents = Array.from({ length: pc }, (_, i) => ensure(`parent-${i}`));
+      for (const p of parents) b.parent(p, nodeKey);
+      if (parents.length === 2) b.union(parents[0], parents[1]);
+    }
+    if (nodeKey === 'parent-0' || nodeKey === 'parent-1') continue; // siblings handled as uncles
+    const older = Number(fc.olderCount ?? fc.siblingCount ?? 0) || 0;
+    const younger = Number(fc.youngerCount ?? 0) || 0;
+    const sibs = [...Array.from({ length: older }, (_, i) => ensure(`older-${i}`)), ...Array.from({ length: younger }, (_, i) => ensure(`younger-${i}`))];
+    for (const s of sibs) for (const p of parents) b.parent(p, s);
+  }
+
+  // 3. Stored members that are not base slots.
+  for (const key of Object.keys(members)) {
+    if (placed.has(key)) continue;
     const m = members[key];
     if (!isObj(m)) { b.unmapped.add(key); continue; }
 
-    if (BASE_RE.test(key)) {
-      applyRelative(b, 'self', selfK, key, b.person(key), selfOrder);
-      continue;
-    }
-
-    // Explicitly added circles (recursive tree UI): relations are stored on the node.
-    if (m.parentId || m.spouseId) {
+    // Circles added through the tree UI carry `group` + explicit relations,
+    // whatever their key looks like (e.g. `child-1785683950690370`).
+    if (m.group) {
       b.person(key);
-      if (typeof m.spouseId === 'string' && m.spouseId) b.union(b.person(m.spouseId), key);
-      if (typeof m.parentId === 'string' && m.parentId) b.parent(b.person(m.parentId), key, null);
+      if (typeof m.spouseId === 'string' && m.spouseId && m.spouseId !== key) b.union(b.person(m.spouseId), key);
+      if (typeof m.parentId === 'string' && m.parentId && m.parentId !== key) b.parent(b.person(m.parentId), key, null);
       continue;
     }
 
-    // Namespaced: "<ego>-<rel>", e.g. spouse-0-parent-1, child-1-spouse-0.
+    // Per-node sub-tree records saved for slots not counted any more are stale.
+    if (/-fc-/.test(key)) { b.unmapped.add(key); continue; }
+
+    // Married-in ancestry on the public page: spouse-N-<rel>, and legacy child-N-spouse.
     const ns = NAMESPACED_RE.exec(key);
-    if (ns) {
+    if (ns && /^spouse-\d+$/.test(ns[1]) && b.persons.has(ns[1])) {
       const [, ego, rel] = ns;
-      b.person(ego);
       const egoOrder = { older: Object.keys(members).filter((x) => x.startsWith(`${ego}-older-`)).length };
       applyRelative(b, ego, (r) => (r === 'self' ? ego : `${ego}-${r}`), rel, b.person(key, rel), egoOrder);
       continue;
     }
+    const legacySpouse = /^(child-\d+)-spouse$/.exec(key);
+    if (legacySpouse && b.persons.has(legacySpouse[1])) { b.union(legacySpouse[1], b.person(key)); continue; }
 
-    // Legacy shapes written by the old connection sync.
-    const legacySpouse = /^(.+)-spouse$/.exec(key);
-    if (legacySpouse) { b.union(b.person(legacySpouse[1]), b.person(key)); continue; }
-    const legacySibling = /^sibling-(\d+)$/.exec(key);
-    if (legacySibling) { applyRelative(b, 'self', selfK, `older-${legacySibling[1]}`, b.person(key), selfOrder); continue; }
-    const legacyGp = /^grandparent-([pm])-(\d+)$/.exec(key);
-    if (legacyGp) {
-      applyRelative(b, 'self', selfK, `${legacyGp[1] === 'p' ? 'gpP' : 'gpM'}-${Math.max(0, Number(legacyGp[2]) - 1)}`, b.person(key), selfOrder);
-      continue;
-    }
-
-    if (m.name) b.person(key);
+    // Anything else is not drawn by the explorer (e.g. data left after a count
+    // was reduced, or junk keys) — report it, don't invent relations.
     b.unmapped.add(key);
   }
 
