@@ -1866,6 +1866,9 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
               )}
 
               <div className={unlocked ? '' : 'opacity-40 pointer-events-none select-none'}>
+                <p className="text-[11px] text-slate-500 dark:text-white/50 mb-2">
+                  Isi jumlah total, termasuk anggota yang sudah tergambar. Lingkaran baru hanya dibuat untuk yang belum ada.
+                </p>
                 {showFullControls && (
                   <>
                     <NumField

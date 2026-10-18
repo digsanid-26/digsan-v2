@@ -313,13 +313,48 @@ export function layoutToGraphDraft(input: LayoutInput): GraphDraft {
   }
 
   // 2. Per-node sub-trees from a node's familyConfig: `<node>-fc-<rel>-<i>`.
+  //    Counts are TOTALS including relatives already drawn (mirrors the web's
+  //    configToGraph): only the missing ones — plus slots already filled in —
+  //    are generated, so a grandfather set to "1 spouse, 6 children" who
+  //    already has his wife and children drawn gets no duplicates.
+  const explicit = Object.entries(members)
+    .filter(([k, m]) => isObj(m) && m.group && !placed.has(k))
+    .map(([k, m]) => ({ key: k, parentId: (m.parentId as string) || null, spouseId: (m.spouseId as string) || null }));
+  const isOwnFc = (key: string, owner: string) => key.startsWith(`${owner}-fc-`);
+  const existing = (nodeKey: string) => {
+    const spouses = new Set(b.partnersOf(nodeKey).filter((k) => !isOwnFc(k, nodeKey)));
+    for (const e of explicit) if (e.spouseId === nodeKey) spouses.add(e.key);
+    const ownSpouse = members[nodeKey]?.spouseId;
+    if (typeof ownSpouse === 'string' && ownSpouse) spouses.add(ownSpouse);
+    const childParents = new Set([nodeKey, ...spouses]);
+    const children = new Set(
+      b.allParentages().filter((p) => childParents.has(p.parentKey) && !isOwnFc(p.childKey, nodeKey)).map((p) => p.childKey),
+    );
+    for (const e of explicit) if (e.parentId && childParents.has(e.parentId)) children.add(e.key);
+    const parents = new Set(b.parentsOf(nodeKey));
+    const siblings = new Set(
+      b.allParentages().filter((p) => parents.has(p.parentKey) && p.childKey !== nodeKey && !isOwnFc(p.childKey, nodeKey)).map((p) => p.childKey),
+    );
+    for (const e of explicit) if (e.parentId && parents.has(e.parentId) && e.key !== nodeKey) siblings.add(e.key);
+    return { spouses: spouses.size, children: children.size, siblings: siblings.size };
+  };
+  const fcIndices = (nodeKey: string, rel: string, missing: number) => {
+    const idx = new Set<number>(Array.from({ length: Math.max(0, missing) }, (_, i) => i));
+    const prefix = `${nodeKey}-fc-${rel}-`;
+    for (const [k, m] of Object.entries(members)) {
+      if (k.startsWith(prefix) && /^\d+$/.test(k.slice(prefix.length)) && isObj(m) && m.name) idx.add(Number(k.slice(prefix.length)));
+    }
+    return [...idx].sort((x, y) => x - y);
+  };
+
   for (const nodeKey of [...b.persons.keys()]) {
     const fc = isObj(members[nodeKey]?.familyConfig) ? members[nodeKey].familyConfig : null;
     if (!fc) continue;
+    const have = existing(nodeKey);
     const fcKey = (rel: string) => `${nodeKey}-fc-${rel}`;
     const ensure = (rel: string) => { placed.add(fcKey(rel)); return b.person(fcKey(rel), rel); };
-    for (let i = 0; i < (Number(fc.spouseCount) || 0); i++) b.union(nodeKey, ensure(`spouse-${i}`));
-    for (let i = 0; i < (Number(fc.childCount) || 0); i++) b.parent(nodeKey, ensure(`child-${i}`), order(i));
+    for (const i of fcIndices(nodeKey, 'spouse', (Number(fc.spouseCount) || 0) - have.spouses)) b.union(nodeKey, ensure(`spouse-${i}`));
+    for (const i of fcIndices(nodeKey, 'child', (Number(fc.childCount) || 0) - have.children)) b.parent(nodeKey, ensure(`child-${i}`), order(i));
     let parents = b.parentsOf(nodeKey);
     const pc = Math.min(2, Number(fc.parentCount) || 0);
     if (pc > 0 && parents.length === 0) {
@@ -330,7 +365,12 @@ export function layoutToGraphDraft(input: LayoutInput): GraphDraft {
     if (nodeKey === 'parent-0' || nodeKey === 'parent-1') continue; // siblings handled as uncles
     const older = Number(fc.olderCount ?? fc.siblingCount ?? 0) || 0;
     const younger = Number(fc.youngerCount ?? 0) || 0;
-    const sibs = [...Array.from({ length: older }, (_, i) => ensure(`older-${i}`)), ...Array.from({ length: younger }, (_, i) => ensure(`younger-${i}`))];
+    const missingSiblings = Math.max(0, older + younger - have.siblings);
+    const missingOlder = Math.min(older, missingSiblings);
+    const sibs = [
+      ...fcIndices(nodeKey, 'older', missingOlder).map((i) => ensure(`older-${i}`)),
+      ...fcIndices(nodeKey, 'younger', missingSiblings - missingOlder).map((i) => ensure(`younger-${i}`)),
+    ];
     for (const s of sibs) for (const p of parents) b.parent(p, s);
   }
 

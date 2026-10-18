@@ -86,5 +86,46 @@ const uncleRes = run('uncles+cousins', unclesCfg, uncleMembers);
 const cousins = uncleRes.nodes.filter((n) => n.id.startsWith('x-child-3'));
 check('uncles: all cousins + their children placed', cousins.length === 3, `${cousins.length}`);
 
+// ── Case 5: per-node setup counts INCLUDE relatives already drawn ──
+// Grandfather set to "1 spouse, 6 children" already has his wife (gpP-1),
+// the father and 5 uncles → no duplicate circles.
+const gpCfg: TreeConfig = { ...DEFAULT_CONFIG, configured: true, simbahP: 2 };
+const gpMembers: Members = {
+  'parent-0': { name: 'Ayah', gender: 'L', alive: false, photo: null, familyConfig: { olderCount: 3, youngerCount: 2 } },
+  'gpP-0': { name: 'Kakek', gender: 'L', alive: false, photo: null, familyConfig: { spouseCount: 1, childCount: 6 } },
+  'gpP-1': { name: 'Nenek', gender: 'P', alive: false, photo: null, familyConfig: { spouseCount: 1, childCount: 6 } },
+};
+const gpRes = run('setup-counts-include-existing', gpCfg, gpMembers);
+check('setup counts: no extra spouse for grandparents', !gpRes.g['gpP-0-fc-spouse-0'] && !gpRes.g['gpP-1-fc-spouse-0']);
+check('setup counts: no duplicate children for grandparents', !Object.keys(gpRes.g).some((id) => /^gpP-[01]-fc-child-/.test(id)));
+
+// Siblings: self has 3 younger siblings; Budi (younger-0) set to "1 older, 2 younger"
+// (= self + 2 others) → nothing extra.
+const sibCfg: TreeConfig = { ...DEFAULT_CONFIG, configured: true, olderCount: 0, youngerCount: 3 };
+const sibMembers: Members = {
+  'younger-0': { name: 'Budi', gender: 'L', alive: true, photo: null, familyConfig: { olderCount: 1, youngerCount: 2 } },
+};
+const sibCountRes = run('setup-sibling-counts', sibCfg, sibMembers);
+check('setup counts: no duplicate siblings', !Object.keys(sibCountRes.g).some((id) => id.startsWith('younger-0-fc-')));
+
+// Only the missing ones are generated: a child with 1 grandchild drawn ("+"), set to 3 → 2 extra.
+const childCfg: TreeConfig = { ...DEFAULT_CONFIG, configured: true, childCount: 1 };
+const partialMembers: Members = {
+  'child-0': { name: 'Anak', gender: 'L', alive: true, photo: null, familyConfig: { childCount: 3 } },
+  'x-child-40': { name: 'Cucu', gender: 'L', alive: true, photo: null, group: 'child', parentId: 'child-0' },
+};
+const partialRes = run('setup-partial-counts', childCfg, partialMembers);
+const extra = Object.keys(partialRes.g).filter((id) => /^child-0-fc-child-/.test(id));
+check('setup counts: only missing children generated', extra.length === 2, extra.join(','));
+
+// A slot the user already filled in is never hidden, even if now redundant.
+const keptMembers: Members = {
+  'child-0': { name: 'Anak', gender: 'L', alive: true, photo: null, familyConfig: { childCount: 1 } },
+  'x-child-40': { name: 'Cucu', gender: 'L', alive: true, photo: null, group: 'child', parentId: 'child-0' },
+  'child-0-fc-child-0': { name: 'Nama yang sudah diisi', gender: 'P', alive: true, photo: null },
+};
+const keptRes = run('setup-keeps-filled-slots', childCfg, keptMembers);
+check('setup counts: filled-in slot kept', !!keptRes.g['child-0-fc-child-0']);
+
 console.log(failures === 0 ? '\nAll layout checks passed.' : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

@@ -110,6 +110,24 @@ describe('layoutToGraphDraft (F1-03)', () => {
     expect(d.persons.get('parent-0')!.isPlaceholder).toBe(true);
   });
 
+  it('treats per-node setup counts as totals including relatives already drawn', () => {
+    const d = layoutToGraphDraft({
+      ownerUserId: 'u', ownerName: 'X',
+      config: { configured: true, parentCount: 2, simbahP: 2, simbahM: 0, olderCount: 0, youngerCount: 3, spouseCount: 0, childCount: 0 },
+      members: {
+        'parent-0': { name: 'Ayah', familyConfig: { olderCount: 3, youngerCount: 2 } },
+        'gpP-0': { name: 'Kakek', familyConfig: { spouseCount: 1, childCount: 6 } },
+        'gpP-1': { name: 'Nenek', familyConfig: { spouseCount: 1, childCount: 6 } },
+        'younger-0': { name: 'Budi', familyConfig: { olderCount: 1, youngerCount: 2 } },
+        'gpP-0-fc-child-4': { name: 'Sudah diisi' },
+      },
+    });
+    const fcKeys = [...d.persons.keys()].filter((k) => k.includes('-fc-'));
+    // Wife + 6 children already drawn → nothing generated, except the slot the user filled in.
+    expect(fcKeys).toEqual(['gpP-0-fc-child-4']);
+    expect(d.persons.get('gpP-0-fc-child-4')!.displayName).toBe('Sudah diisi');
+  });
+
   it('builds per-node sub-trees from familyConfig (-fc- keys)', () => {
     const d = layoutToGraphDraft({
       ownerUserId: 'u', ownerName: 'X', config: { configured: true, spouseCount: 0, childCount: 1, parentCount: 0 },

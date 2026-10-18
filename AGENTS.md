@@ -7,6 +7,9 @@
 ## Verification
 - API typecheck: `npx tsc --noEmit -p tsconfig.json` (in `apps/api`). To include e2e specs, extend tsconfig with `"include": ["src/**/*", "test/**/*"]`.
 - Web typecheck: `npx tsc --noEmit -p tsconfig.json` (in `apps/web`); lint: `npx eslint <files>`.
+- Web tree layout regression (no `tsx` installed; use the API's ts-node, in `apps/web`):
+  `../api/node_modules/.bin/ts-node --transpile-only -O '{"module":"commonjs","moduleResolution":"node","jsx":"react-jsx"}' scripts/verify-layout.ts`
+- Per-node setup ("Atur jaringan", `member.familyConfig`) counts are TOTALS including relatives already drawn; keep `familyGraph.ts` (web) and `layout-graph.util.ts` (API) in sync.
 - API unit tests (no DB needed): `npx jest src/modules/tree` (ts-jest is slow on Windows, ~7 min cold).
 - API e2e tests (`apps/api/test/*.e2e-spec.ts`) boot the full AppModule and need PostgreSQL **and** Redis; they create/delete their own users. Ask the user before running them against the local DB.
 - Generate a migration without a DB: `git show HEAD:apps/api/prisma/schema.prisma > prisma/.old.prisma && npx prisma migrate diff --from-schema-datamodel prisma/.old.prisma --to-schema-datamodel prisma/schema.prisma --script` (use a path inside the repo; `/tmp` is not visible to node on Windows). Do not apply migrations to the local DB without asking.

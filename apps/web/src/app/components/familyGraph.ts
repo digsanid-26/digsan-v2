@@ -250,21 +250,64 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
   buildParentSiblings('parent-0', 'P');
   buildParentSiblings('parent-1', 'M');
 
-  // ─── Per-node familyConfig sub-trees (super_user on unclaimed nodes) ───
+  // ─── Per-node familyConfig sub-trees ("Atur jaringan" per circle) ───
   // For any node that has a familyConfig override, build spouses, children,
   // parents, and siblings attached to that node. This generalises the
   // parent-sibling logic above to ALL node types (grandparents, ancestors,
   // children, siblings, etc.).
+  //
+  // The counts are TOTALS that include relatives already drawn (base slots,
+  // uncles, circles added with "+"). Only the missing ones are generated, so a
+  // grandfather set to "1 spouse, 6 children" who already has his wife and six
+  // children drawn gets no duplicate circles. Slots the user already filled in
+  // (stored with a name) are always kept, so no entered data disappears.
+  const explicitCircles = Object.entries(members)
+    .filter(([id, m]) => m && m.group && !g[id])
+    .map(([id, m]) => ({ id, parentId: m.parentId ?? null, spouseId: m.spouseId ?? null }));
+  const relativesPool = () => [
+    ...Object.values(g).map((m) => ({ id: m.id, parentId: m.parentId ?? null, spouseId: m.spouseId ?? null })),
+    ...explicitCircles,
+  ];
+  const isOwnFc = (id: string, nodeId: string) => id.startsWith(`${nodeId}-fc-`);
+  const existingRelatives = (nodeId: string) => {
+    const node = g[nodeId];
+    const pool = relativesPool().filter((m) => m.id !== nodeId && !isOwnFc(m.id, nodeId));
+    const spouses = new Set<string>();
+    if (node?.spouseId && !isOwnFc(node.spouseId, nodeId)) spouses.add(node.spouseId);
+    for (const m of pool) if (m.spouseId === nodeId) spouses.add(m.id);
+    const childParents = new Set([nodeId, ...spouses]);
+    const children = pool.filter((m) => m.parentId && childParents.has(m.parentId));
+    const parentIds = new Set<string>();
+    if (node?.parentId) {
+      parentIds.add(node.parentId);
+      const ps = g[node.parentId]?.spouseId;
+      if (ps) parentIds.add(ps);
+    }
+    const siblings = parentIds.size ? pool.filter((m) => m.parentId && parentIds.has(m.parentId) && !spouses.has(m.id)) : [];
+    return { spouses: spouses.size, children: children.length, siblings: siblings.length };
+  };
+  /** Indices to generate for `<node>-fc-<rel>-<i>`: the missing ones, plus any slot already filled in. */
+  const fcIndices = (nodeId: string, rel: string, missing: number) => {
+    const idx = new Set<number>(Array.from({ length: Math.max(0, missing) }, (_, i) => i));
+    const re = new RegExp(`^${nodeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-fc-${rel}-(\\d+)$`);
+    for (const [id, m] of Object.entries(members)) {
+      const hit = re.exec(id);
+      if (hit && m?.name) idx.add(Number(hit[1]));
+    }
+    return [...idx].sort((a, b) => a - b);
+  };
+
   const buildFamilyConfigSubtree = (nodeId: string) => {
     const node = g[nodeId];
     const o = ov(nodeId);
     if (!node || !o) return;
     const fc = o.familyConfig;
     if (!fc) return;
+    const have = existingRelatives(nodeId);
 
     // Spouses
     const spouseCount = fc.spouseCount ?? 0;
-    for (let i = 0; i < spouseCount; i++) {
+    for (const i of fcIndices(nodeId, 'spouse', spouseCount - have.spouses)) {
       const sid = `${nodeId}-fc-spouse-${i}`;
       if (g[sid]) continue;
       add({
@@ -284,7 +327,7 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
 
     // Children
     const childCount = fc.childCount ?? 0;
-    for (let i = 0; i < childCount; i++) {
+    for (const i of fcIndices(nodeId, 'child', childCount - have.children)) {
       const cid = `${nodeId}-fc-child-${i}`;
       if (g[cid]) continue;
       add({
@@ -332,8 +375,13 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
     if (nodeId === 'parent-0' || nodeId === 'parent-1') return;
     const older = fc.olderCount ?? fc.siblingCount ?? 0;
     const younger = fc.youngerCount ?? 0;
+    // Existing siblings can't be split into older/younger reliably, so the
+    // missing total is filled older-first.
+    const missingSiblings = Math.max(0, older + younger - have.siblings);
+    const missingOlder = Math.min(older, missingSiblings);
+    const missingYounger = missingSiblings - missingOlder;
     const sibParent = node.parentId;
-    for (let i = 0; i < older; i++) {
+    for (const i of fcIndices(nodeId, 'older', missingOlder)) {
       const sid = `${nodeId}-fc-older-${i}`;
       if (g[sid]) continue;
       add({
@@ -349,7 +397,7 @@ export function configToGraph(config: TreeConfig, members: Members, selfName: st
         spouseId: null,
       });
     }
-    for (let i = 0; i < younger; i++) {
+    for (const i of fcIndices(nodeId, 'younger', missingYounger)) {
       const sid = `${nodeId}-fc-younger-${i}`;
       if (g[sid]) continue;
       add({
