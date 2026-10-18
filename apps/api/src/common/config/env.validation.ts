@@ -102,6 +102,12 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   OPENROUTER_API_KEY: string;
+
+  // Genealogy graph dual-write (Fase 1). 'true' mirrors every legacy tree
+  // write into persons/parentages/unions; anything else disables it.
+  @IsString()
+  @IsOptional()
+  GRAPH_MODEL?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

@@ -397,17 +397,26 @@ Format: `- [ ] ID — tugas` · **File** · **Kriteria selesai (DoD)**.
 
 ### Fase 1 — Fondasi Model Graf (dual-write, di balik feature flag `GRAPH_MODEL`)
 
-- [ ] **F1-01 — Tambah model `Person`, `PersonName`, `Parentage`, `Union`, `UnionEvent`, `PersonSteward`, `PersonRevision`** (lihat §3.2) + migration + semua enum (`Sex`, `DatePrecision`, `VitalStatus`, `ParentageKind`, `Certainty`, `UnionKind`, `UnionStatus`, …). Skema sejak awal sudah mendukung kasus Fase 5 agar tidak perlu migrasi ulang.
-- [ ] **F1-02 — Modul baru `apps/api/src/modules/genealogy/`** (`person.service`, `parentage.service`, `union.service`, `graph.service`, `kinship.service`) — jangan menambah ke `tree.service.ts` yang sudah 3.4k baris. Akses graf lewat interface `GraphRepository` (implementasi awal: PostgreSQL) supaya Fase 7 tinggal menambah implementasi Neo4j/AGE.
-- [ ] **F1-03 — Kamus konversi key layout → relasi absolut.**
+> **Status (2026-10-18): kode selesai, belum dideploy.**
+> - Modul `apps/api/src/modules/genealogy/`: `layout-graph.util.ts` (F1-03/F1-05), `graph-rules.util.ts` (F1-07/F1-09), `graph.repository.ts` (F1-08, recursive CTE — titik ganti untuk AGE/Neo4j), `graph-sync.service.ts` (F1-04/F1-06), `genealogy.service.ts` + controller.
+> - Migration `20261017090000_genealogy_graph` (aditif). Tambahan di luar draf §3.2: `LegacyNodeMap` (tree+key → Person) dan `GraphAssertion` (pohon mana yang menyatakan relasi; relasi dihapus hanya jika tak ada pohon yang menyatakannya lagi).
+> - Endpoint baca: `GET /api/genealogy/me/view?up&down&mode=nasab|hukum|sosial`, `GET /api/genealogy/me/relation/:personId`. Admin: `GET /api/genealogy/admin/check`, `POST /api/genealogy/admin/backfill` (dry-run kecuali `?apply=true`). CLI: `pnpm --filter @digsan/api graph:backfill [-- --apply]`.
+> - Dual-write aktif hanya bila `GRAPH_MODEL=true`; berjalan di latar (tidak memblokir/menggagalkan penyimpanan lama), diserialisasi per pohon dengan advisory lock. Tanpa flag, perilaku aplikasi tidak berubah.
+> - Data lama dipetakan sebagai `BIOLOGICAL` dengan `certainty = ASSUMED`. Slot yang dihitung di form setup tapi belum diberi nama → Person placeholder (`UNFILLED_SLOT`).
+> - Orang tua yang digambar ulang oleh tiap saudara **belum digabung** — muncul sebagai `DUPLICATE_PARENT_SUSPECT` di `admin/check` dan menjadi masukan merge di Fase 2 (F2-04/F2-06).
+> - Urutan deploy: migrate → backfill **dry-run** di produksi → tinjau laporan → `--apply` → set `GRAPH_MODEL=true` → restart API.
+
+- [x] **F1-01 — Tambah model `Person`, `PersonName`, `Parentage`, `Union`, `UnionEvent`, `PersonSteward`, `PersonRevision`** (lihat §3.2) + migration + semua enum (`Sex`, `DatePrecision`, `VitalStatus`, `ParentageKind`, `Certainty`, `UnionKind`, `UnionStatus`, …). Skema sejak awal sudah mendukung kasus Fase 5 agar tidak perlu migrasi ulang.
+- [x] **F1-02 — Modul baru `apps/api/src/modules/genealogy/`** (`person.service`, `parentage.service`, `union.service`, `graph.service`, `kinship.service`) — jangan menambah ke `tree.service.ts` yang sudah 3.4k baris. Akses graf lewat interface `GraphRepository` (implementasi awal: PostgreSQL) supaya Fase 7 tinggal menambah implementasi Neo4j/AGE.
+- [x] **F1-03 — Kamus konversi key layout → relasi absolut.**
   Tabel pemetaan: `parent-i` → `Parentage(x → ego)`; `spouse-i` → `Union(ego, x)`; `child-i` → `Parentage(ego → x)` (+ dari spouse & `unionId` jika `parentId` menunjuk spouse); `older-i`/`younger-i` → anak dari orang tua ego (buat placeholder orang tua bila belum ada); `gpP-i` → `Parentage(x → parent-0)`; `gpM-i` → `Parentage(x → parent-1)`; `unclePo/unclePy` → anak dari `gpP`; `spouse-k-<key>` → rekursif dengan ego = `spouse-k`; node rekursif `parentId/spouseId` dipetakan langsung. Hasil backfill default `kind = BIOLOGICAL`, `certainty = ASSUMED` (bukan CONFIRMED) karena data lama tidak membedakan jenis. Field lama `FamilyTree.marriageStatus` (`ONGOING|DIVORCED|WIDOWED|NONE`) → `Union.status`.
   DoD: unit test mencakup semua prefix di `ANCESTRY_KEY_RE` dan pola `family/[slug]/page.tsx:132-238`.
-- [ ] **F1-04 — Backfill script** `prisma/backfill-graph.ts`: setiap pohon → Person per node; node dengan `linkedUserId`/`claimedByUserId`/pemilik pohon → **reuse** `Person` milik user itu (`Person.userId` unik — inilah yang otomatis menyatukan A di pohon A dan A di pohon B). Simpan mapping `LegacyNodeMap { treeId, nodeKey, personId }`.
-- [ ] **F1-05 — Backfill tabel `FamilyMember`** ke Person yang sama (cocokkan via `userId`, lalu via `LegacyNodeMap`; **jangan** via nama saja).
-- [ ] **F1-06 — Dual-write**: `saveLayout`, `saveFamilyNodeSlice`, `syncLinkedUser`, `respondToClaim`, `addMember/updateMember` juga menulis ke graf melalui `LegacyNodeMap`.
-- [ ] **F1-07 — Invariant di level graf**: tolak siklus `Parentage` (DFS sebelum insert), maksimal 1 ayah & 1 ibu `BIOLOGICAL` berstatus `CONFIRMED` (boleh lebih dari satu `PROBABLE`/`DISPUTED`), tidak boleh `Union` dengan orang tua/anak sendiri, tanggal lahir anak > orang tua (warning, bukan error, untuk data tidak lengkap).
-- [ ] **F1-08 — Graph query efisien**: recursive CTE PostgreSQL untuk ancestors/descendants/kinship (ganti `getAncestors`/`getDescendants` yang N+1 query, `:2959-3012`). Index `(childId,kind)`, `(parentId,kind)`, `Union(partnerAId)`, `Union(partnerBId)`.
-- [ ] **F1-09 — Kinship calculator**: fungsi `relationOf(egoId, otherId)` → label Indonesia (kakak/adik/paman/bibi/sepupu/ipar/mertua/besan, sisi ayah/ibu). Dipakai UI untuk menampilkan label, menggantikan key `older-0`.
+- [x] **F1-04 — Backfill script** `prisma/backfill-graph.ts`: setiap pohon → Person per node; node dengan `linkedUserId`/`claimedByUserId`/pemilik pohon → **reuse** `Person` milik user itu (`Person.userId` unik — inilah yang otomatis menyatukan A di pohon A dan A di pohon B). Simpan mapping `LegacyNodeMap { treeId, nodeKey, personId }`.
+- [x] **F1-05 — Backfill tabel `FamilyMember`** ke Person yang sama (cocokkan via `userId`, lalu via `LegacyNodeMap`; **jangan** via nama saja).
+- [x] **F1-06 — Dual-write**: `saveLayout`, `saveFamilyNodeSlice`, `syncLinkedUser`, `respondToClaim`, `addMember/updateMember` juga menulis ke graf melalui `LegacyNodeMap`.
+- [x] **F1-07 — Invariant di level graf**: tolak siklus `Parentage` (DFS sebelum insert), maksimal 1 ayah & 1 ibu `BIOLOGICAL` berstatus `CONFIRMED` (boleh lebih dari satu `PROBABLE`/`DISPUTED`), tidak boleh `Union` dengan orang tua/anak sendiri, tanggal lahir anak > orang tua (warning, bukan error, untuk data tidak lengkap).
+- [x] **F1-08 — Graph query efisien**: recursive CTE PostgreSQL untuk ancestors/descendants/kinship (ganti `getAncestors`/`getDescendants` yang N+1 query, `:2959-3012`). Index `(childId,kind)`, `(parentId,kind)`, `Union(partnerAId)`, `Union(partnerBId)`.
+- [x] **F1-09 — Kinship calculator**: fungsi `relationOf(egoId, otherId)` → label Indonesia (kakak/adik/paman/bibi/sepupu/ipar/mertua/besan, sisi ayah/ibu). Dipakai UI untuk menampilkan label, menggantikan key `older-0`.
 
 ### Fase 2 — Wewenang, Konsensus, Merge
 

@@ -17,3 +17,9 @@
 - Only household circles (spouse/children) join the owner's Family Node; parents/siblings never do.
 - GET endpoints must not write. `super_user` is never a cross-tree bypass — use tree ownership or `admin`/`super_admin`.
 - Layout writes use compare-and-swap on `updatedAt` (`updateLayoutAtomically`); `PUT /trees/layout` accepts `baseUpdatedAt` and returns 409 on stale writes.
+
+## Genealogy graph (Fase 1, `apps/api/src/modules/genealogy/`)
+- Canonical model: `Person` (one per human; `userId` unique), `Parentage` (parent→child + kind/certainty), `Union`. Siblings/uncles/cousins are derived, never stored.
+- Legacy trees are projected by `GraphSyncService.syncTree` (idempotent, via `LegacyNodeMap` + `GraphAssertion`). Any new tree write path must call `this.graphSync.syncTreeInBackground(treeId)`.
+- Dual-write only runs with env `GRAPH_MODEL=true`. Backfill: `pnpm graph:backfill` (dry-run, rolled back) / `-- --apply`.
+- All traversal goes through `GraphRepository` (recursive CTEs); pure rules/kinship in `graph-rules.util.ts`, key conversion in `layout-graph.util.ts` (both unit-tested, no DB).

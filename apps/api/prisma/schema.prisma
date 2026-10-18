@@ -85,6 +85,9 @@ model User {
   nodeClaims        NodeClaim[]      @relation("NodeClaimClaimant")
   resolvedNodeClaims NodeClaim[]     @relation("NodeClaimResponder")
 
+  // Genealogy graph: the canonical Person this account has claimed
+  person Person?
+
   @@map("users")
 }
 
@@ -249,6 +252,8 @@ model FamilyTree {
   nodeMembers    FamilyNodeMember[]
   nodeClaims     NodeClaim[]
   linkRequests   NodeLinkRequest[]
+  legacyNodes    LegacyNodeMap[]
+  graphAssertions GraphAssertion[]
 
   @@map("family_trees")
 }
@@ -277,6 +282,305 @@ enum LinkRequestStatus {
   APPROVED
   REJECTED
   CANCELLED
+}
+
+// ================================================================
+// GENEALOGY GRAPH (Fase 1 — docs/tasklist-perbaikan.md §3.2)
+// One human = one Person across the whole platform. Relationships are
+// absolute facts (Parentage, Union); siblings, uncles, cousins … are derived.
+// Fed by dual-write from the legacy layout JSON while GRAPH_MODEL is on.
+// ================================================================
+
+model Person {
+  id                 String          @id @default(cuid())
+  userId             String?         @unique @map("user_id")
+  displayName        String          @map("display_name")
+  sex                Sex             @default(UNKNOWN)
+  birthDate          DateTime?       @map("birth_date")
+  birthDatePrecision DatePrecision   @default(UNKNOWN) @map("birth_date_precision")
+  birthPlace         String?         @map("birth_place")
+  deathDate          DateTime?       @map("death_date")
+  deathDatePrecision DatePrecision   @default(UNKNOWN) @map("death_date_precision")
+  vitalStatus        VitalStatus     @default(LIVING) @map("vital_status")
+  isPlaceholder      Boolean         @default(false) @map("is_placeholder")
+  placeholderKind    PlaceholderKind? @map("placeholder_kind")
+  multipleBirthGroup String?         @map("multiple_birth_group")
+  photo              String?
+  privacy            PersonPrivacy   @default(FAMILY)
+  createdById        String          @map("created_by_id")
+  mergedIntoId       String?         @map("merged_into_id")
+  version            Int             @default(0)
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  user       User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  names      PersonName[]
+  stewards   PersonSteward[]
+  revisions  PersonRevision[]
+  asParent   Parentage[]      @relation("ParentSide")
+  asChild    Parentage[]      @relation("ChildSide")
+  unionsAsA  Union[]          @relation("PartnerA")
+  unionsAsB  Union[]          @relation("PartnerB")
+  legacyNodes LegacyNodeMap[]
+
+  @@index([displayName])
+  @@index([mergedIntoId])
+  @@map("persons")
+}
+
+model PersonName {
+  id        String  @id @default(cuid())
+  personId  String  @map("person_id")
+  kind      String  // BIRTH | MARRIED | NICKNAME | RELIGIOUS | TITLE | CLAN | ALIAS
+  value     String
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([value])
+  @@index([personId])
+  @@map("person_names")
+}
+
+/// Parent → child fact. One row per (parent, child, kind): a child may have a
+/// biological father AND an adoptive father AND a guardian.
+model Parentage {
+  id           String        @id @default(cuid())
+  parentId     String        @map("parent_id")
+  childId      String        @map("child_id")
+  kind         ParentageKind @default(BIOLOGICAL)
+  certainty    Certainty     @default(CONFIRMED)
+  unionId      String?       @map("union_id")
+  birthOrder   Int?          @map("birth_order")
+  startDate    DateTime?     @map("start_date")
+  endDate      DateTime?     @map("end_date")
+  isLegal      Boolean?      @map("is_legal")
+  visibility   PersonPrivacy @default(FAMILY)
+  status       RelStatus     @default(PROPOSED)
+  proposedById String        @map("proposed_by_id")
+  confirmedAt  DateTime?     @map("confirmed_at")
+  note         String?
+  version      Int           @default(0)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  parent Person @relation("ParentSide", fields: [parentId], references: [id], onDelete: Cascade)
+  child  Person @relation("ChildSide", fields: [childId], references: [id], onDelete: Cascade)
+  union  Union? @relation(fields: [unionId], references: [id], onDelete: SetNull)
+
+  @@unique([parentId, childId, kind])
+  @@index([childId, kind])
+  @@index([parentId, kind])
+  @@map("parentages")
+}
+
+/// Partnership with full history: marriage, divorce, remarriage, polygamy.
+model Union {
+  id                 String          @id @default(cuid())
+  partnerAId         String          @map("partner_a_id")
+  partnerBId         String?         @map("partner_b_id")
+  kind               UnionKind       @default(UNKNOWN)
+  status             UnionStatus     @default(UNKNOWN)
+  orderForA          Int?            @map("order_for_a")
+  orderForB          Int?            @map("order_for_b")
+  startDate          DateTime?       @map("start_date")
+  startDatePrecision DatePrecision   @default(UNKNOWN) @map("start_date_precision")
+  endDate            DateTime?       @map("end_date")
+  endReason          UnionEndReason? @map("end_reason")
+  visibility         PersonPrivacy   @default(FAMILY)
+  confirmStatus      RelStatus       @default(PROPOSED) @map("confirm_status")
+  proposedById       String          @map("proposed_by_id")
+  version            Int             @default(0)
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  partnerA Person      @relation("PartnerA", fields: [partnerAId], references: [id], onDelete: Cascade)
+  partnerB Person?     @relation("PartnerB", fields: [partnerBId], references: [id], onDelete: Cascade)
+  events   UnionEvent[]
+  children Parentage[]
+
+  @@index([partnerAId])
+  @@index([partnerBId])
+  @@map("unions")
+}
+
+model UnionEvent {
+  id            String        @id @default(cuid())
+  unionId       String        @map("union_id")
+  type          String        // MARRIED | SEPARATED | DIVORCED | RECONCILED | WIDOWED | ANNULLED
+  date          DateTime?
+  datePrecision DatePrecision @default(UNKNOWN) @map("date_precision")
+  note          String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  union Union @relation(fields: [unionId], references: [id], onDelete: Cascade)
+
+  @@index([unionId])
+  @@map("union_events")
+}
+
+/// Who may manage a Person that has no (active) account of its own.
+model PersonSteward {
+  personId    String      @map("person_id")
+  userId      String      @map("user_id")
+  role        StewardRole
+  grantedById String?     @map("granted_by_id")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([personId, userId])
+  @@index([userId])
+  @@map("person_stewards")
+}
+
+/// Audit trail for every change to a Person (also enables undo/unmerge).
+model PersonRevision {
+  id        String   @id @default(cuid())
+  personId  String   @map("person_id")
+  actorId   String?  @map("actor_id")
+  source    String   // LEGACY_SYNC | BACKFILL | API | MERGE
+  diff      Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId, createdAt])
+  @@map("person_revisions")
+}
+
+/// Bridge from the legacy layout JSON (tree + node key, or `fm:<FamilyMember.id>`)
+/// to the canonical Person. Lets dual-write stay idempotent.
+model LegacyNodeMap {
+  id        String   @id @default(cuid())
+  treeId    String   @map("tree_id")
+  nodeKey   String   @map("node_key")
+  personId  String   @map("person_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tree   FamilyTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+  person Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([treeId, nodeKey])
+  @@index([personId])
+  @@map("legacy_node_maps")
+}
+
+/// Which legacy tree asserted a relationship. A Parentage/Union is removed by
+/// dual-write only when no tree asserts it any more.
+model GraphAssertion {
+  id        String             @id @default(cuid())
+  treeId    String             @map("tree_id")
+  kind      GraphAssertionKind
+  targetId  String             @map("target_id")
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  tree FamilyTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
+  @@unique([treeId, kind, targetId])
+  @@index([kind, targetId])
+  @@map("graph_assertions")
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum DatePrecision {
+  EXACT
+  MONTH
+  YEAR
+  CIRCA
+  BEFORE
+  AFTER
+  UNKNOWN
+}
+
+enum VitalStatus {
+  LIVING
+  DECEASED
+  UNKNOWN
+}
+
+enum PlaceholderKind {
+  UNKNOWN_FATHER
+  UNKNOWN_MOTHER
+  UNKNOWN_PARENT
+  UNKNOWN_ANCESTOR
+  UNFILLED_SLOT
+}
+
+enum PersonPrivacy {
+  PUBLIC
+  FAMILY
+  PRIVATE
+}
+
+enum ParentageKind {
+  BIOLOGICAL
+  ADOPTIVE
+  STEP
+  FOSTER
+  GUARDIAN
+  DONOR
+  SURROGATE
+}
+
+enum Certainty {
+  CONFIRMED
+  PROBABLE
+  ASSUMED
+  DISPUTED
+  UNKNOWN
+}
+
+enum RelStatus {
+  PROPOSED
+  CONFIRMED
+  DISPUTED
+  REJECTED
+  RETRACTED
+}
+
+enum UnionKind {
+  MARRIAGE_CIVIL
+  MARRIAGE_RELIGIOUS
+  MARRIAGE_SIRI
+  CUSTOMARY
+  PARTNERSHIP
+  UNKNOWN
+}
+
+enum UnionStatus {
+  ONGOING
+  DIVORCED
+  WIDOWED
+  ANNULLED
+  SEPARATED
+  UNKNOWN
+}
+
+enum UnionEndReason {
+  DIVORCE
+  DEATH_OF_A
+  DEATH_OF_B
+  ANNULMENT
+  UNKNOWN
+}
+
+enum StewardRole {
+  OWNER
+  PRIMARY
+  CO_STEWARD
+  GUARDIAN
+}
+
+enum GraphAssertionKind {
+  PARENTAGE
+  UNION
 }
 
 /// Explicit membership of a user in a Family Node.

@@ -14,6 +14,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { AdvertisingModule } from './modules/advertising/advertising.module';
+import { GenealogyModule } from './modules/genealogy/genealogy.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -49,6 +50,7 @@ import { HealthController } from './health.controller';
     GamificationModule,
     ChatModule,
     AdvertisingModule,
+    GenealogyModule,
   ],
   controllers: [HealthController],
   providers: [

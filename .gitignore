@@ -57,3 +57,6 @@ docker/data/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Genealogy backfill reports (contain personal data)
+apps/api/prisma/graph-backfill-report*.json

@@ -21,6 +21,7 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 import { UpdateCardStyleDto } from './dto/card-style.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { GamificationService } from '../gamification/gamification.service';
+import { GraphSyncService } from '../genealogy/graph-sync.service';
 import {
   ANCESTRY_KEY_RE,
   buildConnectedLayout,
@@ -49,6 +50,7 @@ export class TreeService {
     private notifications: NotificationService,
     private gamification: GamificationService,
     private whatsapp: WhatsappService,
+    private graphSync: GraphSyncService,
   ) {}
 
   // ─── TREE CRUD ──────────────────────────────────────────────
@@ -108,6 +110,7 @@ export class TreeService {
       });
     }
 
+    this.graphSync.syncTreeInBackground(tree.id);
     return tree;
   }
 
@@ -148,7 +151,7 @@ export class TreeService {
       throw new ForbiddenException('Hanya kepala keluarga yang dapat mengedit Family Node');
     }
 
-    return this.prisma.familyTree.update({
+    const updated = await this.prisma.familyTree.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -162,10 +165,16 @@ export class TreeService {
         ...(dto.headName !== undefined && { headName: dto.headName }),
       },
     });
+    // marriageStatus feeds the owner's first Union in the graph.
+    if (dto.marriageStatus !== undefined) this.graphSync.syncTreeInBackground(id);
+    return updated;
   }
 
   async remove(id: string, userId: string, roles?: string[]) {
     await this.ensureTreeOwner(id, userId, roles);
+    // Retract this tree's graph assertions first; the cascade would otherwise
+    // leave relationships nobody asserts any more.
+    if (this.graphSync.enabled) await this.graphSync.retractTree(id);
     await this.prisma.familyTree.delete({ where: { id } });
     return { message: 'Pohon keluarga berhasil dihapus' };
   }
@@ -1187,6 +1196,7 @@ export class TreeService {
     }
     const updated = await this.prisma.familyTree.findUniqueOrThrow({ where: { id: tree.id } });
     const identity = await this.ensureIdentity(updated);
+    this.graphSync.syncTreeInBackground(tree.id);
 
     await this.applyLinkChanges(tree.id, userId, (config as any)?.mainFamilyName || tree.name, {
       linkRequests,
@@ -2265,6 +2275,7 @@ export class TreeService {
       });
     }
 
+    this.graphSync.syncTreeInBackground(treeId);
     return member;
   }
 
@@ -2381,6 +2392,7 @@ export class TreeService {
       }
     }
 
+    this.graphSync.syncTreeInBackground(treeId);
     return updated;
   }
 
@@ -2412,6 +2424,7 @@ export class TreeService {
     }
 
     await this.prisma.familyMember.delete({ where: { id: memberId } });
+    this.graphSync.syncTreeInBackground(treeId);
     return { message: 'Anggota berhasil dihapus' };
   }
 
@@ -2654,6 +2667,7 @@ export class TreeService {
     // Return tree info so frontend can redirect to the correct tree
     const tree = invitation.tree;
     const identity = await this.ensureIdentity(tree);
+    this.graphSync.syncTreeInBackground(tree.id);
 
     // Notify tree owner that invitation was accepted
     this.notifications.create({
@@ -2762,6 +2776,7 @@ export class TreeService {
         layoutMembers: built.members as any,
       },
     });
+    this.graphSync.syncTreeInBackground(accepterTree.id);
 
     if (built.joinsInviterHousehold) {
       await this.joinFamilyNode(
@@ -3076,6 +3091,7 @@ export class TreeService {
         phone: phone || member.phone,
       },
     });
+    this.graphSync.syncTreeInBackground(treeId);
 
     return {
       message: 'Early access berhasil dibuat',
@@ -3327,7 +3343,10 @@ export class TreeService {
         where: { id: treeId, updatedAt: tree.updatedAt },
         data: { layoutMembers: next as any },
       });
-      if (res.count === 1) return this.prisma.familyTree.findUniqueOrThrow({ where: { id: treeId } });
+      if (res.count === 1) {
+        this.graphSync.syncTreeInBackground(treeId);
+        return this.prisma.familyTree.findUniqueOrThrow({ where: { id: treeId } });
+      }
     }
     throw new ConflictException('Silsilah sedang diubah oleh orang lain. Silakan coba lagi.');
   }
