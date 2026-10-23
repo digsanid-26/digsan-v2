@@ -28,3 +28,4 @@
 - All traversal goes through `GraphRepository` (recursive CTEs); pure rules/kinship in `graph-rules.util.ts`, key conversion in `layout-graph.util.ts` (both unit-tested, no DB).
 - Duplicates (Fase 2): `merge-rules.util.ts` (pure detection/blockers) + `MergeService` (candidates, approvals by ALL stewards of both Persons, merge = rewire + tombstone `mergedIntoId`). Never merge automatically; never re-propose REJECTED/MERGED pairs. Queries over persons must ignore tombstones (`mergedIntoId: null`).
 - Sync must not overwrite profile fields of a Person mapped by more than one tree (fill-only).
+- Search before create (F2-05): a layout node may carry `graphPersonId` (an existing non-account Person). `saveLayout` validates it against `GenealogyService.scopeOf(user)`; account Persons must go through `NodeLinkRequest` instead.

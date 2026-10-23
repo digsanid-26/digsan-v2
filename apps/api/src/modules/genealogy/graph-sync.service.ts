@@ -348,6 +348,24 @@ export class GraphSyncService {
       placeholderKind: d.isPlaceholder ? ('UNFILLED_SLOT' as const) : null,
     };
 
+    // F2-05 — the circle was linked to a Person that already exists (validated
+    // on save to lie within the owner's family). Follow merges to the survivor.
+    if (d.graphPersonId && !d.userId) {
+      let target = await db.person.findUnique({ where: { id: d.graphPersonId } });
+      for (let hops = 0; target?.mergedIntoId && hops < 10; hops++) {
+        target = await db.person.findUnique({ where: { id: target.mergedIntoId } });
+      }
+      // Account Persons are only ever linked through a confirmed link request.
+      if (target && !target.mergedIntoId && !target.userId) {
+        const fill: Record<string, unknown> = {};
+        if (target.sex === 'UNKNOWN' && d.sex !== 'UNKNOWN') fill.sex = d.sex;
+        if (!target.photo && d.photo) fill.photo = d.photo;
+        if (Object.keys(fill).length) await this.updatePerson(db, target.id, fill, ownerId, source, report);
+        report.personsReusedByAccount += 1;
+        return target.id;
+      }
+    }
+
     if (d.userId) {
       const existing = await db.person.findUnique({ where: { userId: d.userId } });
       if (existing) {

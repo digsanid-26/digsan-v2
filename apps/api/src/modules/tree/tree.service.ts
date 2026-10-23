@@ -22,6 +22,7 @@ import { UpdateCardStyleDto } from './dto/card-style.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { GamificationService } from '../gamification/gamification.service';
 import { GraphSyncService } from '../genealogy/graph-sync.service';
+import { GenealogyService } from '../genealogy/genealogy.service';
 import {
   ANCESTRY_KEY_RE,
   buildConnectedLayout,
@@ -51,6 +52,7 @@ export class TreeService {
     private gamification: GamificationService,
     private whatsapp: WhatsappService,
     private graphSync: GraphSyncService,
+    private genealogy: GenealogyService,
   ) {}
 
   // ─── TREE CRUD ──────────────────────────────────────────────
@@ -1159,6 +1161,32 @@ export class TreeService {
       for (const r of res.linkRequests) {
         if (existing.has(r.userId)) linkRequests.push(r);
         else delete nextMembers[r.nodeId]?.pendingLinkUserId;
+      }
+
+      // F2-05 — a circle may point at an existing Person ("sudah ada di
+      // silsilah") only if that Person is in the owner's family neighbourhood,
+      // has no account (accounts go through link requests), and is not
+      // already used by another circle of this tree.
+      const wantGraph = Object.entries(nextMembers).filter(
+        ([id, m]) => m && typeof m === 'object' && m.graphPersonId && m.graphPersonId !== oldMembers[id]?.graphPersonId,
+      );
+      if (wantGraph.length) {
+        const scope = await this.genealogy.scopeOf(userId);
+        const accounts = new Set(
+          (await this.prisma.person.findMany({
+            where: { id: { in: wantGraph.map(([, m]) => m.graphPersonId as string) }, userId: { not: null } },
+            select: { id: true },
+          })).map((p) => p.id),
+        );
+        for (const [id, m] of wantGraph) {
+          const pid = m.graphPersonId as string;
+          const usedElsewhere = Object.entries(nextMembers).some(([other, o]) => other !== id && o?.graphPersonId === pid);
+          if (!scope.has(pid) || accounts.has(pid) || usedElsewhere) {
+            const prev = oldMembers[id]?.graphPersonId;
+            if (prev) nextMembers[id] = { ...m, graphPersonId: prev };
+            else { const { graphPersonId: _drop, ...rest } = m; nextMembers[id] = rest; }
+          }
+        }
       }
 
       // Profile of a person with an active account belongs to them (consent required).

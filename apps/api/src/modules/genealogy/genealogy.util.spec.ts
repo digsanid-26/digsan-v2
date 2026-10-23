@@ -128,6 +128,15 @@ describe('layoutToGraphDraft (F1-03)', () => {
     expect(d.persons.get('gpP-0-fc-child-4')!.displayName).toBe('Sudah diisi');
   });
 
+  it('carries a chosen existing Person (graphPersonId) on the draft, never for self', () => {
+    const d = layoutToGraphDraft({
+      ownerUserId: 'u', ownerName: 'X', config: { configured: true, parentCount: 1 },
+      members: { self: { name: 'X', graphPersonId: 'evil' }, 'parent-0': { name: 'Pak Slamet', graphPersonId: 'person-123' } },
+    });
+    expect(d.persons.get('parent-0')!.graphPersonId).toBe('person-123');
+    expect(d.persons.get('self')!.graphPersonId).toBeNull();
+  });
+
   it('builds per-node sub-trees from familyConfig (-fc- keys)', () => {
     const d = layoutToGraphDraft({
       ownerUserId: 'u', ownerName: 'X', config: { configured: true, spouseCount: 0, childCount: 1, parentCount: 0 },

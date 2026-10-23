@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getUser } from '@/lib/auth';
 import { treeApi, publicTreeApi } from '@/lib/tree';
-import type { GuardianConsent, ConnectedFamily, FamilyNodeMembership, SaveLayoutResult } from '@/lib/tree';
+import type { GuardianConsent, ConnectedFamily, FamilyNodeMembership, SaveLayoutResult, PersonSuggestion } from '@/lib/tree';
 import { adoptServerFields, mergeConfig, mergeMembers } from '@/lib/treeMerge';
 import { useTheme } from './ThemeProvider';
 import type { Group, TNode, Poly, TreeConfig, Member, Members } from './treeTypes';
@@ -1285,10 +1285,38 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
     phone: member?.phone || '',
     linkedUserId: member?.linkedUserId || null,
     pendingLinkUserId: member?.pendingLinkUserId || null,
+    graphPersonId: member?.graphPersonId || null,
     publicName: member?.publicName || '',
     statusLabel: member?.statusLabel || '',
   });
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // "Sudah ada di silsilah?" — people already recorded in the family (by anyone)
+  // matching this slot and/or the typed name. Linking to them avoids duplicates.
+  const [suggestions, setSuggestions] = useState<PersonSuggestion[]>([]);
+  const [linkedSuggestion, setLinkedSuggestion] = useState<PersonSuggestion | null>(null);
+  useEffect(() => {
+    if (isSelf || !canEdit || form.linkedUserId || form.pendingLinkUserId || form.graphPersonId) { setSuggestions([]); return; }
+    const t = setTimeout(() => {
+      treeApi.suggestPersons({ q: form.name.trim().length >= 3 ? form.name.trim() : undefined, nodeId: node.id })
+        .then(setSuggestions)
+        .catch(() => setSuggestions([]));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [form.name, form.linkedUserId, form.pendingLinkUserId, form.graphPersonId, node.id, isSelf, canEdit]);
+
+  const chooseSuggestion = (s: PersonSuggestion) => {
+    const gender = s.sex === 'MALE' ? 'L' : s.sex === 'FEMALE' ? 'P' : form.gender;
+    if (s.hasAccount && s.accountUserId) {
+      // People with an account confirm the link themselves.
+      setForm((f) => ({ ...f, name: s.displayName, gender, pendingLinkUserId: s.accountUserId }));
+      setMatchStatus('sent');
+    } else {
+      setForm((f) => ({ ...f, name: f.name.trim() || s.displayName, gender, alive: s.alive, graphPersonId: s.personId }));
+    }
+    setLinkedSuggestion(s);
+    setSuggestions([]);
+  };
   const [copied, setCopied] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
@@ -1547,6 +1575,43 @@ function MemberForm({ node, isSelf, familySlug, ownerUsername, treeId, member, d
               <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
               {syncing ? 'Menyinkronkan...' : 'Update Koneksi'}
             </button>
+          </div>
+        )}
+
+        {/* Search before create: link to someone the family already recorded */}
+        {!isSelf && canEdit && form.graphPersonId && (
+          <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 p-3">
+            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Terhubung dengan data keluarga yang sudah ada</p>
+            <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">
+              {linkedSuggestion
+                ? `${linkedSuggestion.displayName}${linkedSuggestion.relation ? ` · ${linkedSuggestion.relation}` : ''}${linkedSuggestion.drawnBy.length ? ` · tercatat oleh ${linkedSuggestion.drawnBy.join(', ')}` : ''}`
+                : 'Lingkaran ini memakai orang yang sama dengan yang dicatat anggota keluarga lain, jadi tidak tercatat dobel.'}
+            </p>
+          </div>
+        )}
+        {!isSelf && canEdit && suggestions.length > 0 && (
+          <div className="rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50/70 dark:bg-blue-500/10 p-3 space-y-2">
+            <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Sudah ada di silsilah keluarga Anda?</p>
+            <p className="text-[11px] text-blue-700/80 dark:text-blue-300/80 -mt-1">Pilih jika orang ini yang Anda maksud, agar tidak tercatat dua kali.</p>
+            {suggestions.map((s) => (
+              <div key={s.personId} className="flex items-center gap-2 rounded-lg bg-white/80 dark:bg-white/5 px-2 py-1.5">
+                {s.photo ? (
+                  <img src={s.photo} alt={s.displayName} className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">{s.displayName.charAt(0).toUpperCase()}</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{s.displayName}{!s.alive ? ' (alm.)' : ''}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-white/50 truncate">
+                    {[s.relation, s.drawnBy.length ? `tercatat oleh ${s.drawnBy.join(', ')}` : null, s.hasAccount ? 'punya akun' : null].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                <button type="button" onClick={() => chooseSuggestion(s)}
+                  className="shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold bg-blue-600 text-white hover:bg-blue-500">
+                  {s.hasAccount ? 'Minta konfirmasi' : 'Ini orangnya'}
+                </button>
+              </div>
+            ))}
           </div>
         )}
 

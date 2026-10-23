@@ -14,6 +14,8 @@ export const SERVER_FIELDS = [
   'verified',
   'earlyAccess',
   'username',
+  // Validated by the server (must be a person in the user's own family).
+  'graphPersonId',
 ] as const;
 
 type Rec = Record<string, any>;

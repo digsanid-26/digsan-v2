@@ -23,6 +23,8 @@ export interface DraftPerson {
   photo: string | null;
   /** A counted/structural slot the user has not filled in (no name). */
   isPlaceholder: boolean;
+  /** F2-05 — the user chose an existing Person for this circle ("sudah ada"). */
+  graphPersonId?: string | null;
 }
 
 export interface DraftParentage {
@@ -129,7 +131,8 @@ class DraftBuilder {
       sex: toSex(m?.gender, defaultSex(rel)),
       vitalStatus: m?.alive === false ? 'DECEASED' : 'LIVING',
       photo: (m?.photo as string) || null,
-      isPlaceholder: !name && !isSelf && !(m?.linkedUserId || m?.claimedByUserId),
+      isPlaceholder: !name && !isSelf && !(m?.linkedUserId || m?.claimedByUserId) && !m?.graphPersonId,
+      graphPersonId: isSelf ? null : ((m?.graphPersonId as string) || null),
     });
     return key;
   }

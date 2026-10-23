@@ -10,6 +10,6 @@ import { MergeService } from './merge.service';
   imports: [NotificationModule],
   controllers: [GenealogyController],
   providers: [GraphRepository, MergeService, GraphSyncService, GenealogyService],
-  exports: [GraphSyncService, GraphRepository, MergeService],
+  exports: [GraphSyncService, GraphRepository, MergeService, GenealogyService],
 })
 export class GenealogyModule {}

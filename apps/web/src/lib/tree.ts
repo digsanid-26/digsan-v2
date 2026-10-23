@@ -38,6 +38,23 @@ export interface SaveLayoutResult<C = unknown, M = unknown> extends TreeLayout<C
   protectedNodes?: string[];
 }
 
+export interface PersonSuggestion {
+  personId: string;
+  displayName: string;
+  sex: 'MALE' | 'FEMALE' | 'UNKNOWN';
+  photo: string | null;
+  alive: boolean;
+  hasAccount: boolean;
+  accountUserId: string | null;
+  /** How this person is related to the current user, e.g. "Ayah". */
+  relation: string | null;
+  /** True when the person already has the role of the circle being edited. */
+  roleMatch: boolean;
+  /** Other family members whose trees already contain this person. */
+  drawnBy: string[];
+  score: number;
+}
+
 export interface MergeCandidatePerson {
   id: string;
   displayName: string;
@@ -253,6 +270,14 @@ export const treeApi = {
       method: 'PUT',
       body: JSON.stringify({ ...payload, baseUpdatedAt: payload.baseUpdatedAt || undefined }),
     }),
+
+  // ─── Genealogy graph: "sudah ada di silsilah?" (search before create) ─
+  suggestPersons: (params: { q?: string; nodeId?: string }) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.nodeId) qs.set('nodeId', params.nodeId);
+    return authRequest<PersonSuggestion[]>(`/genealogy/me/suggest?${qs.toString()}`);
+  },
 
   // ─── Genealogy graph: duplicate persons (Fase 2) ─────────────
   getMergeCandidates: () =>

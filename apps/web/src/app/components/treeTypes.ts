@@ -43,6 +43,8 @@ export interface Member {
   pendingLinkUserId?: string | null;
   /** Account whose claim on this circle was approved (server-controlled). */
   claimedByUserId?: string | null;
+  /** This circle is a person already recorded in the family by someone else (validated by the server). */
+  graphPersonId?: string | null;
   /** True when a super_user issued temporary early-access credentials here. */
   earlyAccess?: boolean;
   /** Username of the linked account — powers /id/{username}. */

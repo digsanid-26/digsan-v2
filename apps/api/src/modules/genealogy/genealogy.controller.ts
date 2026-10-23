@@ -60,6 +60,14 @@ export class GenealogyController {
     return this.genealogy.myView(userId, up ? Number(up) : 3, down ? Number(down) : 2, mode);
   }
 
+  @Get('me/suggest')
+  @ApiOperation({ summary: 'People already in my family that match a name and/or the slot being filled (search before create)' })
+  @ApiQuery({ name: 'q', required: false, type: String })
+  @ApiQuery({ name: 'nodeId', required: false, type: String })
+  async suggest(@CurrentUser('id') userId: string, @Query('q') q?: string, @Query('nodeId') nodeId?: string) {
+    return this.genealogy.suggest(userId, q, nodeId);
+  }
+
   @Get('me/relation/:personId')
   @ApiOperation({ summary: 'How a person is related to the current user (kinship label)' })
   async relation(@CurrentUser('id') userId: string, @Param('personId') personId: string, @Query('mode') mode?: string) {

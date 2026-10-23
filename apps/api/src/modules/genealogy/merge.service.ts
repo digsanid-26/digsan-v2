@@ -125,6 +125,11 @@ export class MergeService {
     const out = [];
     for (const c of candidates) {
       const [a, b] = await Promise.all([this.describe(c.personAId), this.describe(c.personBId)]);
+      // One side was linked to an existing person / merged meanwhile → nothing left to decide.
+      if (!a || !b || a.mergedIntoId || b.mergedIntoId) {
+        await this.prisma.mergeCandidate.update({ where: { id: c.id }, data: { status: 'OBSOLETE', resolvedAt: new Date() } });
+        continue;
+      }
       const approvers = await this.approversOf([c.personAId, c.personBId]);
       out.push({
         id: c.id,
@@ -144,7 +149,7 @@ export class MergeService {
   private async describe(personId: string) {
     const p = await this.prisma.person.findUnique({
       where: { id: personId },
-      select: { id: true, displayName: true, sex: true, isPlaceholder: true, photo: true, userId: true, legacyNodes: { select: { tree: { select: { user: { select: { name: true } } } } } } },
+      select: { id: true, displayName: true, sex: true, isPlaceholder: true, photo: true, userId: true, mergedIntoId: true, legacyNodes: { select: { tree: { select: { user: { select: { name: true } } } } } } },
     });
     if (!p) return null;
     const { userId, legacyNodes, ...rest } = p;
@@ -166,6 +171,11 @@ export class MergeService {
     const candidate = await this.prisma.mergeCandidate.findUnique({ where: { id: candidateId }, include: { approvals: true } });
     if (!candidate) throw new NotFoundException('Usulan penggabungan tidak ditemukan');
     if (candidate.status !== 'OPEN') throw new BadRequestException('Usulan ini sudah diputuskan');
+    const alive = await this.prisma.person.count({ where: { id: { in: [candidate.personAId, candidate.personBId] }, mergedIntoId: null } });
+    if (alive !== 2) {
+      await this.prisma.mergeCandidate.update({ where: { id: candidateId }, data: { status: 'OBSOLETE', resolvedAt: new Date() } });
+      throw new BadRequestException('Usulan ini sudah tidak berlaku (data telah dihubungkan atau digabung)');
+    }
     const approvers = await this.approversOf([candidate.personAId, candidate.personBId]);
     if (!approvers.includes(userId)) throw new ForbiddenException('Anda bukan pengelola salah satu orang ini');
 

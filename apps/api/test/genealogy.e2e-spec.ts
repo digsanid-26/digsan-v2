@@ -74,6 +74,11 @@ describe('Genealogy graph (e2e)', () => {
       const persons = (await prisma.person.findMany({ where: { OR: [{ createdById: { in: ids } }, { userId: { in: ids } }] }, select: { id: true } })).map((p) => p.id);
       await prisma.mergeCandidate.deleteMany({ where: { OR: [{ personAId: { in: persons } }, { personBId: { in: persons } }] } });
       await prisma.person.deleteMany({ where: { id: { in: persons } } });
+      // Candidates whose persons were already removed by sync (orphan placeholders).
+      const live = new Set((await prisma.person.findMany({ select: { id: true } })).map((p) => p.id));
+      const orphan = (await prisma.mergeCandidate.findMany({ select: { id: true, personAId: true, personBId: true } }))
+        .filter((c) => !live.has(c.personAId) || !live.has(c.personBId)).map((c) => c.id);
+      await prisma.mergeCandidate.deleteMany({ where: { id: { in: orphan } } });
       await prisma.familyNodeMember.deleteMany({ where: { userId: { in: ids } } });
       await prisma.familyTree.deleteMany({ where: { userId: { in: ids } } });
       await prisma.notification.deleteMany({ where: { userId: { in: ids } } });
