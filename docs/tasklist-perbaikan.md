@@ -420,12 +420,19 @@ Format: `- [ ] ID — tugas` · **File** · **Kriteria selesai (DoD)**.
 
 ### Fase 2 — Wewenang, Konsensus, Merge
 
+> **Status (2026-10-24): F2-04 & F2-06 selesai (kode), belum dideploy.**
+> - `merge-rules.util.ts`: normalisasi nama (gelar/sapaan dibuang), Jaro-Winkler, deteksi **struktural** (dua orang tua sejenis dari anak yang sama = `SHARED_CHILD`; anak tercatat dua kali di bawah orang tua sama = `SAME_PARENTS`), pemblokir (dua akun, pasangan, leluhur–keturunan, beda jenis kelamin), pemilihan survivor (akun > bernama > tertua).
+> - `merge.service.ts`: deteksi otomatis setelah setiap dual-write & setelah backfill `--apply`; usulan dikirim ke **semua steward kedua orang** (notifikasi lonceng: "Ya, gabungkan" / "Bukan orang yang sama"); merge hanya bila semua setuju; satu penolakan menutup usulan dan tidak akan diusulkan ulang. Merge memindahkan relasi, `LegacyNodeMap`, steward, dan `GraphAssertion` ke survivor; nama lain disimpan sebagai alias; yang digabung menjadi tombstone (`mergedIntoId`) + revisi.
+> - Sinkron pohon tidak lagi menimpa profil Person yang dipakai beberapa pohon (hanya mengisi yang kosong) → tidak ada "tarik-menarik" nama setelah merge.
+> - Migration `20261019090000_merge_candidates`. Endpoint: `GET /api/genealogy/merge-candidates`, `PATCH /api/genealogy/merge-candidates/:id {approve}`, admin `POST /api/genealogy/admin/detect-duplicates`.
+> - Catatan: `/tree` masih membaca layout lama (Fase 3), jadi merge baru terlihat di graf (`/genealogy/me/view`, label hubungan, halaman publik nanti) — lingkaran di masing-masing bagan tetap seperti yang digambar pemiliknya.
+
 - [ ] **F2-01 — `PermissionService.can(actor, action, target)`** berdasarkan matriks §3.3. Semua endpoint genealogy memakai ini; tidak ada pengecekan role ad-hoc di service.
 - [ ] **F2-02 — `ChangeProposal` workflow**: buat, setujui, tolak, kedaluwarsa; notifikasi in-app/push/email; halaman "Permintaan Keluarga" di web & mobile.
 - [ ] **F2-03 — Konfirmasi relasi dua arah**: relasi yang menyentuh Person ber-akun berstatus `PROPOSED` sampai pemiliknya menyetujui. UI menampilkan relasi `PROPOSED` dengan gaya putus-putus.
-- [ ] **F2-04 — Deteksi duplikat (`MergeCandidate`)**: dijalankan saat Person/relasi dibuat. Sinyal: berbagi anak/orang tua terkonfirmasi, kemiripan nama (normalisasi + Jaro-Winkler), tanggal/tempat lahir, gender. Skor ≥ ambang → kandidat.
+- [x] **F2-04 — Deteksi duplikat (`MergeCandidate`)**: dijalankan saat Person/relasi dibuat. Sinyal: berbagi anak/orang tua terkonfirmasi, kemiripan nama (normalisasi + Jaro-Winkler), tanggal/tempat lahir, gender. Skor ≥ ambang → kandidat.
 - [ ] **F2-05 — "Search before create"** di UI: setiap kali menambah lingkaran, tampilkan kandidat Person yang sudah ada di radius graf (≤ 3 derajat) dan akun user. Ini pencegah utama duplikasi.
-- [ ] **F2-06 — Merge Person**: transaksi yang me-rewire semua `Relationship`, `PersonSteward`, `TreeView.layout`, `FamilyUnit`, `LegacyNodeMap`; set `mergedIntoId`; simpan revisi untuk **unmerge**. Konflik field (nama/tanggal berbeda) → pilih per-field oleh steward.
+- [x] **F2-06 — Merge Person** *(sebagian: unmerge & pilihan per-field belum; `TreeView`/`FamilyUnit` belum ada)*: transaksi yang me-rewire semua `Relationship`, `PersonSteward`, `TreeView.layout`, `FamilyUnit`, `LegacyNodeMap`; set `mergedIntoId`; simpan revisi untuk **unmerge**. Konflik field (nama/tanggal berbeda) → pilih per-field oleh steward.
 - [ ] **F2-07 — Sengketa**: jika dua steward bertentangan (mis. tanggal lahir), status `DISPUTED`, tampilkan kedua versi + sumber; resolusi oleh kerabat terdekat ber-akun atau admin.
 - [ ] **F2-08 — Unlink & keluar**: user dapat melepas klaim akun dari Person, menolak relasi, atau keluar dari `FamilyUnit`; semua referensi dibersihkan konsisten (ganti `leaveFamilyNode` yang tidak membersihkan apa pun).
 - [ ] **F2-09 — Privasi**: `Person.privacy` + aturan orang hidup (data sensitif hanya untuk kerabat terkonfirmasi ≤ N derajat); halaman publik hanya menampilkan field yang diizinkan.

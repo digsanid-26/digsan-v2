@@ -71,7 +71,9 @@ describe('Genealogy graph (e2e)', () => {
   afterAll(async () => {
     if (prisma) {
       const ids = Object.values(users).map((u) => u.id).filter(Boolean);
-      await prisma.person.deleteMany({ where: { OR: [{ createdById: { in: ids } }, { userId: { in: ids } }] } });
+      const persons = (await prisma.person.findMany({ where: { OR: [{ createdById: { in: ids } }, { userId: { in: ids } }] }, select: { id: true } })).map((p) => p.id);
+      await prisma.mergeCandidate.deleteMany({ where: { OR: [{ personAId: { in: persons } }, { personBId: { in: persons } }] } });
+      await prisma.person.deleteMany({ where: { id: { in: persons } } });
       await prisma.familyNodeMember.deleteMany({ where: { userId: { in: ids } } });
       await prisma.familyTree.deleteMany({ where: { userId: { in: ids } } });
       await prisma.notification.deleteMany({ where: { userId: { in: ids } } });

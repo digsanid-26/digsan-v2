@@ -583,6 +583,48 @@ enum GraphAssertionKind {
   UNION
 }
 
+/// F2-04 — two Persons that are probably the same human (e.g. the father
+/// drawn separately by two siblings). Merged only after every steward of
+/// both Persons approves (F2-06).
+model MergeCandidate {
+  id          String          @id @default(cuid())
+  personAId   String          @map("person_a_id")
+  personBId   String          @map("person_b_id")
+  score       Float
+  reasons     Json            // ["SHARED_CHILD", "SIMILAR_NAME", ...]
+  status      MergeStatus     @default(OPEN)
+  keepPersonId String?        @map("keep_person_id")
+  resolvedAt  DateTime?       @map("resolved_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  approvals MergeApproval[]
+
+  @@unique([personAId, personBId])
+  @@index([status])
+  @@map("merge_candidates")
+}
+
+model MergeApproval {
+  id          String         @id @default(cuid())
+  candidateId String         @map("candidate_id")
+  userId      String         @map("user_id")
+  approve     Boolean
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  candidate MergeCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, userId])
+  @@map("merge_approvals")
+}
+
+enum MergeStatus {
+  OPEN
+  REJECTED
+  MERGED
+  OBSOLETE
+}
+
 /// Explicit membership of a user in a Family Node.
 ///
 /// The Family Node is the tree that owns the public slug (the "anchor").

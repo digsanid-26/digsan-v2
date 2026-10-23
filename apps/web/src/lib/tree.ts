@@ -38,6 +38,29 @@ export interface SaveLayoutResult<C = unknown, M = unknown> extends TreeLayout<C
   protectedNodes?: string[];
 }
 
+export interface MergeCandidatePerson {
+  id: string;
+  displayName: string;
+  sex: 'MALE' | 'FEMALE' | 'UNKNOWN';
+  isPlaceholder: boolean;
+  photo: string | null;
+  hasAccount: boolean;
+  /** Owners of the trees in which this person is drawn. */
+  drawnBy: string[];
+}
+
+export interface MergeCandidate {
+  id: string;
+  score: number;
+  reasons: string[];
+  personA: MergeCandidatePerson | null;
+  personB: MergeCandidatePerson | null;
+  sharedChildren: string[];
+  myDecision: boolean | null;
+  approvalsNeeded: number;
+  approvalsGiven: number;
+}
+
 export interface IncomingLinkRequest {
   id: string;
   treeId: string;
@@ -229,6 +252,16 @@ export const treeApi = {
     authRequest<SaveLayoutResult<C, M>>('/trees/layout', {
       method: 'PUT',
       body: JSON.stringify({ ...payload, baseUpdatedAt: payload.baseUpdatedAt || undefined }),
+    }),
+
+  // ─── Genealogy graph: duplicate persons (Fase 2) ─────────────
+  getMergeCandidates: () =>
+    authRequest<MergeCandidate[]>('/genealogy/merge-candidates'),
+
+  decideMerge: (candidateId: string, approve: boolean) =>
+    authRequest<{ id: string; status: 'OPEN' | 'REJECTED' | 'MERGED'; waitingFor?: number }>(`/genealogy/merge-candidates/${encodeURIComponent(candidateId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ approve }),
     }),
 
   // ─── Link requests ("Apakah ini Anda?" sent by a tree owner) ─

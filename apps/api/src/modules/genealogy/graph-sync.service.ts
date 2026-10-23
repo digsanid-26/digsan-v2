@@ -5,6 +5,8 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { GraphRepository, type Db } from './graph.repository';
 import { checkGraph, type GraphIssue } from './graph-rules.util';
 import { familyMembersToGraphDraft, layoutToGraphDraft, type DraftPerson, type GraphDraft } from './layout-graph.util';
+import { findMergeCandidates } from './merge-rules.util';
+import { MergeService } from './merge.service';
 
 export interface SyncReport {
   trees: number;
@@ -25,6 +27,8 @@ export interface SyncReport {
 export interface BackfillReport extends SyncReport {
   dryRun: boolean;
   totals: { persons: number; accountPersons: number; placeholders: number; parentages: number; unions: number };
+  /** F2-04 — likely duplicates that would be proposed for merging. */
+  mergeCandidates: number;
   issues: { counts: Record<string, number>; samples: GraphIssue[] };
 }
 
@@ -53,6 +57,7 @@ export class GraphSyncService {
     private readonly prisma: PrismaService,
     private readonly graph: GraphRepository,
     private readonly config: ConfigService,
+    private readonly merge: MergeService,
   ) {}
 
   /** F1-06 feature flag: dual-write only when GRAPH_MODEL=true. */
@@ -63,7 +68,9 @@ export class GraphSyncService {
   /** Fire-and-forget dual-write after a legacy write. Never throws into the caller. */
   syncTreeInBackground(treeId: string): void {
     if (!this.enabled) return;
-    this.syncTree(treeId).catch((err) => this.logger.error(`Graph dual-write failed for tree ${treeId}: ${err}`));
+    this.syncTree(treeId)
+      .then(() => this.merge.detectInBackground())
+      .catch((err) => this.logger.error(`Graph dual-write failed for tree ${treeId}: ${err}`));
   }
 
   /** Re-project one tree inside its own transaction (serialised per tree). */
@@ -136,6 +143,7 @@ export class GraphSyncService {
     } catch (err) {
       if (!(err instanceof DryRunRollback)) throw err;
     }
+    if (!dryRun) await this.merge.detect();
     this.logger.log(
       `Graph backfill ${dryRun ? '(dry-run, rolled back)' : '(applied)'}: ${report.trees} trees, ` +
       `${report.personsCreated} persons created, ${report.parentagesCreated} parentages, ${report.unionsCreated} unions, ` +
@@ -153,7 +161,10 @@ export class GraphSyncService {
       db.union.count(),
     ]);
     report.totals = { persons, accountPersons, placeholders, parentages, unions };
-    const issues = checkGraph(await this.graph.loadAll(db));
+    const all = await this.graph.loadAll(db);
+    const issues = checkGraph(all);
+    const people = await db.person.findMany({ select: { id: true, displayName: true, sex: true, isPlaceholder: true, userId: true, mergedIntoId: true, createdAt: true } });
+    report.mergeCandidates = findMergeCandidates(all, new Map(people.map((p) => [p.id, p]))).length;
     const counts: Record<string, number> = {};
     for (const i of issues) counts[i.code] = (counts[i.code] ?? 0) + 1;
     report.issues = { counts, samples: issues.slice(0, 50) };
@@ -370,8 +381,18 @@ export class GraphSyncService {
     if (mappedPersonId) {
       const mapped = await db.person.findUnique({ where: { id: mappedPersonId } });
       if (mapped && !mapped.userId) {
+        // A Person shared by several trees (e.g. after a merge) is not owned by
+        // any one of them: a tree may only fill gaps, never overwrite, so two
+        // trees can't keep flipping the name back and forth.
+        const shared = (await db.legacyNodeMap.count({ where: { personId: mapped.id } })) > 1;
         const diff: Record<string, unknown> = {};
-        for (const [k, v] of Object.entries(fields)) if ((mapped as any)[k] !== v) diff[k] = v;
+        if (!shared) {
+          for (const [k, v] of Object.entries(fields)) if ((mapped as any)[k] !== v) diff[k] = v;
+        } else {
+          if (mapped.isPlaceholder && !d.isPlaceholder) Object.assign(diff, { displayName: d.displayName, isPlaceholder: false, placeholderKind: null });
+          if (mapped.sex === 'UNKNOWN' && d.sex !== 'UNKNOWN') diff.sex = d.sex;
+          if (!mapped.photo && d.photo) diff.photo = d.photo;
+        }
         if (Object.keys(diff).length) await this.updatePerson(db, mapped.id, diff, ownerId, source, report);
         return mapped.id;
       }

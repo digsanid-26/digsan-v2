@@ -26,3 +26,5 @@
 - Legacy trees are projected by `GraphSyncService.syncTree` (idempotent, via `LegacyNodeMap` + `GraphAssertion`). Any new tree write path must call `this.graphSync.syncTreeInBackground(treeId)`.
 - Dual-write only runs with env `GRAPH_MODEL=true`. Backfill: `pnpm graph:backfill` (dry-run, rolled back) / `-- --apply`.
 - All traversal goes through `GraphRepository` (recursive CTEs); pure rules/kinship in `graph-rules.util.ts`, key conversion in `layout-graph.util.ts` (both unit-tested, no DB).
+- Duplicates (Fase 2): `merge-rules.util.ts` (pure detection/blockers) + `MergeService` (candidates, approvals by ALL stewards of both Persons, merge = rewire + tombstone `mergedIntoId`). Never merge automatically; never re-propose REJECTED/MERGED pairs. Queries over persons must ignore tombstones (`mergedIntoId: null`).
+- Sync must not overwrite profile fields of a Person mapped by more than one tree (fill-only).
