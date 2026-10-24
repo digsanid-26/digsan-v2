@@ -23,6 +23,7 @@ import { InviteMemberDto } from './dto/invite-member.dto';
 import { GamificationService } from '../gamification/gamification.service';
 import { GraphSyncService } from '../genealogy/graph-sync.service';
 import { GenealogyService } from '../genealogy/genealogy.service';
+import { decide as decidePermission } from '../genealogy/permissions.util';
 import {
   ANCESTRY_KEY_RE,
   buildConnectedLayout,
@@ -1189,15 +1190,17 @@ export class TreeService {
         }
       }
 
-      // Profile of a person with an active account belongs to them (consent required).
+      // Profile of a person with an account belongs to them (F2-01 matrix):
+      // only the account itself, a granted guardian consent, or the guardian
+      // of an early-access account may change it directly.
       const linkedNodes = Object.entries(nextMembers).filter(
         ([id, m]) => m?.linkedUserId && m.linkedUserId !== userId && oldMembers[id]?.linkedUserId === m.linkedUserId
           && protectedFieldsChanged(oldMembers[id], m),
       );
       if (linkedNodes.length) {
         const ids = [...new Set(linkedNodes.map(([, m]) => m.linkedUserId as string))];
-        const active = new Set(
-          (await this.prisma.user.findMany({ where: { id: { in: ids }, status: 'ACTIVE' }, select: { id: true } })).map((u) => u.id),
+        const accounts = new Map(
+          (await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, createdById: true } })).map((u) => [u.id, u]),
         );
         const granted = new Set(
           (await this.prisma.guardianConsent.findMany({
@@ -1206,7 +1209,19 @@ export class TreeService {
           })).map((c) => `${c.nodeId}:${c.targetUserId}`),
         );
         for (const [id, m] of linkedNodes) {
-          if (active.has(m.linkedUserId) && !granted.has(`${id}:${m.linkedUserId}`)) {
+          const account = accounts.get(m.linkedUserId);
+          const verdict = decidePermission({ userId, roles: [] }, 'person.edit', {
+            personId: id,
+            accountUserId: m.linkedUserId,
+            accountStatus: account?.status ?? null,
+            accountCreatedById: account?.createdById ?? null,
+            vitalStatus: m.alive === false ? 'DECEASED' : 'LIVING',
+            mergedIntoId: null,
+            stewards: [],
+            actorHasConsent: granted.has(`${id}:${m.linkedUserId}`),
+            inActorFamily: true,
+          });
+          if (account && verdict.decision !== 'DIRECT') {
             nextMembers[id] = revertProtectedFields(oldMembers[id], m);
             protectedNodes.push(id);
           }

@@ -4,6 +4,8 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { GraphRepository, type Db } from './graph.repository';
 import { chooseSurvivor, findMergeCandidates, mergeBlocker, type MergePerson } from './merge-rules.util';
+import { GenealogyService } from './genealogy.service';
+import { PermissionService } from './permission.service';
 
 type Notifier = Pick<NotificationService, 'create' | 'sendPushSafe'>;
 
@@ -28,12 +30,14 @@ export class MergeService {
     private readonly prisma: PrismaService,
     private readonly graph: GraphRepository,
     private readonly notifications: NotificationService,
+    private readonly permissions: PermissionService,
   ) {}
 
   /** For scripts without the Nest container (no notifications). */
   static standalone(prisma: PrismaService, graph: GraphRepository) {
     const noop: Notifier = { create: async () => null as any, sendPushSafe: async () => undefined };
-    return new MergeService(prisma, graph, noop as NotificationService);
+    const permissions = new PermissionService(prisma, new GenealogyService(prisma, graph));
+    return new MergeService(prisma, graph, noop as NotificationService, permissions);
   }
 
   private async loadPersons(db: Db) {
@@ -41,13 +45,9 @@ export class MergeService {
     return new Map<string, MergePerson & Record<string, any>>(persons.map((p) => [p.id, p]));
   }
 
-  private async approversOf(personIds: string[], db: Db = this.prisma): Promise<string[]> {
-    const stewards = await db.personSteward.findMany({ where: { personId: { in: personIds } }, select: { userId: true } });
-    const ids = new Set(stewards.map((s) => s.userId));
-    if (!ids.size) {
-      for (const p of await db.person.findMany({ where: { id: { in: personIds } }, select: { createdById: true } })) ids.add(p.createdById);
-    }
-    return [...ids];
+  /** Authority matrix (F2-01): account itself, early-access guardian, or every steward. */
+  private approversOf(personIds: string[], db: Db = this.prisma): Promise<string[]> {
+    return this.permissions.approvers(personIds, db);
   }
 
   /** Detect candidates over the whole graph; create new ones and notify their approvers. */
@@ -115,7 +115,7 @@ export class MergeService {
 
   /** Open candidates the user is asked to decide on, with context to decide. */
   async listForUser(userId: string) {
-    const stewardOf = (await this.prisma.personSteward.findMany({ where: { userId }, select: { personId: true } })).map((s) => s.personId);
+    const stewardOf = await this.permissions.managedPersonIds(userId);
     if (!stewardOf.length) return [];
     const candidates = await this.prisma.mergeCandidate.findMany({
       where: { status: 'OPEN', OR: [{ personAId: { in: stewardOf } }, { personBId: { in: stewardOf } }] },
@@ -131,6 +131,7 @@ export class MergeService {
         continue;
       }
       const approvers = await this.approversOf([c.personAId, c.personBId]);
+      if (!approvers.includes(userId)) continue;
       out.push({
         id: c.id,
         score: c.score,

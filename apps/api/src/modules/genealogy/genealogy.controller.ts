@@ -1,15 +1,21 @@
-import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { IsBoolean } from 'class-validator';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { IsBoolean, IsString } from 'class-validator';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { GenealogyService } from './genealogy.service';
 import { GraphSyncService } from './graph-sync.service';
 import { MergeService } from './merge.service';
+import { PermissionService } from './permission.service';
 
 class MergeDecisionDto {
   @IsBoolean()
   approve!: boolean;
+}
+
+class AddStewardDto {
+  @IsString()
+  userId!: string;
 }
 
 const requireAdmin = (roles?: string[]) => {
@@ -25,7 +31,36 @@ export class GenealogyController {
     private readonly genealogy: GenealogyService,
     private readonly sync: GraphSyncService,
     private readonly merge: MergeService,
+    private readonly permissions: PermissionService,
   ) {}
+
+  @Get('persons/:personId/permissions')
+  @ApiOperation({ summary: 'What I may do with a person: DIRECT / PROPOSAL / DENY per action, plus its stewards (F2-01)' })
+  async personPermissions(@CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[] | undefined, @Param('personId') personId: string) {
+    return this.permissions.summary({ userId, roles: roles ?? [] }, personId);
+  }
+
+  @Post('persons/:personId/stewards')
+  @ApiOperation({ summary: 'Appoint a family member as co-steward (wali bersama) of a person without account' })
+  async addSteward(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[] | undefined,
+    @Param('personId') personId: string,
+    @Body() dto: AddStewardDto,
+  ) {
+    return this.permissions.addCoSteward({ userId, roles: roles ?? [] }, personId, dto.userId);
+  }
+
+  @Delete('persons/:personId/stewards/:stewardUserId')
+  @ApiOperation({ summary: 'Remove a co-steward (primary manager), or step down yourself' })
+  async removeSteward(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[] | undefined,
+    @Param('personId') personId: string,
+    @Param('stewardUserId') stewardUserId: string,
+  ) {
+    return this.permissions.removeCoSteward({ userId, roles: roles ?? [] }, personId, stewardUserId);
+  }
 
   @Get('merge-candidates')
   @ApiOperation({ summary: 'Likely duplicates the current user is asked to approve (as steward of either person)' })
