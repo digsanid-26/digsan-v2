@@ -315,6 +315,8 @@ export class MergeService {
     }
 
     await tx.legacyNodeMap.updateMany({ where: { personId: dropId }, data: { personId: keepId } });
+    // Open proposals follow the person; approving re-checks they're not stale.
+    await tx.changeProposal.updateMany({ where: { personId: dropId }, data: { personId: keepId } });
     for (const s of await tx.personSteward.findMany({ where: { personId: dropId } })) {
       await tx.personSteward.upsert({
         where: { personId_userId: { personId: keepId, userId: s.userId } },

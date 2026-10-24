@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { IsBoolean, IsString } from 'class-validator';
+import { IsBoolean, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -7,6 +7,18 @@ import { GenealogyService } from './genealogy.service';
 import { GraphSyncService } from './graph-sync.service';
 import { MergeService } from './merge.service';
 import { PermissionService } from './permission.service';
+import { ProposalService } from './proposal.service';
+
+class ProposeChangeDto {
+  /** displayName, sex, vitalStatus, photo, birthDate, deathDate, birthPlace */
+  @IsObject()
+  changes!: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
 
 class MergeDecisionDto {
   @IsBoolean()
@@ -32,7 +44,43 @@ export class GenealogyController {
     private readonly sync: GraphSyncService,
     private readonly merge: MergeService,
     private readonly permissions: PermissionService,
+    private readonly proposals: ProposalService,
   ) {}
+
+  @Post('persons/:personId/proposals')
+  @ApiOperation({ summary: 'Change a person: applied at once with DIRECT authority, otherwise sent as a proposal (F2-02)' })
+  async propose(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[] | undefined,
+    @Param('personId') personId: string,
+    @Body() dto: ProposeChangeDto,
+  ) {
+    return this.proposals.submit({ userId, roles: roles ?? [] }, personId, dto.changes, dto.note);
+  }
+
+  @Get('proposals')
+  @ApiOperation({ summary: 'Change proposals waiting for my decision (incoming) or sent by me (outgoing)' })
+  @ApiQuery({ name: 'box', required: false, enum: ['incoming', 'outgoing'] })
+  async listProposals(@CurrentUser('id') userId: string, @Query('box') box?: string) {
+    return this.proposals.list(userId, box === 'outgoing' ? 'outgoing' : 'incoming');
+  }
+
+  @Patch('proposals/:id')
+  @ApiOperation({ summary: 'Approve or reject a change proposal (approvers of the person only)' })
+  async decideProposal(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[] | undefined,
+    @Param('id') id: string,
+    @Body() dto: MergeDecisionDto,
+  ) {
+    return this.proposals.decide({ userId, roles: roles ?? [] }, id, dto.approve);
+  }
+
+  @Delete('proposals/:id')
+  @ApiOperation({ summary: 'Withdraw my pending proposal' })
+  async withdrawProposal(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.proposals.withdraw(userId, id);
+  }
 
   @Get('persons/:personId/permissions')
   @ApiOperation({ summary: 'What I may do with a person: DIRECT / PROPOSAL / DENY per action, plus its stewards (F2-01)' })

@@ -317,6 +317,7 @@ model Person {
   names      PersonName[]
   stewards   PersonSteward[]
   revisions  PersonRevision[]
+  proposals  ChangeProposal[]
   asParent   Parentage[]      @relation("ParentSide")
   asChild    Parentage[]      @relation("ChildSide")
   unionsAsA  Union[]          @relation("PartnerA")
@@ -456,6 +457,9 @@ model LegacyNodeMap {
   treeId    String   @map("tree_id")
   nodeKey   String   @map("node_key")
   personId  String   @map("person_id")
+  /// F2-02 — profile fields as this tree last showed them. Only what the tree
+  /// owner actually changes since then is applied/proposed to the Person.
+  snapshot  Json?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -603,6 +607,41 @@ model MergeCandidate {
   @@unique([personAId, personBId])
   @@index([status])
   @@map("merge_candidates")
+}
+
+/// F2-02 — a relative's suggested change to a Person they may not edit
+/// directly (decision PROPOSAL in the authority matrix). Applied when one
+/// approver (account / guardian / steward) accepts it.
+model ChangeProposal {
+  id          String         @id @default(cuid())
+  personId    String         @map("person_id")
+  proposerId  String         @map("proposer_id")
+  /// Tree the change came from (null when proposed through the API directly).
+  treeId      String?        @map("tree_id")
+  /// { field: { from, to } }
+  changes     Json
+  note        String?
+  status      ProposalStatus @default(PENDING)
+  decidedById String?        @map("decided_by_id")
+  decidedAt   DateTime?      @map("decided_at")
+  expiresAt   DateTime       @map("expires_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId, status])
+  @@index([proposerId, status])
+  @@map("change_proposals")
+}
+
+enum ProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  SUPERSEDED
+  EXPIRED
 }
 
 model MergeApproval {

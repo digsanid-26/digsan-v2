@@ -13,6 +13,9 @@ import { PrismaService } from '../src/common/database/prisma.service';
 import { GraphRepository } from '../src/modules/genealogy/graph.repository';
 import { GraphSyncService } from '../src/modules/genealogy/graph-sync.service';
 import { MergeService } from '../src/modules/genealogy/merge.service';
+import { GenealogyService } from '../src/modules/genealogy/genealogy.service';
+import { PermissionService } from '../src/modules/genealogy/permission.service';
+import { ProposalService } from '../src/modules/genealogy/proposal.service';
 
 async function main() {
   const apply = process.argv.includes('--apply');
@@ -22,7 +25,11 @@ async function main() {
     const graph = new GraphRepository(prisma);
     // Candidates are created here; approvers see them in /tree notifications
     // (no push/email from the CLI).
-    const sync = new GraphSyncService(prisma, graph, new ConfigService(), MergeService.standalone(prisma, graph));
+    const permissions = new PermissionService(prisma, new GenealogyService(prisma, graph));
+    const sync = new GraphSyncService(
+      prisma, graph, new ConfigService(), MergeService.standalone(prisma, graph),
+      permissions, ProposalService.standalone(prisma, permissions),
+    );
     const report = await sync.backfill({ dryRun: !apply });
 
     const out = path.resolve(__dirname, `graph-backfill-report${apply ? '' : '.dry-run'}.json`);

@@ -26,6 +26,7 @@ interface NotifItem {
     action?: string;
     kind?: string;
     candidateId?: string;
+    proposalId?: string;
   } | null;
 }
 
@@ -133,6 +134,17 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
     }
   };
 
+  const decideProposal = async (proposalId: string, approve: boolean, notifId: string) => {
+    try {
+      await treeApi.decideProposal(proposalId, approve);
+      await markRead(notifId);
+      if (approve) alert('Perubahan diterapkan ke semua bagan yang memuat orang ini.');
+    } catch (e: any) {
+      alert(e.message || 'Gagal memproses usulan');
+      await markRead(notifId);
+    }
+  };
+
   const markAllRead = async () => {
     const tokens = getTokens();
     if (!tokens?.accessToken) return;
@@ -228,6 +240,24 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
                       >
                         <Check size={11} /> Terima Koneksi
                       </button>
+                    )}
+                    {n.data?.kind === 'CHANGE_PROPOSAL' && n.data.proposalId && !n.isRead && (
+                      <div className="mt-2 flex gap-1.5">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); decideProposal(n.data!.proposalId!, true, n.id); }}
+                          className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors
+                            ${dark ? 'bg-emerald-600/80 hover:bg-emerald-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+                        >
+                          <Check size={11} /> Setujui
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); decideProposal(n.data!.proposalId!, false, n.id); }}
+                          className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors
+                            ${dark ? 'border-white/15 text-white/70 hover:bg-white/5' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          <X size={11} /> Tolak
+                        </button>
+                      </div>
                     )}
                     {n.data?.kind === 'MERGE_CANDIDATE' && n.data.candidateId && !n.isRead && (
                       <div className="mt-2 flex gap-1.5">

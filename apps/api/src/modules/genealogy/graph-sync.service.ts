@@ -7,6 +7,9 @@ import { checkGraph, type GraphIssue } from './graph-rules.util';
 import { familyMembersToGraphDraft, layoutToGraphDraft, type DraftPerson, type GraphDraft } from './layout-graph.util';
 import { findMergeCandidates } from './merge-rules.util';
 import { MergeService } from './merge.service';
+import { PermissionService } from './permission.service';
+import { ProposalService } from './proposal.service';
+import { editedFields, snapshotOf, type Snapshot } from './profile-change.util';
 
 export interface SyncReport {
   trees: number;
@@ -22,6 +25,8 @@ export interface SyncReport {
   cyclesSkipped: { treeId: string; parentKey: string; childKey: string }[];
   unmapped: { treeId: string; keys: string[] }[];
   errors: { treeId: string; error: string }[];
+  /** F2-02 — change proposals created by this sync (notified after commit). */
+  proposals: string[];
 }
 
 export interface BackfillReport extends SyncReport {
@@ -35,7 +40,7 @@ export interface BackfillReport extends SyncReport {
 const emptyReport = (): SyncReport => ({
   trees: 0, personsCreated: 0, personsReusedByAccount: 0, personsUpdated: 0, personsDeleted: 0,
   mapsCreated: 0, mapsRemoved: 0, unionsCreated: 0, parentagesCreated: 0, relationsRemoved: 0,
-  cyclesSkipped: [], unmapped: [], errors: [],
+  cyclesSkipped: [], unmapped: [], errors: [], proposals: [],
 });
 
 class DryRunRollback extends Error {}
@@ -58,6 +63,8 @@ export class GraphSyncService {
     private readonly graph: GraphRepository,
     private readonly config: ConfigService,
     private readonly merge: MergeService,
+    private readonly permissions: PermissionService,
+    private readonly proposals: ProposalService,
   ) {}
 
   /** F1-06 feature flag: dual-write only when GRAPH_MODEL=true. */
@@ -83,6 +90,7 @@ export class GraphSyncService {
       },
       { timeout: 60_000, maxWait: 30_000 },
     );
+    if (report.proposals.length) await this.proposals.notifyCreated(report.proposals);
     return report;
   }
 
@@ -202,21 +210,26 @@ export class GraphSyncService {
     const existingMaps = await db.legacyNodeMap.findMany({ where: { treeId } });
     const mapByKey = new Map(existingMaps.map((m) => [m.nodeKey, m]));
     const personOf = new Map<string, string>();
+    const draftOf = new Map<string, DraftPerson>();
     for (const d of drafts) {
       for (const p of d.persons.values()) {
-        personOf.set(p.key, await this.resolvePerson(db, tree.userId, p, mapByKey.get(p.key)?.personId, report, source));
+        const m = mapByKey.get(p.key);
+        draftOf.set(p.key, p);
+        personOf.set(p.key, await this.resolvePerson(db, tree.userId, treeId, p, m ? { personId: m.personId, snapshot: m.snapshot as Snapshot | null } : undefined, report, source));
       }
     }
     const liveKeys = new Set(personOf.keys());
     const orphanCandidates = new Set<string>();
     for (const [key, personId] of personOf) {
       const m = mapByKey.get(key);
+      // What this circle shows now — the baseline for detecting the owner's next edit.
+      const snapshot = snapshotOf(draftOf.get(key)!);
       if (!m) {
-        await db.legacyNodeMap.create({ data: { treeId, nodeKey: key, personId } });
+        await db.legacyNodeMap.create({ data: { treeId, nodeKey: key, personId, snapshot } });
         report.mapsCreated += 1;
-      } else if (m.personId !== personId) {
-        await db.legacyNodeMap.update({ where: { id: m.id }, data: { personId } });
-        orphanCandidates.add(m.personId);
+      } else if (m.personId !== personId || JSON.stringify(m.snapshot) !== JSON.stringify(snapshot)) {
+        await db.legacyNodeMap.update({ where: { id: m.id }, data: { personId, snapshot } });
+        if (m.personId !== personId) orphanCandidates.add(m.personId);
       }
     }
     const staleMaps = existingMaps.filter((m) => !liveKeys.has(m.nodeKey));
@@ -334,11 +347,13 @@ export class GraphSyncService {
   private async resolvePerson(
     db: Prisma.TransactionClient,
     ownerId: string,
+    treeId: string,
     d: DraftPerson,
-    mappedPersonId: string | undefined,
+    mapping: { personId: string; snapshot: Snapshot | null } | undefined,
     report: SyncReport,
     source: 'BACKFILL' | 'LEGACY_SYNC',
   ): Promise<string> {
+    const mappedPersonId = mapping?.personId;
     const fields = {
       displayName: d.displayName,
       sex: d.sex,
@@ -356,11 +371,18 @@ export class GraphSyncService {
         target = await db.person.findUnique({ where: { id: target.mergedIntoId } });
       }
       // Account Persons are only ever linked through a confirmed link request.
-      if (target && !target.mergedIntoId && !target.userId) {
+      // Once linked (already mapped to it) the circle is handled like any mapped one below.
+      if (target && !target.mergedIntoId && !target.userId && target.id !== mappedPersonId) {
         const fill: Record<string, unknown> = {};
         if (target.sex === 'UNKNOWN' && d.sex !== 'UNKNOWN') fill.sex = d.sex;
         if (!target.photo && d.photo) fill.photo = d.photo;
         if (Object.keys(fill).length) await this.updatePerson(db, target.id, fill, ownerId, source, report);
+        // Keep the spelling this tree uses as an alias, so it is searchable and not "a change".
+        const typed = d.displayName.trim();
+        if (!d.isPlaceholder && typed && typed.toLowerCase() !== target.displayName.trim().toLowerCase()
+          && !(await db.personName.count({ where: { personId: target.id, value: typed } }))) {
+          await db.personName.create({ data: { personId: target.id, kind: 'ALIAS', value: typed } });
+        }
         report.personsReusedByAccount += 1;
         return target.id;
       }
@@ -404,7 +426,7 @@ export class GraphSyncService {
         // trees can't keep flipping the name back and forth.
         const shared = (await db.legacyNodeMap.count({ where: { personId: mapped.id } })) > 1;
         const diff: Record<string, unknown> = {};
-        if (!shared) {
+        if (!shared && (source === 'BACKFILL' || !mapping?.snapshot)) {
           for (const [k, v] of Object.entries(fields)) if ((mapped as any)[k] !== v) diff[k] = v;
         } else {
           if (mapped.isPlaceholder && !d.isPlaceholder) Object.assign(diff, { displayName: d.displayName, isPlaceholder: false, placeholderKind: null });
@@ -412,6 +434,23 @@ export class GraphSyncService {
           if (!mapped.photo && d.photo) diff.photo = d.photo;
         }
         if (Object.keys(diff).length) await this.updatePerson(db, mapped.id, diff, ownerId, source, report);
+
+        // F2-02 — what the owner edited since the circle's last snapshot:
+        // applied when they may edit the person directly (and mirrored to the
+        // other trees), otherwise proposed to the person's approvers.
+        if (source === 'LEGACY_SYNC' && mapping?.snapshot) {
+          const changes = editedFields(d, mapped, mapping.snapshot, !shared);
+          for (const k of Object.keys(diff)) delete (changes as Record<string, unknown>)[k];
+          if (Object.keys(changes).length) {
+            const verdict = await this.permissions.can({ userId: ownerId, roles: [] }, 'person.edit', mapped.id);
+            if (verdict.decision === 'DIRECT') {
+              await this.proposals.apply(db, mapped.id, changes, ownerId, source, {}, treeId);
+              report.personsUpdated += 1;
+            } else if (verdict.decision === 'PROPOSAL') {
+              report.proposals.push(await this.proposals.propose(db, { personId: mapped.id, proposerId: ownerId, treeId, changes }));
+            }
+          }
+        }
         return mapped.id;
       }
     }

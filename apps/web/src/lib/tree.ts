@@ -55,6 +55,19 @@ export interface PersonSuggestion {
   score: number;
 }
 
+export interface ChangeProposal {
+  id: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'SUPERSEDED' | 'EXPIRED';
+  person: { id: string; displayName: string; photo: string | null };
+  /** { field: { from, to } } — fields: displayName, sex, vitalStatus, photo, birthDate, deathDate, birthPlace */
+  changes: Record<string, { from: unknown; to: unknown }>;
+  note: string | null;
+  proposer: { id: string; name: string | null };
+  createdAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+}
+
 export interface MergeCandidatePerson {
   id: string;
   displayName: string;
@@ -278,6 +291,19 @@ export const treeApi = {
     if (params.nodeId) qs.set('nodeId', params.nodeId);
     return authRequest<PersonSuggestion[]>(`/genealogy/me/suggest?${qs.toString()}`);
   },
+
+  // ─── Genealogy graph: change proposals (F2-02) ───────────────
+  getProposals: (box: 'incoming' | 'outgoing' = 'incoming') =>
+    authRequest<ChangeProposal[]>(`/genealogy/proposals?box=${box}`),
+
+  decideProposal: (proposalId: string, approve: boolean) =>
+    authRequest<{ id: string; status: ChangeProposal['status'] }>(`/genealogy/proposals/${encodeURIComponent(proposalId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ approve }),
+    }),
+
+  withdrawProposal: (proposalId: string) =>
+    authRequest<{ id: string; status: 'WITHDRAWN' }>(`/genealogy/proposals/${encodeURIComponent(proposalId)}`, { method: 'DELETE' }),
 
   // ─── Genealogy graph: duplicate persons (Fase 2) ─────────────
   getMergeCandidates: () =>
