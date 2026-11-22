@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, GitMerge, Inbox, Link2, Loader2, PencilLine, Send, ShieldCheck, Undo2, UserPlus, Users, X } from 'lucide-react';
+import { Check, DoorOpen, GitMerge, Inbox, Link2, Loader2, PencilLine, Send, ShieldCheck, Undo2, Unlink, UserPlus, Users, X } from 'lucide-react';
 import {
   treeApi,
   type ChangeProposal,
   type IncomingLinkRequest,
   type MergeCandidate,
+  type MyLink,
   type PendingRelation,
   type Stewardships,
 } from '@/lib/tree';
@@ -62,18 +63,20 @@ export default function FamilyRequestsPage() {
   const [links, setLinks] = useState<IncomingLinkRequest[]>([]);
   const [stewardships, setStewardships] = useState<Stewardships>({ persons: [], familyAccounts: [] });
   const [appoint, setAppoint] = useState<Record<string, string>>({});
+  const [myLinks, setMyLinks] = useState<MyLink[]>([]);
 
   const load = useCallback(async () => {
     const settle = <T,>(p: Promise<T>, fallback: T) => p.catch(() => fallback);
-    const [r, i, o, m, l, s] = await Promise.all([
+    const [r, i, o, m, l, s, ml] = await Promise.all([
       settle(treeApi.getPendingRelations(), []),
       settle(treeApi.getProposals('incoming'), []),
       settle(treeApi.getProposals('outgoing'), []),
       settle(treeApi.getMergeCandidates(), []),
       settle(treeApi.getIncomingLinkRequests(), []),
       settle(treeApi.getStewardships(), { persons: [], familyAccounts: [] }),
+      settle(treeApi.getMyLinks(), []),
     ]);
-    setRelations(r); setIncoming(i); setOutgoing(o); setMerges(m); setLinks(l); setStewardships(s);
+    setRelations(r); setIncoming(i); setOutgoing(o); setMerges(m); setLinks(l); setStewardships(s); setMyLinks(ml);
     setLoading(false);
   }, []);
 
@@ -198,6 +201,33 @@ export default function FamilyRequestsPage() {
             {p.status === 'PENDING' && (
               <button className={btnNo} disabled={acting === p.id} onClick={() => act(p.id, () => treeApi.withdrawProposal(p.id))}><Undo2 size={14} /> Tarik</button>
             )}
+          </div>
+        ))}
+      </Section>
+
+      <Section icon={Link2} title="Akun saya di silsilah orang lain" hint="Lingkaran di pohon anggota keluarga lain yang tertaut ke akun Anda. Melepas tautan tidak menghapus lingkarannya; lingkaran itu tetap ada tanpa akun.">
+        {myLinks.filter((l) => !l.pending).length === 0 ? <Empty text="Akun Anda belum tertaut di pohon orang lain." /> : myLinks.filter((l) => !l.pending).map((l) => (
+          <div key={`${l.treeId}:${l.nodeId}`} className={`${card} flex flex-col gap-3 sm:flex-row sm:items-center`}>
+            <div className="flex-1 text-sm text-slate-700 dark:text-white/80">
+              Sebagai <b>{l.nodeName ?? l.nodeId}</b> di pohon <b>{l.treeName}</b>{l.ownerName ? ` milik ${l.ownerName}` : ''}
+              {l.householdMember && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">anggota halaman keluarga ini</span>}
+            </div>
+            <div className="flex gap-2">
+              {l.householdMember && (
+                <button
+                  className={btnNo}
+                  disabled={acting === `leave:${l.treeId}`}
+                  onClick={() => confirm(`Keluar dari halaman keluarga "${l.treeName}"? Anda tetap tercatat di silsilahnya, dan pohon Anda mendapat halaman keluarga sendiri lagi.`)
+                    && act(`leave:${l.treeId}`, () => treeApi.leaveFamilyNode(), 'Anda keluar dari halaman keluarga ini.')}
+                ><DoorOpen size={14} /> Keluar dari halaman</button>
+              )}
+              <button
+                className={btnNo}
+                disabled={acting === `${l.treeId}:${l.nodeId}`}
+                onClick={() => confirm(`Lepas akun Anda dari "${l.nodeName ?? l.nodeId}" di pohon "${l.treeName}"? Pemilik pohon akan diberi tahu.`)
+                  && act(`${l.treeId}:${l.nodeId}`, () => treeApi.releaseMyLink(l.treeId, l.nodeId), 'Tautan dilepas.')}
+              ><Unlink size={14} /> Ini bukan saya</button>
+            </div>
           </div>
         ))}
       </Section>

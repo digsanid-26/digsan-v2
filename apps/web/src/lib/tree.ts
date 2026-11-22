@@ -91,6 +91,19 @@ export interface MergeCandidate {
   approvalsGiven: number;
 }
 
+export interface MyLink {
+  treeId: string;
+  treeName: string;
+  slug: string | null;
+  ownerName: string | null;
+  nodeId: string;
+  nodeName: string | null;
+  /** Link request not answered yet. */
+  pending: boolean;
+  /** I belong to this tree's household page (Family Node). */
+  householdMember: boolean;
+}
+
 export interface PendingRelation {
   kind: 'PARENTAGE' | 'UNION';
   id: string;
@@ -359,6 +372,16 @@ export const treeApi = {
 
   removeCoSteward: (personId: string, userId: string) =>
     authRequest<unknown>(`/genealogy/persons/${encodeURIComponent(personId)}/stewards/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
+
+  // ─── My account in other people's trees (F2-08) ─────────────
+  getMyLinks: () =>
+    authRequest<MyLink[]>('/trees/me/links'),
+
+  releaseMyLink: (treeId: string, nodeId: string) =>
+    authRequest<{ treeId: string; nodeId: string; leftHousehold: boolean; slug: string | null }>(
+      `/trees/me/links/${encodeURIComponent(treeId)}/${encodeURIComponent(nodeId)}`,
+      { method: 'DELETE' },
+    ),
 
   // ─── Link requests ("Apakah ini Anda?" sent by a tree owner) ─
   getIncomingLinkRequests: () =>

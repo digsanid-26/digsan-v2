@@ -12,6 +12,7 @@
 - Per-node setup ("Atur jaringan", `member.familyConfig`) counts are TOTALS including relatives already drawn; keep `familyGraph.ts` (web) and `layout-graph.util.ts` (API) in sync.
 - API unit tests (no DB needed): `npx jest src/modules/tree` (ts-jest is slow on Windows, ~7 min cold).
 - API e2e tests (`apps/api/test/*.e2e-spec.ts`) boot the full AppModule and need PostgreSQL **and** Redis; they create/delete their own users. Ask the user before running them against the local DB.
+  - `POST /auth/register` is throttled to 3/min per IP (login 5/min): a spec needing 4+ users must create them verified via Prisma (see `test/release.e2e-spec.ts`). Wait briefly in `afterAll` before deleting persons — background graph syncs from the last saves can deadlock the cleanup.
 - Generate a migration without a DB: `git show HEAD:apps/api/prisma/schema.prisma > prisma/.old.prisma && npx prisma migrate diff --from-schema-datamodel prisma/.old.prisma --to-schema-datamodel prisma/schema.prisma --script` (use a path inside the repo; `/tmp` is not visible to node on Windows). Do not apply migrations to the local DB without asking.
 
 ## Family tree rules (see docs/tasklist-perbaikan.md)

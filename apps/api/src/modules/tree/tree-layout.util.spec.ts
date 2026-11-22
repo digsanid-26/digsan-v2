@@ -5,6 +5,7 @@ import {
   projectFamilyConfig,
   projectionScope,
   protectedFieldsChanged,
+  releaseAccountFromNode,
   revertProtectedFields,
   sanitizeLayoutMembers,
   stripIdentityFields,
@@ -99,6 +100,19 @@ describe('sanitizeLayoutMembers', () => {
     const res = sanitizeLayoutMembers({}, { 'older-0': { name: 'Me', linkedUserId: OWNER } }, OWNER);
     expect(res.errors.length).toBeGreaterThan(0);
     expect(res.linkRequests).toEqual([]);
+  });
+});
+
+describe('releaseAccountFromNode (F2-08)', () => {
+  it('keeps the circle but drops every tie to the account', () => {
+    const m = { name: 'Budi', photo: 'b.jpg', parentId: 'self', linkedUserId: 'u1', verified: true, claimedByUserId: 'u1', earlyAccess: false, username: 'budi' };
+    expect(releaseAccountFromNode(m, 'u1')).toEqual({ name: 'Budi', photo: 'b.jpg', parentId: 'self' });
+  });
+
+  it('refuses circles that belong to someone else', () => {
+    expect(releaseAccountFromNode({ name: 'X', linkedUserId: 'u2' }, 'u1')).toBeNull();
+    expect(releaseAccountFromNode(undefined, 'u1')).toBeNull();
+    expect(releaseAccountFromNode({ name: 'Y', pendingLinkUserId: 'u1' }, 'u1')).toEqual({ name: 'Y' });
   });
 });
 

@@ -239,6 +239,19 @@ export function stripIdentityFields(patch: LayoutMember, existing: LayoutMember 
   return next;
 }
 
+/**
+ * F2-08 — a person releases their account from a circle in someone else's
+ * tree. The circle stays (name, photo, relations) as a person without an
+ * account; every field tying it to the account is removed. Returns null when
+ * the circle is not tied to `userId`.
+ */
+export function releaseAccountFromNode(m: LayoutMember | undefined, userId: string): LayoutMember | null {
+  if (!isObj(m) || (m.linkedUserId !== userId && m.claimedByUserId !== userId && m.pendingLinkUserId !== userId)) return null;
+  const next: LayoutMember = { ...m };
+  for (const f of IDENTITY_FIELDS) delete next[f];
+  return next;
+}
+
 /** True when any protected profile field differs between the stored and incoming node. */
 export function protectedFieldsChanged(prev: LayoutMember, next: LayoutMember): boolean {
   return PROTECTED_PROFILE_FIELDS.some((f) => (prev?.[f] ?? null) !== (next?.[f] ?? null));

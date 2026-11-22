@@ -32,6 +32,7 @@ import {
   projectFamilyConfig,
   projectionScope,
   protectedFieldsChanged,
+  releaseAccountFromNode,
   revertProtectedFields,
   sanitizeLayoutMembers,
   stripIdentityFields,
@@ -509,10 +510,91 @@ export class TreeService {
     return true;
   }
 
-  /** Remove a user from their Family Node (they get their own page again). */
+  /**
+   * F2-08 — leave the household page you belong to (you stay drawn in that
+   * tree). Your own tree gets its own family page back, and the head is told.
+   */
   async leaveFamilyNode(userId: string) {
-    await this.prisma.familyNodeMember.deleteMany({ where: { userId } });
-    this.logger.log(`User ${userId} left their family node`);
+    const membership = await this.getAnchorFor(userId);
+    if (!membership || membership.isHead || membership.tree.userId === userId) {
+      throw new BadRequestException('Anda tidak sedang bergabung di halaman keluarga orang lain');
+    }
+    await this.prisma.familyNodeMember.deleteMany({ where: { userId, treeId: membership.treeId, isHead: false } });
+    const slug = await this.restoreOwnPage(userId, membership.tree.slug);
+    const who = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    this.notifications.create({
+      userId: membership.tree.userId, type: 'SYSTEM' as any, title: 'Anggota keluar dari halaman keluarga',
+      message: `${who?.name ?? 'Seorang anggota'} keluar dari halaman keluarga Anda. Ia tetap tercatat di silsilah Anda.`,
+      data: { kind: 'FAMILY_NODE_LEFT', treeId: membership.treeId },
+    }).catch((err) => this.logger.warn(`notify head failed: ${err}`));
+    this.logger.log(`User ${userId} left family node ${membership.treeId}`);
+    return { slug };
+  }
+
+  /**
+   * Give a user's own tree its own family page again after leaving (or being
+   * removed from) another household: drop the legacy marker that pointed at
+   * that household and mint/keep their slug.
+   */
+  private async restoreOwnPage(userId: string, formerAnchorSlug: string | null): Promise<string | null> {
+    let own = await this.prisma.familyTree.findFirst({ where: { userId }, orderBy: { createdAt: 'asc' } });
+    if (!own) return null;
+    const cfg = (own.layoutConfig as Record<string, any>) ?? {};
+    if (cfg.sharedFamilySlug && (!formerAnchorSlug || cfg.sharedFamilySlug === formerAnchorSlug)) {
+      own = await this.prisma.familyTree.update({ where: { id: own.id }, data: { layoutConfig: { ...cfg, sharedFamilySlug: null } } });
+    }
+    return (await this.ensureIdentity(own)).slug;
+  }
+
+  /** F2-08 — circles in other people's trees that are tied to my account. */
+  async myLinks(userId: string) {
+    const rows = await this.prisma.$queryRaw<{ treeId: string; treeName: string; slug: string | null; ownerName: string | null; nodeId: string; nodeName: string | null; pending: boolean }[]>`
+      SELECT t.id AS "treeId", t.name AS "treeName", t.slug, u.name AS "ownerName", e.key AS "nodeId",
+             e.value->>'name' AS "nodeName",
+             (COALESCE(e.value->>'linkedUserId', '') <> ${userId} AND COALESCE(e.value->>'claimedByUserId', '') <> ${userId}) AS "pending"
+      FROM family_trees t
+      JOIN users u ON u.id = t.user_id
+      CROSS JOIN LATERAL jsonb_each(CASE WHEN jsonb_typeof(t.layout_members) = 'object' THEN t.layout_members ELSE '{}'::jsonb END) e
+      WHERE t.user_id <> ${userId}
+        AND jsonb_typeof(e.value) = 'object'
+        AND (e.value->>'linkedUserId' = ${userId} OR e.value->>'claimedByUserId' = ${userId} OR e.value->>'pendingLinkUserId' = ${userId})
+      ORDER BY t.name`;
+    const anchor = await this.getAnchorFor(userId);
+    return rows.map((r) => ({ ...r, householdMember: !!anchor && !anchor.isHead && anchor.treeId === r.treeId }));
+  }
+
+  /**
+   * F2-08 — "Ini bukan saya lagi": release my account from a circle in
+   * someone else's tree. The circle stays as a person without account (so
+   * their tree keeps its shape); I leave that household page if I was in it,
+   * get my own page back, and the tree owner is told. The graph follows on
+   * the next sync: the circle becomes its own Person and every relation that
+   * tree drew to my account is retracted.
+   */
+  async releaseMyLink(userId: string, treeId: string, nodeId: string) {
+    const tree = await this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { id: true, userId: true, slug: true } });
+    if (!tree) throw new NotFoundException('Pohon keluarga tidak ditemukan');
+    if (tree.userId === userId) throw new BadRequestException('Ini pohon Anda sendiri');
+
+    await this.updateLayoutAtomically(treeId, (_t, layout) => {
+      const released = releaseAccountFromNode(layout[nodeId], userId);
+      if (!released) throw new NotFoundException('Lingkaran ini tidak terhubung dengan akun Anda');
+      return { ...layout, [nodeId]: released };
+    });
+    await this.prisma.nodeLinkRequest.updateMany({
+      where: { treeId, nodeId, targetUserId: userId, status: 'PENDING' },
+      data: { status: 'CANCELLED', respondedAt: new Date() },
+    });
+    const wasMember = (await this.prisma.familyNodeMember.deleteMany({ where: { userId, treeId, isHead: false } })).count > 0;
+    const slug = wasMember ? await this.restoreOwnPage(userId, tree.slug) : null;
+
+    const who = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    this.notifications.create({
+      userId: tree.userId, type: 'SYSTEM' as any, title: 'Tautan akun dilepas',
+      message: `${who?.name ?? 'Seorang anggota'} melepas akunnya dari lingkaran di silsilah Anda. Lingkaran itu tetap ada tanpa akun.`,
+      data: { kind: 'LINK_RELEASED', treeId, nodeId },
+    }).catch((err) => this.logger.warn(`notify owner failed: ${err}`));
+    return { treeId, nodeId, leftHousehold: wasMember, slug };
   }
 
   /**
@@ -1277,9 +1359,14 @@ export class TreeService {
       });
     }
 
-    // Removing a person from the tree also removes them from this household.
-    for (const u of changes.unlinked) {
-      await this.prisma.familyNodeMember.deleteMany({ where: { treeId, userId: u.userId, isHead: false } });
+    // Removing a person from the tree also removes them from this household,
+    // and gives them their own family page back (F2-08).
+    if (changes.unlinked.length) {
+      const anchorSlug = (await this.prisma.familyTree.findUnique({ where: { id: treeId }, select: { slug: true } }))?.slug ?? null;
+      for (const u of changes.unlinked) {
+        const left = await this.prisma.familyNodeMember.deleteMany({ where: { treeId, userId: u.userId, isHead: false } });
+        if (left.count) await this.restoreOwnPage(u.userId, anchorSlug).catch((err) => this.logger.error(`restore page for ${u.userId} failed: ${err}`));
+      }
     }
 
     if (!changes.linkRequests.length) return;

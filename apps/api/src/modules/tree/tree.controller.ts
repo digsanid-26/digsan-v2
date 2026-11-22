@@ -123,8 +123,20 @@ export class TreeController {
   @Delete('family-node/membership')
   @ApiOperation({ summary: 'Leave the current Family Node (the caller gets their own family page again)' })
   async leaveFamilyNode(@CurrentUser('id') userId: string) {
-    await this.treeService.leaveFamilyNode(userId);
-    return { message: 'Anda telah keluar dari Family Node' };
+    const res = await this.treeService.leaveFamilyNode(userId);
+    return { message: 'Anda telah keluar dari Family Node', ...res };
+  }
+
+  @Get('me/links')
+  @ApiOperation({ summary: "Circles in other people's trees tied to my account (F2-08)" })
+  async myLinks(@CurrentUser('id') userId: string) {
+    return this.treeService.myLinks(userId);
+  }
+
+  @Delete('me/links/:treeId/:nodeId')
+  @ApiOperation({ summary: 'Release my account from a circle in someone else\'s tree ("ini bukan saya lagi")' })
+  async releaseMyLink(@CurrentUser('id') userId: string, @Param('treeId') treeId: string, @Param('nodeId') nodeId: string) {
+    return this.treeService.releaseMyLink(userId, treeId, nodeId);
   }
 
   @Put('slug')
