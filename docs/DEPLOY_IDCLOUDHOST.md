@@ -342,8 +342,8 @@ cd ~/digsan-v2/apps/api
 # Generate Prisma Client
 pnpm db:generate
 
-# Push schema ke database
-pnpm db:push
+# Terapkan semua migration (database kosong → skema terbaru)
+npx prisma migrate deploy --schema prisma/schema.prisma
 
 # Seed data awal (admin user, badges, dll)
 pnpm db:seed
@@ -351,6 +351,31 @@ pnpm db:seed
 # Verifikasi dengan Prisma Studio (opsional, port 5555)
 # pnpm db:studio
 ```
+
+### ⚠️ Aturan database produksi: hanya `migrate deploy`, jangan `db push`
+
+- **Selalu** `npx prisma migrate deploy --schema prisma/schema.prisma`. Perintah ini menjalankan file di `apps/api/prisma/migrations/` secara berurutan dan mencatatnya di tabel `_prisma_migrations`.
+- **Jangan pernah** `pnpm db:push` / `npx prisma db push` di produksi. `db push` mengubah database langsung dari `schema.prisma` **tanpa mencatat migration**, sehingga:
+  - `migrate deploy` berikutnya gagal dengan `P3018 … type/table "…" already exists`;
+  - perubahan yang tidak bisa diturunkan dari schema (backfill data di dalam migration, mis. `users.created_by_id`) **tidak ikut dijalankan**;
+  - `db push` bisa menghapus kolom/tabel yang tidak ada di schema tanpa peringatan yang jelas.
+- `db push` hanya untuk eksperimen di database lokal yang boleh dibuang.
+
+**Cek status sebelum/sesudah deploy:**
+```bash
+cd ~/digsan-v2/apps/api
+npx prisma migrate status --schema prisma/schema.prisma   # harus: "Database schema is up to date!"
+```
+
+**Kalau terlanjur `db push` lalu `migrate deploy` gagal dengan P3018 "already exists":**
+1. Jangan hapus apa pun. Database tidak rusak; migration berhenti di perintah pertama.
+2. Pastikan **semua** objek dari migration yang gagal memang sudah ada (tipe, tabel, kolom, index, foreign key — lihat isi `prisma/migrations/<nama>/migration.sql`).
+3. Bila lengkap, tandai sebagai sudah diterapkan lalu lanjutkan:
+   ```bash
+   npx prisma migrate resolve --applied <nama_migration> --schema prisma/schema.prisma
+   npx prisma migrate deploy --schema prisma/schema.prisma
+   ```
+4. Bila ada yang kurang, **jangan** `resolve --applied` (bagian yang kurang tidak akan pernah dibuat). Jalankan dulu SQL untuk bagian yang kurang saja, baru `resolve --applied`.
 
 ---
 
@@ -734,16 +759,17 @@ git pull origin master
 echo "📦 Step 2: Installing dependencies..."
 pnpm install
 
-echo "🔨 Step 3: Building applications..."
+echo "🗄️ Step 3: Database migration (sebelum build & restart)..."
+cd apps/api
+pnpm db:generate
+# Hanya migrate deploy — JANGAN db push di produksi (lihat Langkah 7).
+npx prisma migrate deploy --schema prisma/schema.prisma
+cd ../..
+
+echo "🔨 Step 4: Building applications..."
 pnpm --filter @digsan/api build
 pnpm --filter @digsan/web build
 pnpm --filter @digsan/landing build
-
-echo "🗄️ Step 4: Database migration..."
-cd apps/api
-pnpm db:generate
-pnpm db:push
-cd ../..
 
 echo "🔄 Step 5: Restarting PM2 services..."
 pm2 restart all
@@ -772,6 +798,10 @@ chmod +x deploy.sh
 # SSH ke server lalu jalankan:
 ~/digsan-v2/deploy.sh
 ```
+
+> **Sudah punya `deploy.sh` versi lama?** Versi lama menjalankan `pnpm db:push` (penyebab error P3018 "already exists"). Buat ulang file dengan isi di atas, atau minimal ganti baris `pnpm db:push` menjadi `npx prisma migrate deploy --schema prisma/schema.prisma`. Cek: `grep -n "db push\|db:push" ~/digsan-v2/deploy.sh` harus kosong.
+>
+> Urutan baru: migration **sebelum** build & restart, sehingga API baru tidak pernah berjalan di atas skema lama. Kalau migration gagal, `set -e` menghentikan skrip dan versi yang sedang berjalan tetap hidup.
 
 ---
 
@@ -957,15 +987,27 @@ git pull origin master
 pnpm --filter @digsan/web build
 pm2 restart digsan-web
 
-# Deploy Api saja
+# Deploy Api saja (migration dulu, baru build & restart)
 cd ~/digsan-v2
 git pull origin master
+cd apps/api && npx prisma migrate deploy --schema prisma/schema.prisma && npx prisma generate --schema prisma/schema.prisma && cd ../..
 pnpm --filter @digsan/api build
 pm2 restart digsan-api
 
-# Migrate Prisma
+# Migrate Prisma (satu-satunya cara mengubah skema produksi — jangan db push)
 cd ~/digsan-v2/apps/api
 npx prisma migrate deploy --schema prisma/schema.prisma
+npx prisma generate --schema prisma/schema.prisma
+npx prisma migrate status --schema prisma/schema.prisma   # "Database schema is up to date!"
+
+# Migration gagal P3018 "already exists" (bekas db push) → lihat Langkah 7
+npx prisma migrate resolve --applied <nama_migration> --schema prisma/schema.prisma
+
+# Graf silsilah (GRAPH_MODEL=true di .env)
+cd ~/digsan-v2/apps/api
+pnpm graph:backfill              # dry-run: hanya laporan, tidak menyimpan
+pnpm graph:backfill -- --apply   # simpan (aman diulang); jalankan bila catatan rilis memintanya
+rm -f prisma/graph-backfill-report*.json   # laporan berisi nama orang
 
 # Restart semua services
 pm2 restart all

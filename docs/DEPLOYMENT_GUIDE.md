@@ -123,11 +123,13 @@ Menggunakan free tier dari berbagai layanan cloud. Cocok untuk demo, portofolio,
 
 ### Langkah 4: Migrate Database
 
-Di Render Shell atau lokal:
+Di Render Shell atau lokal (dari `apps/api`):
 ```bash
-DATABASE_URL="postgresql://...neon.tech/digsan_v2?sslmode=require" npx prisma db push
+DATABASE_URL="postgresql://...neon.tech/digsan_v2?sslmode=require" npx prisma migrate deploy --schema prisma/schema.prisma
 DATABASE_URL="postgresql://...neon.tech/digsan_v2?sslmode=require" npx prisma db seed
 ```
+
+> **Database produksi hanya diubah lewat `prisma migrate deploy`, jangan `prisma db push`.** `db push` tidak mencatat migration, sehingga `migrate deploy` berikutnya gagal (`P3018 … already exists`) dan backfill data di dalam migration terlewat. Penjelasan & cara pulih: `docs/DEPLOY_IDCLOUDHOST.md` → Langkah 7.
 
 ### Langkah 5: Deploy Web & Landing ke Vercel
 
@@ -353,10 +355,10 @@ docker compose -f docker-compose.production.yml up -d
 # Wait for postgres to be ready
 sleep 5
 
-# Generate Prisma client & push schema
+# Generate Prisma client & apply migrations (jangan db push di produksi)
 cd apps/api
 pnpm db:generate
-pnpm db:push
+npx prisma migrate deploy --schema prisma/schema.prisma
 pnpm db:seed
 cd ../..
 
@@ -522,18 +524,18 @@ set -e
 cd /opt/digsan-v2
 
 echo "📥 Pulling latest code..."
-git pull origin main
+git pull origin master
 
 echo "📦 Installing dependencies..."
 pnpm install
+
+echo "🗄️ Migrating database (sebelum build & restart; jangan db push)..."
+cd apps/api && pnpm db:generate && npx prisma migrate deploy --schema prisma/schema.prisma && cd ../..
 
 echo "🔨 Building apps..."
 pnpm --filter @digsan/api build
 pnpm --filter @digsan/web build
 pnpm --filter @digsan/landing build
-
-echo "🗄️ Migrating database..."
-cd apps/api && pnpm db:generate && pnpm db:push && cd ../..
 
 echo "🔄 Restarting services..."
 pm2 restart all
@@ -707,7 +709,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: pnpm }
       - run: pnpm install
-      - run: cd apps/api && npx prisma generate && npx prisma db push
+      # Same path as production: migrations, not db push (catches broken migrations in CI)
+      - run: cd apps/api && npx prisma generate && npx prisma migrate deploy --schema prisma/schema.prisma
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/digsan_test
       - run: cd apps/api && pnpm test
