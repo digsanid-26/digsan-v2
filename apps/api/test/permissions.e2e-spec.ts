@@ -135,6 +135,15 @@ describe('Authority matrix (e2e)', () => {
     expect(await prisma.personRevision.count({ where: { personId: fatherId, source: 'API' } })).toBe(2);
   });
 
+  it('lists the people I manage and the family accounts I could appoint', async () => {
+    const res = (await http().get('/api/genealogy/me/stewardships').set(as('a')).expect(200)).body;
+    const father = res.persons.find((p: any) => p.id === fatherId);
+    expect(father).toMatchObject({ displayName: 'Bapak Slamet', relation: 'Ayah', myRole: 'PRIMARY' });
+    expect(res.familyAccounts).toEqual([expect.objectContaining({ userId: users.b.id, name: 'Budi', relation: 'Adik kandung' })]);
+    // A stranger manages nobody and sees no one to appoint.
+    expect((await http().get('/api/genealogy/me/stewardships').set(as('c')).expect(200)).body).toEqual({ persons: [], familyAccounts: [] });
+  });
+
   it('stewards may not be added to a person who has their own account', async () => {
     await http().post(`/api/genealogy/persons/${adiPersonId}/stewards`).set(as('a')).send({ userId: users.b.id }).expect(400);
   });

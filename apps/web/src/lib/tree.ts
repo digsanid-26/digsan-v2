@@ -91,6 +91,28 @@ export interface MergeCandidate {
   approvalsGiven: number;
 }
 
+export interface PendingRelation {
+  kind: 'PARENTAGE' | 'UNION';
+  id: string;
+  /** e.g. "Bapak Slamet adalah ayah Anda" */
+  description: string;
+  proposedBy: string | null;
+  createdAt: string;
+}
+
+export interface Stewardships {
+  persons: {
+    id: string;
+    displayName: string;
+    photo: string | null;
+    deceased: boolean;
+    relation: string | null;
+    myRole: 'OWNER' | 'PRIMARY' | 'CO_STEWARD' | 'GUARDIAN' | null;
+    stewards: { userId: string; name: string | null; role: string }[];
+  }[];
+  familyAccounts: { userId: string; name: string | null; relation: string | null }[];
+}
+
 export interface IncomingLinkRequest {
   id: string;
   treeId: string;
@@ -314,6 +336,29 @@ export const treeApi = {
       method: 'PATCH',
       body: JSON.stringify({ approve }),
     }),
+
+  // ─── Genealogy graph: relation confirmation (F2-03) ──────────
+  getPendingRelations: () =>
+    authRequest<PendingRelation[]>('/genealogy/relations/pending'),
+
+  decideRelation: (kind: PendingRelation['kind'], id: string, approve: boolean) =>
+    authRequest<{ kind: string; id: string; status: 'PROPOSED' | 'CONFIRMED' | 'REJECTED' }>(
+      `/genealogy/relations/${kind.toLowerCase()}/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify({ approve }) },
+    ),
+
+  // ─── Genealogy graph: co-stewards / wali bersama (F2-01) ────
+  getStewardships: () =>
+    authRequest<Stewardships>('/genealogy/me/stewardships'),
+
+  addCoSteward: (personId: string, userId: string) =>
+    authRequest<unknown>(`/genealogy/persons/${encodeURIComponent(personId)}/stewards`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }),
+
+  removeCoSteward: (personId: string, userId: string) =>
+    authRequest<unknown>(`/genealogy/persons/${encodeURIComponent(personId)}/stewards/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
 
   // ─── Link requests ("Apakah ini Anda?" sent by a tree owner) ─
   getIncomingLinkRequests: () =>

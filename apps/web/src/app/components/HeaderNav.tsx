@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, TreePine, LogOut, ChevronDown, User, Crown, Network, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, TreePine, LogOut, ChevronDown, User, Crown, Network, ClipboardCheck, Inbox } from 'lucide-react';
 import { getUser, clearAuth } from '@/lib/auth';
 import UpgradeSuperUserModal from './UpgradeSuperUserModal';
 
@@ -132,6 +132,14 @@ export default function HeaderNav() {
             >
               <TreePine size={15} className="text-emerald-500 dark:text-emerald-400" />
               Pohon Silsilah
+            </a>
+            <a
+              href="/permintaan-keluarga"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/5"
+            >
+              <Inbox size={15} className="text-blue-500 dark:text-blue-400" />
+              Permintaan Keluarga
             </a>
             <a
               href="/dashboard"

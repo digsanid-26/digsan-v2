@@ -147,6 +147,45 @@ export class GenealogyService {
     return out.sort((a, b) => b.score - a.score).slice(0, 6);
   }
 
+  /**
+   * People without an account that the user manages (steward of), with their
+   * stewards, plus family members with an account who could be appointed as
+   * co-steward ("wali bersama").
+   */
+  async stewardships(userId: string) {
+    const ego = await this.prisma.person.findUnique({ where: { userId }, select: { id: true } });
+    const managed = await this.prisma.person.findMany({
+      where: { stewards: { some: { userId } }, userId: null, mergedIntoId: null, isPlaceholder: false },
+      select: {
+        id: true, displayName: true, photo: true, vitalStatus: true,
+        stewards: { select: { userId: true, role: true } },
+      },
+      orderBy: { displayName: 'asc' },
+    });
+    const scope = ego ? [...(await this.scopeOf(userId))] : [];
+    const g = ego ? await this.graph.loadGraph([ego.id, ...scope]) : null;
+    const relationTo = (id: string) => (ego && g ? relationOf(g, ego.id, id)?.label ?? null : null);
+
+    const accounts = await this.prisma.person.findMany({
+      where: { id: { in: scope }, userId: { not: null }, NOT: { userId } },
+      select: { id: true, userId: true, user: { select: { name: true } } },
+    });
+    const names = new Map(
+      (await this.prisma.user.findMany({
+        where: { id: { in: [...new Set(managed.flatMap((p) => p.stewards.map((s) => s.userId)))] } }, select: { id: true, name: true },
+      })).map((u) => [u.id, u.name]),
+    );
+    return {
+      persons: managed.map((p) => ({
+        id: p.id, displayName: p.displayName, photo: p.photo, deceased: p.vitalStatus === 'DECEASED',
+        relation: relationTo(p.id),
+        myRole: p.stewards.find((s) => s.userId === userId)?.role ?? null,
+        stewards: p.stewards.map((s) => ({ userId: s.userId, name: names.get(s.userId) ?? null, role: s.role })),
+      })),
+      familyAccounts: accounts.map((a) => ({ userId: a.userId!, name: a.user?.name ?? null, relation: relationTo(a.id) })),
+    };
+  }
+
   /** Admin: invariant check over the whole graph (F1-07). */
   async check() {
     const issues = checkGraph(await this.graph.loadAll());

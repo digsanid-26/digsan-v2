@@ -164,6 +164,12 @@ export class GenealogyController {
     return this.genealogy.myView(userId, up ? Number(up) : 3, down ? Number(down) : 2, mode);
   }
 
+  @Get('me/stewardships')
+  @ApiOperation({ summary: 'People I manage (no account) with their stewards, and family accounts I could appoint as co-steward' })
+  async stewardships(@CurrentUser('id') userId: string) {
+    return this.genealogy.stewardships(userId);
+  }
+
   @Get('me/suggest')
   @ApiOperation({ summary: 'People already in my family that match a name and/or the slot being filled (search before create)' })
   @ApiQuery({ name: 'q', required: false, type: String })

@@ -241,6 +241,18 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
                         <Check size={11} /> Terima Koneksi
                       </button>
                     )}
+                    {n.data?.kind === 'RELATION_CONFIRM' && !n.isRead && (
+                      <div className="mt-2">
+                        <Link
+                          href="/permintaan-keluarga"
+                          onClick={() => { markRead(n.id); setOpen(false); }}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors
+                            ${dark ? 'bg-blue-600/80 hover:bg-blue-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                        >
+                          <Check size={11} /> Lihat & konfirmasi
+                        </Link>
+                      </div>
+                    )}
                     {n.data?.kind === 'CHANGE_PROPOSAL' && n.data.proposalId && !n.isRead && (
                       <div className="mt-2 flex gap-1.5">
                         <button
@@ -306,14 +318,24 @@ export default function NotificationBell({ dark }: { dark: boolean }) {
           </div>
 
           {/* Footer */}
-          <Link
-            href="/notifications"
-            onClick={() => setOpen(false)}
-            className={`block text-center py-2.5 text-sm font-medium border-t transition-colors
-              ${dark ? 'border-white/10 text-blue-400 hover:bg-white/5' : 'border-slate-100 text-blue-600 hover:bg-slate-50'}`}
-          >
-            Lihat semua notifikasi
-          </Link>
+          <div className={`grid grid-cols-2 border-t ${dark ? 'border-white/10' : 'border-slate-100'}`}>
+            <Link
+              href="/permintaan-keluarga"
+              onClick={() => setOpen(false)}
+              className={`block text-center py-2.5 text-sm font-medium transition-colors
+                ${dark ? 'text-blue-400 hover:bg-white/5' : 'text-blue-600 hover:bg-slate-50'}`}
+            >
+              Permintaan keluarga
+            </Link>
+            <Link
+              href="/notifications"
+              onClick={() => setOpen(false)}
+              className={`block text-center py-2.5 text-sm font-medium transition-colors
+                ${dark ? 'text-blue-400 hover:bg-white/5' : 'text-blue-600 hover:bg-slate-50'}`}
+            >
+              Semua notifikasi
+            </Link>
+          </div>
         </div>
       )}
     </div>
