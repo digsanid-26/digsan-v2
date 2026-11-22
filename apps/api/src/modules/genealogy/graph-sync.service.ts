@@ -9,6 +9,7 @@ import { findMergeCandidates } from './merge-rules.util';
 import { MergeService } from './merge.service';
 import { PermissionService } from './permission.service';
 import { ProposalService } from './proposal.service';
+import { RelationService } from './relation.service';
 import { editedFields, snapshotOf, type Snapshot } from './profile-change.util';
 
 export interface SyncReport {
@@ -27,6 +28,8 @@ export interface SyncReport {
   errors: { treeId: string; error: string }[];
   /** F2-02 — change proposals created by this sync (notified after commit). */
   proposals: string[];
+  /** F2-03 — new relations awaiting confirmation: per tree, [userId, count]. */
+  pendingConfirmations: { treeId: string; counts: [string, number][] }[];
 }
 
 export interface BackfillReport extends SyncReport {
@@ -40,7 +43,7 @@ export interface BackfillReport extends SyncReport {
 const emptyReport = (): SyncReport => ({
   trees: 0, personsCreated: 0, personsReusedByAccount: 0, personsUpdated: 0, personsDeleted: 0,
   mapsCreated: 0, mapsRemoved: 0, unionsCreated: 0, parentagesCreated: 0, relationsRemoved: 0,
-  cyclesSkipped: [], unmapped: [], errors: [], proposals: [],
+  cyclesSkipped: [], unmapped: [], errors: [], proposals: [], pendingConfirmations: [],
 });
 
 class DryRunRollback extends Error {}
@@ -65,6 +68,7 @@ export class GraphSyncService {
     private readonly merge: MergeService,
     private readonly permissions: PermissionService,
     private readonly proposals: ProposalService,
+    private readonly relations: RelationService,
   ) {}
 
   /** F1-06 feature flag: dual-write only when GRAPH_MODEL=true. */
@@ -91,6 +95,7 @@ export class GraphSyncService {
       { timeout: 60_000, maxWait: 30_000 },
     );
     if (report.proposals.length) await this.proposals.notifyCreated(report.proposals);
+    for (const p of report.pendingConfirmations) await this.relations.notifyPending(p.treeId, new Map(p.counts));
     return report;
   }
 
@@ -103,9 +108,13 @@ export class GraphSyncService {
       await tx.graphAssertion.deleteMany({ where: { treeId } });
       await tx.legacyNodeMap.deleteMany({ where: { treeId } });
       for (const a of assertions) {
-        if (await tx.graphAssertion.count({ where: { kind: a.kind, targetId: a.targetId } })) continue;
+        if (await tx.graphAssertion.count({ where: { kind: a.kind, targetId: a.targetId } })) {
+          await this.relations.refresh(tx, a.kind, a.targetId);
+          continue;
+        }
         if (a.kind === 'PARENTAGE') await tx.parentage.deleteMany({ where: { id: a.targetId } });
         else await tx.union.deleteMany({ where: { id: a.targetId } });
+        await tx.relationConfirmation.deleteMany({ where: { kind: a.kind, targetId: a.targetId } });
       }
       for (const { personId } of maps) {
         const p = await tx.person.findUnique({
@@ -242,10 +251,12 @@ export class GraphSyncService {
     const accountOf = new Map<string, string | null>();
     for (const d of drafts) for (const p of d.persons.values()) accountOf.set(personOf.get(p.key)!, p.userId);
     const ownerPersonId = personOf.get('self');
+    // Initial status only; F2-03 recomputes it below from assertions + confirmations.
     const statusFor = (a: string, b: string) => {
       const third = [a, b].filter((id) => accountOf.get(id) && id !== ownerPersonId && accountOf.get(id) !== tree.userId);
-      return third.length === 2 ? 'PROPOSED' as const : 'CONFIRMED' as const;
+      return third.length ? 'PROPOSED' as const : 'CONFIRMED' as const;
     };
+    const createdRelations = new Set<string>();
 
     // 2. Unions
     const asserted: { kind: 'PARENTAGE' | 'UNION'; targetId: string }[] = [];
@@ -263,6 +274,7 @@ export class GraphSyncService {
           row = await db.union.create({
             data: { partnerAId: a, partnerBId: b, status: u.status, confirmStatus: status, proposedById: tree.userId },
           });
+          createdRelations.add(row.id);
           report.unionsCreated += 1;
         } else if (row.status === 'UNKNOWN' && u.status !== 'UNKNOWN') {
           row = await db.union.update({ where: { id: row.id }, data: { status: u.status } });
@@ -294,6 +306,7 @@ export class GraphSyncService {
               status, proposedById: tree.userId, confirmedAt: status === 'CONFIRMED' ? new Date() : null,
             },
           });
+          createdRelations.add(row.id);
           report.parentagesCreated += 1;
         } else if ((row.unionId == null && unionId) || (row.birthOrder == null && p.birthOrder != null)) {
           row = await db.parentage.update({
@@ -316,12 +329,21 @@ export class GraphSyncService {
       await db.graphAssertion.deleteMany({ where: { id: { in: retracted.map((a) => a.id) } } });
       for (const r of retracted) {
         const still = await db.graphAssertion.count({ where: { kind: r.kind, targetId: r.targetId } });
-        if (still) continue;
+        if (still) {
+          // Another tree still asserts it; this tree's agreement no longer counts.
+          await this.relations.refresh(db, r.kind, r.targetId);
+          continue;
+        }
         if (r.kind === 'PARENTAGE') await db.parentage.deleteMany({ where: { id: r.targetId } });
         else await db.union.deleteMany({ where: { id: r.targetId } });
+        await db.relationConfirmation.deleteMany({ where: { kind: r.kind, targetId: r.targetId } });
         report.relationsRemoved += 1;
       }
     }
+
+    // F2-03 — confirmation status of every relation this tree asserts.
+    const pending = await this.relations.refreshTree(db, treeId, createdRelations);
+    if (pending.size) report.pendingConfirmations.push({ treeId, counts: [...pending] });
 
     // 5. Orphans: unlinked persons no tree maps and no relation references.
     for (const personId of orphanCandidates) {

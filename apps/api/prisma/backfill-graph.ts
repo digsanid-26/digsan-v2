@@ -16,6 +16,7 @@ import { MergeService } from '../src/modules/genealogy/merge.service';
 import { GenealogyService } from '../src/modules/genealogy/genealogy.service';
 import { PermissionService } from '../src/modules/genealogy/permission.service';
 import { ProposalService } from '../src/modules/genealogy/proposal.service';
+import { RelationService } from '../src/modules/genealogy/relation.service';
 
 async function main() {
   const apply = process.argv.includes('--apply');
@@ -28,7 +29,7 @@ async function main() {
     const permissions = new PermissionService(prisma, new GenealogyService(prisma, graph));
     const sync = new GraphSyncService(
       prisma, graph, new ConfigService(), MergeService.standalone(prisma, graph),
-      permissions, ProposalService.standalone(prisma, permissions),
+      permissions, ProposalService.standalone(prisma, permissions), RelationService.standalone(prisma, permissions),
     );
     const report = await sync.backfill({ dryRun: !apply });
 

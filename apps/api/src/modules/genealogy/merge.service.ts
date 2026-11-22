@@ -6,6 +6,7 @@ import { GraphRepository, type Db } from './graph.repository';
 import { chooseSurvivor, findMergeCandidates, mergeBlocker, type MergePerson } from './merge-rules.util';
 import { GenealogyService } from './genealogy.service';
 import { PermissionService } from './permission.service';
+import { RelationService } from './relation.service';
 
 type Notifier = Pick<NotificationService, 'create' | 'sendPushSafe'>;
 
@@ -31,13 +32,14 @@ export class MergeService {
     private readonly graph: GraphRepository,
     private readonly notifications: NotificationService,
     private readonly permissions: PermissionService,
+    private readonly relations: RelationService,
   ) {}
 
   /** For scripts without the Nest container (no notifications). */
   static standalone(prisma: PrismaService, graph: GraphRepository) {
     const noop: Notifier = { create: async () => null as any, sendPushSafe: async () => undefined };
     const permissions = new PermissionService(prisma, new GenealogyService(prisma, graph));
-    return new MergeService(prisma, graph, noop as NotificationService, permissions);
+    return new MergeService(prisma, graph, noop as NotificationService, permissions, RelationService.standalone(prisma, permissions));
   }
 
   private async loadPersons(db: Db) {
@@ -220,6 +222,13 @@ export class MergeService {
       await this.rewire(tx, keep.id, drop.id);
 
       await tx.person.update({ where: { id: drop.id }, data: { mergedIntoId: keep.id, version: { increment: 1 } } });
+      // The survivor may be an account the merged relations never asked: recompute (F2-03).
+      for (const p of await tx.parentage.findMany({ where: { OR: [{ parentId: keep.id }, { childId: keep.id }] }, select: { id: true } })) {
+        await this.relations.refresh(tx, 'PARENTAGE', p.id);
+      }
+      for (const u of await tx.union.findMany({ where: { OR: [{ partnerAId: keep.id }, { partnerBId: keep.id }] }, select: { id: true } })) {
+        await this.relations.refresh(tx, 'UNION', u.id);
+      }
       await tx.personRevision.create({
         data: { personId: keep.id, actorId: null, source: 'MERGE', diff: { mergedFrom: drop.id, mergedName: drop.displayName, filled } as any },
       });
@@ -264,6 +273,12 @@ export class MergeService {
         const dup = await tx.graphAssertion.findUnique({ where: { treeId_kind_targetId: { treeId: a.treeId, kind, targetId: toId } } });
         if (dup) await tx.graphAssertion.delete({ where: { id: a.id } });
         else await tx.graphAssertion.update({ where: { id: a.id }, data: { targetId: toId } });
+      }
+      // F2-03 confirmations follow the relation (an existing decision on the survivor wins).
+      for (const c of await tx.relationConfirmation.findMany({ where: { kind, targetId: fromId } })) {
+        const dup = await tx.relationConfirmation.findUnique({ where: { kind_targetId_userId: { kind, targetId: toId, userId: c.userId } } });
+        if (dup) await tx.relationConfirmation.delete({ where: { id: c.id } });
+        else await tx.relationConfirmation.update({ where: { id: c.id }, data: { targetId: toId } });
       }
     };
 

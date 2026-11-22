@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { IsBoolean, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
@@ -8,6 +8,7 @@ import { GraphSyncService } from './graph-sync.service';
 import { MergeService } from './merge.service';
 import { PermissionService } from './permission.service';
 import { ProposalService } from './proposal.service';
+import { RelationService } from './relation.service';
 
 class ProposeChangeDto {
   /** displayName, sex, vitalStatus, photo, birthDate, deathDate, birthPlace */
@@ -45,7 +46,27 @@ export class GenealogyController {
     private readonly merge: MergeService,
     private readonly permissions: PermissionService,
     private readonly proposals: ProposalService,
+    private readonly relations: RelationService,
   ) {}
+
+  @Get('relations/pending')
+  @ApiOperation({ summary: 'Relationships others drew that involve me and wait for my confirmation (F2-03)' })
+  async pendingRelations(@CurrentUser('id') userId: string) {
+    return this.relations.listPending(userId);
+  }
+
+  @Patch('relations/:kind/:id')
+  @ApiOperation({ summary: 'Confirm or reject a relationship that involves me (kind: parentage | union)' })
+  async decideRelation(
+    @CurrentUser('id') userId: string,
+    @Param('kind') kind: string,
+    @Param('id') id: string,
+    @Body() dto: MergeDecisionDto,
+  ) {
+    const k = kind.toUpperCase();
+    if (k !== 'PARENTAGE' && k !== 'UNION') throw new BadRequestException('Jenis hubungan tidak dikenal');
+    return this.relations.decide(userId, k, id, dto.approve);
+  }
 
   @Post('persons/:personId/proposals')
   @ApiOperation({ summary: 'Change a person: applied at once with DIRECT authority, otherwise sent as a proposal (F2-02)' })

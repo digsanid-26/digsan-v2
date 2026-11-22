@@ -609,6 +609,24 @@ model MergeCandidate {
   @@map("merge_candidates")
 }
 
+/// F2-03 — the owner of an account at one end of a relationship (or their
+/// early-access guardian) confirms or rejects it. A relationship drawn by
+/// someone else stays PROPOSED until every account end is confirmed — either
+/// here or by that account asserting it from their own tree.
+model RelationConfirmation {
+  id        String             @id @default(cuid())
+  kind      GraphAssertionKind
+  targetId  String             @map("target_id")
+  userId    String             @map("user_id")
+  approve   Boolean
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  @@unique([kind, targetId, userId])
+  @@index([userId])
+  @@map("relation_confirmations")
+}
+
 /// F2-02 — a relative's suggested change to a Person they may not edit
 /// directly (decision PROPOSAL in the authority matrix). Applied when one
 /// approver (account / guardian / steward) accepts it.
