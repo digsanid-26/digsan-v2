@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, DoorOpen, EyeOff, GitMerge, Inbox, Link2, Loader2, PencilLine, Send, ShieldCheck, Undo2, Unlink, UserPlus, Users, X } from 'lucide-react';
+import { Check, DoorOpen, EyeOff, GitMerge, History, Inbox, Link2, Loader2, PencilLine, Send, ShieldCheck, Undo2, Unlink, UserPlus, Users, X } from 'lucide-react';
 import {
   treeApi,
   type ChangeProposal,
@@ -9,6 +9,7 @@ import {
   type MergeCandidate,
   type MyLink,
   type PendingRelation,
+  type PersonHistoryEntry,
   type PersonPrivacy,
   type Stewardships,
 } from '@/lib/tree';
@@ -65,6 +66,44 @@ function Section({ icon: Icon, title, hint, count, children }: { icon: typeof In
       <p className="-mt-2 text-xs text-slate-500 dark:text-white/50">{hint}</p>
       {children}
     </section>
+  );
+}
+
+/** F2-10 — collapsible audit trail of one person. */
+function HistoryToggle({ personId }: { personId: string }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<PersonHistoryEntry[] | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const toggle = async () => {
+    setOpen((o) => !o);
+    if (items || open) return;
+    try { setItems(await treeApi.getPersonHistory(personId)); } catch (e: any) { setFailed(e?.message || 'Gagal memuat riwayat'); }
+  };
+  return (
+    <div className="mt-2">
+      <button type="button" onClick={toggle} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">
+        <History size={12} /> {open ? 'Sembunyikan riwayat' : 'Riwayat'}
+      </button>
+      {open && (
+        <div className="mt-2 rounded-lg bg-slate-50 p-3 dark:bg-white/5">
+          {failed ? <p className="text-xs text-red-500">{failed}</p>
+            : !items ? <Loader2 size={14} className="animate-spin text-slate-400" />
+            : items.length === 0 ? <p className="text-xs text-slate-400 dark:text-white/40">Belum ada riwayat.</p>
+            : (
+              <ol className="space-y-1.5">
+                {items.map((h, i) => (
+                  <li key={i} className="text-xs text-slate-600 dark:text-white/70">
+                    <span className="text-slate-400 dark:text-white/40">{new Date(h.at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    {' · '}{h.text}
+                    {h.actor && <span className="text-slate-400 dark:text-white/40"> — {h.actor}</span>}
+                    {h.adminOverride && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">admin</span>}
+                  </li>
+                ))}
+              </ol>
+            )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -260,6 +299,7 @@ export default function FamilyRequestsPage() {
               disabled={acting === 'privacy:me'}
               onChange={(v) => act('privacy:me', () => treeApi.setPersonPrivacy(stewardships.me!.personId, v))}
             />
+            <HistoryToggle personId={stewardships.me.personId} />
           </div>
         ) : <Empty text="Buat pohon silsilah Anda dulu untuk mengatur privasi." />}
       </Section>
@@ -280,6 +320,7 @@ export default function FamilyRequestsPage() {
                   />
                 </div>
               )}
+              <HistoryToggle personId={p.id} />
               <div className="mt-2 flex flex-wrap gap-2">
                 {p.stewards.map((s) => (
                   <span key={s.userId} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700 dark:bg-white/10 dark:text-white/80">

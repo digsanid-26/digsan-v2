@@ -9,6 +9,7 @@ import { MergeService } from './merge.service';
 import { PermissionService } from './permission.service';
 import { ProposalService } from './proposal.service';
 import { RelationService } from './relation.service';
+import { HistoryService } from './history.service';
 
 class ProposeChangeDto {
   /** displayName, sex, vitalStatus, photo, birthDate, deathDate, birthPlace */
@@ -52,7 +53,14 @@ export class GenealogyController {
     private readonly permissions: PermissionService,
     private readonly proposals: ProposalService,
     private readonly relations: RelationService,
+    private readonly history: HistoryService,
   ) {}
+
+  @Get('persons/:personId/history')
+  @ApiOperation({ summary: "A person's audit trail: edits, proposals, merges, stewards, privacy, relation decisions (F2-10)" })
+  async personHistory(@CurrentUser('id') userId: string, @CurrentUser('roles') roles: string[] | undefined, @Param('personId') personId: string) {
+    return this.history.forPerson({ userId, roles: roles ?? [] }, personId);
+  }
 
   @Get('relations/pending')
   @ApiOperation({ summary: 'Relationships others drew that involve me and wait for my confirmation (F2-03)' })

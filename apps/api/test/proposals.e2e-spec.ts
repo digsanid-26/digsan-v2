@@ -160,6 +160,22 @@ describe('Change proposals (e2e)', () => {
     expect((await father()).displayName).toBe('Bapak Slamet Riyadi');
   });
 
+  it("history (F2-10): family sees who changed what; strangers don't", async () => {
+    await http().get(`/api/genealogy/persons/${fatherId}/history`).set(as('c')).expect(403);
+    const history = (await http().get(`/api/genealogy/persons/${fatherId}/history`).set(as('b')).expect(200)).body;
+    const texts = history.map((h: any) => h.text);
+    expect(texts).toEqual(expect.arrayContaining([
+      'Diubah (usulan disetujui): status hidup/wafat: hidup → wafat — diusulkan oleh Budi',
+      'Usulan dari Budi disetujui',
+      'Diubah (dari pohon): nama: Bapak Slamet → Bapak Slamet Riyadi',
+    ]));
+    const approved = history.find((h: any) => h.text === 'Usulan dari Budi disetujui');
+    expect(approved.actor).toBe('Adi');
+    // Newest first.
+    const times = history.map((h: any) => new Date(h.at).getTime());
+    expect([...times].sort((x, y) => y - x)).toEqual(times);
+  });
+
   it('API: strangers are denied; reject, withdraw, and stale proposals', async () => {
     await http().post(`/api/genealogy/persons/${fatherId}/proposals`).set(as('c')).send({ changes: { birthPlace: 'X' } }).expect(403);
 

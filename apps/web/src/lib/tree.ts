@@ -115,6 +115,15 @@ export interface PendingRelation {
 
 export type PersonPrivacy = 'PUBLIC' | 'FAMILY' | 'PRIVATE';
 
+export interface PersonHistoryEntry {
+  at: string;
+  kind: 'EDIT' | 'PROPOSAL' | 'MERGE' | 'STEWARD' | 'PRIVACY' | 'RELATION' | 'LINK';
+  actor: string | null;
+  text: string;
+  source: string;
+  adminOverride?: boolean;
+}
+
 export interface Stewardships {
   /** My own Person in the family graph (null before the graph knows me). */
   me: { personId: string; privacy: PersonPrivacy } | null;
@@ -374,6 +383,9 @@ export const treeApi = {
       method: 'POST',
       body: JSON.stringify({ userId }),
     }),
+
+  getPersonHistory: (personId: string) =>
+    authRequest<PersonHistoryEntry[]>(`/genealogy/persons/${encodeURIComponent(personId)}/history`),
 
   setPersonPrivacy: (personId: string, privacy: PersonPrivacy) =>
     authRequest<{ personId: string; privacy: PersonPrivacy }>(`/genealogy/persons/${encodeURIComponent(personId)}/privacy`, {
