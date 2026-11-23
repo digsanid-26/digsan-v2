@@ -45,6 +45,10 @@ export interface Member {
   claimedByUserId?: string | null;
   /** This circle is a person already recorded in the family by someone else (validated by the server). */
   graphPersonId?: string | null;
+  /** Public family page only: the circle belongs to an account (ids are never sent there). */
+  hasAccount?: boolean;
+  /** Public family page only: a private living person shown anonymously to non-family. */
+  private?: boolean;
   /** True when a super_user issued temporary early-access credentials here. */
   earlyAccess?: boolean;
   /** Username of the linked account — powers /id/{username}. */

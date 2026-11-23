@@ -118,6 +118,24 @@ export class ProposalService {
     return { status: 'PENDING' as const, id };
   }
 
+  /**
+   * F2-09 — who may see a living person's details outside the family. Only
+   * someone with DIRECT authority (the account itself, its guardian, or a
+   * steward) may change it; never through a proposal.
+   */
+  async setPrivacy(actor: { userId: string; roles: string[] }, personId: string, privacy: 'PUBLIC' | 'FAMILY' | 'PRIVATE') {
+    await this.permissions.assert(actor, 'person.edit', personId);
+    const person = await this.prisma.person.findUniqueOrThrow({ where: { id: personId }, select: { privacy: true } });
+    if (person.privacy === privacy) return { personId, privacy };
+    await this.prisma.$transaction([
+      this.prisma.person.update({ where: { id: personId }, data: { privacy, version: { increment: 1 } } }),
+      this.prisma.personRevision.create({
+        data: { personId, actorId: actor.userId, source: 'API', diff: { privacy: { from: person.privacy, to: privacy } } },
+      }),
+    ]);
+    return { personId, privacy };
+  }
+
   // ─── deciding ────────────────────────────────────────────────
 
   private async expireOld() {

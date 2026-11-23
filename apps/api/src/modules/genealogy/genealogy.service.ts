@@ -153,11 +153,11 @@ export class GenealogyService {
    * co-steward ("wali bersama").
    */
   async stewardships(userId: string) {
-    const ego = await this.prisma.person.findUnique({ where: { userId }, select: { id: true } });
+    const ego = await this.prisma.person.findUnique({ where: { userId }, select: { id: true, privacy: true } });
     const managed = await this.prisma.person.findMany({
       where: { stewards: { some: { userId } }, userId: null, mergedIntoId: null, isPlaceholder: false },
       select: {
-        id: true, displayName: true, photo: true, vitalStatus: true,
+        id: true, displayName: true, photo: true, vitalStatus: true, privacy: true,
         stewards: { select: { userId: true, role: true } },
       },
       orderBy: { displayName: 'asc' },
@@ -176,8 +176,9 @@ export class GenealogyService {
       })).map((u) => [u.id, u.name]),
     );
     return {
+      me: ego ? { personId: ego.id, privacy: ego.privacy } : null,
       persons: managed.map((p) => ({
-        id: p.id, displayName: p.displayName, photo: p.photo, deceased: p.vitalStatus === 'DECEASED',
+        id: p.id, displayName: p.displayName, photo: p.photo, deceased: p.vitalStatus === 'DECEASED', privacy: p.privacy,
         relation: relationTo(p.id),
         myRole: p.stewards.find((s) => s.userId === userId)?.role ?? null,
         stewards: p.stewards.map((s) => ({ userId: s.userId, name: names.get(s.userId) ?? null, role: s.role })),

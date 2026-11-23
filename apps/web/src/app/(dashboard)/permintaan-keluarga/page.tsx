@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, DoorOpen, GitMerge, Inbox, Link2, Loader2, PencilLine, Send, ShieldCheck, Undo2, Unlink, UserPlus, Users, X } from 'lucide-react';
+import { Check, DoorOpen, EyeOff, GitMerge, Inbox, Link2, Loader2, PencilLine, Send, ShieldCheck, Undo2, Unlink, UserPlus, Users, X } from 'lucide-react';
 import {
   treeApi,
   type ChangeProposal,
@@ -9,6 +9,7 @@ import {
   type MergeCandidate,
   type MyLink,
   type PendingRelation,
+  type PersonPrivacy,
   type Stewardships,
 } from '@/lib/tree';
 
@@ -20,6 +21,25 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Menunggu', APPROVED: 'Disetujui', REJECTED: 'Ditolak', WITHDRAWN: 'Ditarik', SUPERSEDED: 'Tidak berlaku', EXPIRED: 'Kedaluwarsa',
 };
 const ROLE_LABEL: Record<string, string> = { OWNER: 'Pemilik', PRIMARY: 'Pengelola utama', CO_STEWARD: 'Wali bersama', GUARDIAN: 'Wali' };
+const PRIVACY_OPTIONS: { value: PersonPrivacy; label: string }[] = [
+  { value: 'PUBLIC', label: 'Publik — nama & foto terlihat siapa pun yang membuka halaman keluarga' },
+  { value: 'FAMILY', label: 'Keluarga (bawaan) — kontak hanya untuk keluarga' },
+  { value: 'PRIVATE', label: 'Pribadi — di luar keluarga tampil sebagai "Anggota keluarga"' },
+];
+
+function PrivacySelect({ value, disabled, onChange }: { value: PersonPrivacy; disabled?: boolean; onChange: (v: PersonPrivacy) => void }) {
+  return (
+    <select
+      aria-label="Privasi"
+      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:text-white"
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value as PersonPrivacy)}
+    >
+      {PRIVACY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
 
 function fieldValue(field: string, v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
@@ -61,7 +81,7 @@ export default function FamilyRequestsPage() {
   const [outgoing, setOutgoing] = useState<ChangeProposal[]>([]);
   const [merges, setMerges] = useState<MergeCandidate[]>([]);
   const [links, setLinks] = useState<IncomingLinkRequest[]>([]);
-  const [stewardships, setStewardships] = useState<Stewardships>({ persons: [], familyAccounts: [] });
+  const [stewardships, setStewardships] = useState<Stewardships>({ me: null, persons: [], familyAccounts: [] });
   const [appoint, setAppoint] = useState<Record<string, string>>({});
   const [myLinks, setMyLinks] = useState<MyLink[]>([]);
 
@@ -73,7 +93,7 @@ export default function FamilyRequestsPage() {
       settle(treeApi.getProposals('outgoing'), []),
       settle(treeApi.getMergeCandidates(), []),
       settle(treeApi.getIncomingLinkRequests(), []),
-      settle(treeApi.getStewardships(), { persons: [], familyAccounts: [] }),
+      settle(treeApi.getStewardships(), { me: null, persons: [], familyAccounts: [] } as Stewardships),
       settle(treeApi.getMyLinks(), []),
     ]);
     setRelations(r); setIncoming(i); setOutgoing(o); setMerges(m); setLinks(l); setStewardships(s); setMyLinks(ml);
@@ -232,6 +252,18 @@ export default function FamilyRequestsPage() {
         ))}
       </Section>
 
+      <Section icon={EyeOff} title="Privasi saya" hint="Siapa yang boleh melihat data Anda di halaman keluarga. Email dan nomor telepon selalu hanya untuk keluarga.">
+        {stewardships.me ? (
+          <div className={card}>
+            <PrivacySelect
+              value={stewardships.me.privacy}
+              disabled={acting === 'privacy:me'}
+              onChange={(v) => act('privacy:me', () => treeApi.setPersonPrivacy(stewardships.me!.personId, v))}
+            />
+          </div>
+        ) : <Empty text="Buat pohon silsilah Anda dulu untuk mengatur privasi." />}
+      </Section>
+
       <Section icon={Users} title="Wali bersama" hint="Orang tanpa akun yang Anda kelola. Pengelola utama dapat menunjuk anggota keluarga ber-akun untuk ikut mengelola (mis. profil almarhum orang tua).">
         {stewardships.persons.length === 0 ? <Empty text="Anda belum mengelola data siapa pun." /> : stewardships.persons.map((p) => {
           const isPrimary = p.myRole === 'PRIMARY' || p.myRole === 'OWNER' || p.myRole === 'GUARDIAN';
@@ -239,6 +271,15 @@ export default function FamilyRequestsPage() {
           return (
             <div key={p.id} className={card}>
               <p className="font-medium text-slate-900 dark:text-white">{p.displayName}{p.deceased ? ' (alm.)' : ''} {p.relation && <span className="text-xs font-normal text-slate-500 dark:text-white/50">· {p.relation}</span>}</p>
+              {!p.deceased && (
+                <div className="mt-2">
+                  <PrivacySelect
+                    value={p.privacy}
+                    disabled={acting === `privacy:${p.id}`}
+                    onChange={(v) => act(`privacy:${p.id}`, () => treeApi.setPersonPrivacy(p.id, v))}
+                  />
+                </div>
+              )}
               <div className="mt-2 flex flex-wrap gap-2">
                 {p.stewards.map((s) => (
                   <span key={s.userId} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700 dark:bg-white/10 dark:text-white/80">

@@ -141,7 +141,9 @@ describe('Authority matrix (e2e)', () => {
     expect(father).toMatchObject({ displayName: 'Bapak Slamet', relation: 'Ayah', myRole: 'PRIMARY' });
     expect(res.familyAccounts).toEqual([expect.objectContaining({ userId: users.b.id, name: 'Budi', relation: 'Adik kandung' })]);
     // A stranger manages nobody and sees no one to appoint.
-    expect((await http().get('/api/genealogy/me/stewardships').set(as('c')).expect(200)).body).toEqual({ persons: [], familyAccounts: [] });
+    expect((await http().get('/api/genealogy/me/stewardships').set(as('c')).expect(200)).body).toMatchObject({
+      me: { privacy: 'FAMILY' }, persons: [], familyAccounts: [],
+    });
   });
 
   it('stewards may not be added to a person who has their own account', async () => {

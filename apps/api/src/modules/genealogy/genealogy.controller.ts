@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { IsBoolean, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -24,6 +24,11 @@ class ProposeChangeDto {
 class MergeDecisionDto {
   @IsBoolean()
   approve!: boolean;
+}
+
+class PrivacyDto {
+  @IsIn(['PUBLIC', 'FAMILY', 'PRIVATE'])
+  privacy!: 'PUBLIC' | 'FAMILY' | 'PRIVATE';
 }
 
 class AddStewardDto {
@@ -77,6 +82,17 @@ export class GenealogyController {
     @Body() dto: ProposeChangeDto,
   ) {
     return this.proposals.submit({ userId, roles: roles ?? [] }, personId, dto.changes, dto.note);
+  }
+
+  @Patch('persons/:personId/privacy')
+  @ApiOperation({ summary: 'Set who may see a person outside the family: PUBLIC | FAMILY | PRIVATE (F2-09)' })
+  async setPrivacy(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('roles') roles: string[] | undefined,
+    @Param('personId') personId: string,
+    @Body() dto: PrivacyDto,
+  ) {
+    return this.proposals.setPrivacy({ userId, roles: roles ?? [] }, personId, dto.privacy);
   }
 
   @Get('proposals')

@@ -1226,11 +1226,11 @@ export default function PublicFamilyPage() {
   // Resolve member info for the selected node
   const selectedMember = selectedNode ? members[memberKeyFor(selectedNode.id)] : null;
   const selectedResolved = selectedNode ? resolve(selectedNode.id, selectedNode.name) : null;
-  const isVerifiedNode = selectedNode && selectedNode.id !== 'self' && (selectedMember?.verified || selectedMember?.linkedUserId);
+  const isVerifiedNode = selectedNode && selectedNode.id !== 'self' && (selectedMember?.verified || selectedMember?.hasAccount);
   const isSelfNode = selectedNode?.id === 'self';
   // A node the super_user issued temporary credentials for — they may sign in
   // as this person to complete their profile.
-  const isEarlyAccessNode = !!(selectedMember?.earlyAccess && selectedMember?.linkedUserId);
+  const isEarlyAccessNode = !!(selectedMember?.earlyAccess && selectedMember?.hasAccount);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#05050f' }}>

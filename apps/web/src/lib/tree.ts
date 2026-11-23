@@ -113,12 +113,17 @@ export interface PendingRelation {
   createdAt: string;
 }
 
+export type PersonPrivacy = 'PUBLIC' | 'FAMILY' | 'PRIVATE';
+
 export interface Stewardships {
+  /** My own Person in the family graph (null before the graph knows me). */
+  me: { personId: string; privacy: PersonPrivacy } | null;
   persons: {
     id: string;
     displayName: string;
     photo: string | null;
     deceased: boolean;
+    privacy: PersonPrivacy;
     relation: string | null;
     myRole: 'OWNER' | 'PRIMARY' | 'CO_STEWARD' | 'GUARDIAN' | null;
     stewards: { userId: string; name: string | null; role: string }[];
@@ -370,6 +375,12 @@ export const treeApi = {
       body: JSON.stringify({ userId }),
     }),
 
+  setPersonPrivacy: (personId: string, privacy: PersonPrivacy) =>
+    authRequest<{ personId: string; privacy: PersonPrivacy }>(`/genealogy/persons/${encodeURIComponent(personId)}/privacy`, {
+      method: 'PATCH',
+      body: JSON.stringify({ privacy }),
+    }),
+
   removeCoSteward: (personId: string, userId: string) =>
     authRequest<unknown>(`/genealogy/persons/${encodeURIComponent(personId)}/stewards/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
 
@@ -555,6 +566,8 @@ export interface TreeInvitation {
 
 export interface PublicFamily<C = unknown, M = unknown> {
   slug: string | null;
+  /** The viewer counts as family of this page (sees contacts and private relatives). */
+  viewerIsFamily?: boolean;
   name: string;
   description: string | null;
   coverImage: string | null;

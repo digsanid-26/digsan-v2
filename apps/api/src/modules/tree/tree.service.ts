@@ -24,6 +24,7 @@ import { GamificationService } from '../gamification/gamification.service';
 import { GraphSyncService } from '../genealogy/graph-sync.service';
 import { GenealogyService } from '../genealogy/genealogy.service';
 import { decide as decidePermission } from '../genealogy/permissions.util';
+import { filterMembersForViewer, filterProfileForViewer, type NodePrivacy } from './public-privacy.util';
 import {
   ANCESTRY_KEY_RE,
   buildConnectedLayout,
@@ -1741,7 +1742,28 @@ export class TreeService {
   }
 
   /** Public family page data resolved by tree slug. */
-  async getPublicFamily(slug: string) {
+  /**
+   * F2-09 — family of a page: its owner, anyone drawn in it, and relatives
+   * in the owner's family graph (when the graph exists).
+   */
+  private async isFamilyViewer(tree: { userId: string; layoutMembers: unknown }, viewerId: string | null | undefined): Promise<boolean> {
+    if (!viewerId) return false;
+    if (viewerId === tree.userId) return true;
+    const layout = (tree.layoutMembers as LayoutMembers) ?? {};
+    if (Object.values(layout).some((m) => m?.linkedUserId === viewerId || m?.claimedByUserId === viewerId)) return true;
+    const viewer = await this.prisma.person.findUnique({ where: { userId: viewerId }, select: { id: true } });
+    return !!viewer && (await this.genealogy.scopeOf(tree.userId)).has(viewer.id);
+  }
+
+  /** F2-09 — privacy of each circle, from its canonical Person (graph). */
+  private async nodePrivacy(treeId: string): Promise<Map<string, NodePrivacy>> {
+    const maps = await this.prisma.legacyNodeMap.findMany({
+      where: { treeId }, select: { nodeKey: true, person: { select: { privacy: true, vitalStatus: true } } },
+    });
+    return new Map(maps.map((m) => [m.nodeKey, { privacy: m.person.privacy, living: m.person.vitalStatus !== 'DECEASED' }]));
+  }
+
+  async getPublicFamily(slug: string, opts: { viewerId?: string | null } = {}) {
     let tree = await this.prisma.familyTree.findUnique({
       where: { slug },
       include: { user: { select: { name: true, username: true, avatar: true, bio: true } } },
@@ -1760,8 +1782,11 @@ export class TreeService {
     // the admin endpoint POST /trees/recover-slugs, not on page view.
     if (!tree) throw new NotFoundException('Keluarga tidak ditemukan');
     const mainFamilyName = (tree.layoutConfig as any)?.mainFamilyName as string | undefined;
-    const members = await this.hydrateLinkedFamilyConfigs(tree.layoutMembers, tree.id, tree.userId);
+    const hydrated = await this.hydrateLinkedFamilyConfigs(tree.layoutMembers, tree.id, tree.userId);
+    const [viewerIsFamily, privacy] = await Promise.all([this.isFamilyViewer(tree, opts.viewerId), this.nodePrivacy(tree.id)]);
+    const members = filterMembersForViewer(hydrated, { viewerIsFamily, privacyOf: (id) => privacy.get(id) });
     return {
+      viewerIsFamily,
       slug: tree.slug,
       name: mainFamilyName?.trim() || tree.user?.name || tree.name,
       description: tree.description,
@@ -1980,7 +2005,7 @@ export class TreeService {
   }
 
   /** Public personal-profile page resolved by tree slug + username. */
-  async getPublicProfile(slug: string, username: string) {
+  async getPublicProfile(slug: string, username: string, opts: { viewerId?: string | null } = {}) {
     let tree = await this.prisma.familyTree.findUnique({
       where: { slug },
       select: { id: true, slug: true, name: true, layoutConfig: true, userId: true },
@@ -2009,9 +2034,12 @@ export class TreeService {
     const node = nodeId && members ? members[nodeId] ?? null : null;
     if (!isOwner && !node) throw new NotFoundException('Profil tidak ditemukan di keluarga ini');
 
+    // F2-09 — the person viewing their own profile, and family, see everything.
+    const viewerIsFamily = opts.viewerId === user.id || await this.isFamilyViewer({ userId: tree.userId, layoutMembers: members }, opts.viewerId);
+    const person = await this.prisma.person.findUnique({ where: { userId: user.id }, select: { privacy: true, vitalStatus: true } });
     return {
       family: { slug: tree.slug, name: (tree.layoutConfig as any)?.mainFamilyName || tree.name },
-      profile: {
+      profile: filterProfileForViewer({
         name: node?.publicName || user.name,
         username: user.username,
         avatar: user.avatar || node?.photo || null,
@@ -2028,12 +2056,12 @@ export class TreeService {
         education: user.education,
         occupation: user.occupation,
         hobbies: user.hobbies,
-      },
+      }, { viewerIsFamily, privacy: person ? { privacy: person.privacy, living: person.vitalStatus !== 'DECEASED' } : undefined }),
     };
   }
 
   /** Public personal-profile page resolved by username only (no family slug needed). */
-  async getPublicProfileByUsername(username: string) {
+  async getPublicProfileByUsername(username: string, opts: { viewerId?: string | null } = {}) {
     const user = await this.prisma.user.findUnique({
       where: { username },
       select: { id: true, name: true, username: true, avatar: true, bio: true, status: true, createdAt: true, birthDate: true, birthPlace: true, education: true, occupation: true, hobbies: true },
@@ -2073,9 +2101,11 @@ export class TreeService {
 
     if (!tree) throw new NotFoundException('Profil tidak ditemukan di keluarga mana pun');
 
+    const viewerIsFamily = opts.viewerId === user.id || await this.isFamilyViewer(tree, opts.viewerId);
+    const person = await this.prisma.person.findUnique({ where: { userId: user.id }, select: { privacy: true, vitalStatus: true } });
     return {
       family: { slug: tree.slug, name: (tree.layoutConfig as any)?.mainFamilyName || tree.name },
-      profile: {
+      profile: filterProfileForViewer({
         name: node?.publicName || user.name,
         username: user.username,
         avatar: user.avatar || node?.photo || null,
@@ -2092,7 +2122,7 @@ export class TreeService {
         education: user.education,
         occupation: user.occupation,
         hobbies: user.hobbies,
-      },
+      }, { viewerIsFamily, privacy: person ? { privacy: person.privacy, living: person.vitalStatus !== 'DECEASED' } : undefined }),
     };
   }
 

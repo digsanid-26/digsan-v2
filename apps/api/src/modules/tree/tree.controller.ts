@@ -539,15 +539,15 @@ export class PublicFamilyController {
     @Query('t') token: string | undefined,
     @Req() req: any,
   ) {
+    const userId = this.extractUserId(req);
+    if (userId) {
+      // Logged-in users can view any profile; family sees more (F2-09)
+      return this.treeService.getPublicProfileByUsername(username, { viewerId: userId });
+    }
     if (token) {
       // Token validation still checks slug+username, but we don't have slug here.
       // The token's slug is used only for validation, not for resolution.
-      const record = await this.treeService.validatePublicLinkTokenByUsername(token, username);
-      return this.treeService.getPublicProfileByUsername(username);
-    }
-    const userId = this.extractUserId(req);
-    if (userId) {
-      // Logged-in users can view any profile
+      await this.treeService.validatePublicLinkTokenByUsername(token, username);
       return this.treeService.getPublicProfileByUsername(username);
     }
     throw new ForbiddenException('Akses memerlukan token link yang valid atau login.');
@@ -560,15 +560,15 @@ export class PublicFamilyController {
     @Query('t') token: string | undefined,
     @Req() req: any,
   ) {
-    // Anonymous visitors still need a valid share link.
+    // Any logged-in member may browse any family page. What they actually see
+    // depends on whether they are family of it (F2-09: contacts, private people).
+    const userId = this.extractUserId(req);
+    if (userId) return this.treeService.getPublicFamily(slug, { viewerId: userId });
+    // Anonymous visitors need a valid share link and are never treated as family.
     if (token) {
       await this.treeService.validatePublicLinkToken(token, slug);
       return this.treeService.getPublicFamily(slug);
     }
-    // Any logged-in member may browse any family page. What they actually see
-    // is narrowed later by per-field visibility settings, not by this gate.
-    const userId = this.extractUserId(req);
-    if (userId) return this.treeService.getPublicFamily(slug);
 
     throw new ForbiddenException('Akses memerlukan token link yang valid atau login terlebih dahulu.');
   }
@@ -581,12 +581,12 @@ export class PublicFamilyController {
     @Query('t') token: string | undefined,
     @Req() req: any,
   ) {
+    const userId = this.extractUserId(req);
+    if (userId) return this.treeService.getPublicProfile(slug, username, { viewerId: userId });
     if (token) {
       await this.treeService.validatePublicLinkToken(token, slug, username);
       return this.treeService.getPublicProfile(slug, username);
     }
-    const userId = this.extractUserId(req);
-    if (userId) return this.treeService.getPublicProfile(slug, username);
 
     throw new ForbiddenException('Akses memerlukan token link yang valid atau login terlebih dahulu.');
   }
